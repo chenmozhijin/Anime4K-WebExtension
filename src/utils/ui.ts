@@ -1,4 +1,3 @@
-import { getMessage } from './i18n';
 import { ANIME4K_BUTTON_CLASS } from '../constants';
 
 /**
@@ -7,7 +6,7 @@ import { ANIME4K_BUTTON_CLASS } from '../constants';
  */
 export function createEnhanceButton(): HTMLButtonElement {
   const button = document.createElement('button');
-  button.innerText = getMessage('enhanceButton');
+  button.innerText = chrome.i18n.getMessage('enhanceButton');
   button.classList.add(ANIME4K_BUTTON_CLASS);
   Object.assign(button.style, {
     position: 'absolute',
