@@ -1,0 +1,107 @@
+{
+  "enhanceButton": {
+    "message": "✨ 超解像"
+  },
+  "enhancing": {
+    "message": "⏳ 起動中..."
+  },
+  "cancelEnhance": {
+    "message": "❌ キャンセル"
+  },
+  "retryEnhance": {
+    "message": "🔄 超解像を再試行"
+  },
+  "extensionName": {
+    "message": "Anime4K超解像設定"
+  },
+  "enhancementModeLabel": {
+    "message": "デフォルト拡張モード："
+  },
+  "resolutionLabel": {
+    "message": "目標解像度："
+  },
+  "saveAndApply": {
+    "message": "超解像設定を保存して適用"
+  },
+  "nativeResolution": {
+    "message": "オリジナル解像度 (超解像なし)"
+  },
+  "enhanceError": {
+    "message": "超解像に失敗しました、再試行してください",
+    "description": "超解像失敗エラーメッセージ"
+  },
+  "closeButton": {
+    "message": "閉じる",
+    "description": "閉じるボタンテキスト"
+  },
+  "renderError": {
+    "message": "動画レンダリングに失敗しました、再試行してください",
+    "description": "レンダリング失敗エラーメッセージ"
+  },
+  "whitelistEnable": {
+    "message": "ホワイトリストを有効化"
+  },
+  "addCurrentPage": {
+    "message": "現在のページを追加"
+  },
+  "addCurrentDomain": {
+    "message": "現在のドメインを追加"
+  },
+  "addParentPath": {
+    "message": "親パスを追加"
+  },
+  "manageWhitelist": {
+    "message": "ホワイトリスト管理"
+  },
+  "pageAdded": {
+    "message": "ページがホワイトリストに追加されました"
+  },
+  "domainAdded": {
+    "message": "ドメインがホワイトリストに追加されました"
+  },
+  "parentPathAdded": {
+    "message": "親パスがホワイトリストに追加されました"
+  },
+  "whitelistManagement": {
+    "message": "ホワイトリスト管理"
+  },
+  "addRule": {
+    "message": "ルールを追加"
+  },
+  "pattern": {
+    "message": "パターン"
+  },
+  "enabled": {
+    "message": "有効"
+  },
+  "actions": {
+    "message": "操作"
+  },
+  "import": {
+    "message": "インポート"
+  },
+  "export": {
+    "message": "エクスポート"
+  },
+  "importExport": {
+    "message": "インポート/エクスポート"
+  },
+  "doImport": {
+    "message": "データをインポート"
+  },
+  "doExport": {
+    "message": "データをエクスポート"
+  },
+  "invalidPattern": {
+    "message": "無効なパターン形式"
+  },
+  "delete": {
+    "message": "削除"
+  },
+  "importSuccess": {
+    "message": "インポート成功"
+  },
+  "importError": {
+    "message": "インポート失敗：形式が無効です"
+  }
+}

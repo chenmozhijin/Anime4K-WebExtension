@@ -1,0 +1,107 @@
+{
+  "enhanceButton": {
+    "message": "✨ 超解析"
+  },
+  "enhancing": {
+    "message": "⏳ 啟動中..."
+  },
+  "cancelEnhance": {
+    "message": "❌ 取消"
+  },
+  "retryEnhance": {
+    "message": "🔄 重試超解析"
+  },
+  "extensionName": {
+    "message": "Anime4K超解析設定"
+  },
+  "enhancementModeLabel": {
+    "message": "預設增強模式："
+  },
+  "resolutionLabel": {
+    "message": "目標解析度："
+  },
+  "saveAndApply": {
+    "message": "儲存並套用超解析設定"
+  },
+  "nativeResolution": {
+    "message": "原始解析度 (不超解析)"
+  },
+  "enhanceError": {
+    "message": "超解析失敗，請重試",
+    "description": "超解析失敗錯誤訊息"
+  },
+  "closeButton": {
+    "message": "關閉",
+    "description": "關閉按鈕文字"
+  },
+  "renderError": {
+    "message": "影片渲染失敗，請重試",
+    "description": "渲染失敗錯誤訊息"
+  },
+  "whitelistEnable": {
+    "message": "啟用白名單"
+  },
+  "addCurrentPage": {
+    "message": "加入目前頁面"
+  },
+  "addCurrentDomain": {
+    "message": "加入目前網域"
+  },
+  "addParentPath": {
+    "message": "加入父路徑"
+  },
+  "manageWhitelist": {
+    "message": "管理白名單"
+  },
+  "pageAdded": {
+    "message": "頁面已加入白名單"
+  },
+  "domainAdded": {
+    "message": "網域已加入白名單"
+  },
+  "parentPathAdded": {
+    "message": "父路徑已加入白名單"
+  },
+  "whitelistManagement": {
+    "message": "白名單管理"
+  },
+  "addRule": {
+    "message": "加入規則"
+  },
+  "pattern": {
+    "message": "模式"
+  },
+  "enabled": {
+    "message": "啟用"
+  },
+  "actions": {
+    "message": "操作"
+  },
+  "import": {
+    "message": "匯入"
+  },
+  "export": {
+    "message": "匯出"
+  },
+  "importExport": {
+    "message": "匯入/匯出"
+  },
+  "doImport": {
+    "message": "匯入資料"
+  },
+  "doExport": {
+    "message": "匯出資料"
+  },
+  "invalidPattern": {
+    "message": "無效的模式格式"
+  },
+  "delete": {
+    "message": "刪除"
+  },
+  "importSuccess": {
+    "message": "匯入成功"
+  },
+  "importError": {
+    "message": "匯入失敗：格式無效"
+  }
+}
