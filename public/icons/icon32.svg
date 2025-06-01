@@ -1,0 +1,21 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="screenGradient32" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#2A4A8E"/>
+            <stop offset="100%" style="stop-color:#1C2E57"/>
+        </linearGradient>
+        <linearGradient id="starGradient32" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#FFD700"/>
+            <stop offset="100%" style="stop-color:#FFFACD"/>
+        </linearGradient>
+        <path id="starShape32" d="M0,-1.75 L0.4375,-0.4375 L1.75,0 L0.4375,0.4375 L0,1.75 L-0.4375,0.4375 L-1.75,0 L-0.4375,-0.4375 Z" />
+    </defs>
+
+    <rect x="3" y="7" width="26" height="18" rx="1.5" ry="1.5" fill="url(#screenGradient32)" stroke="#4A6AA0" stroke-width="0.5"/>
+
+    <path d="M 13.5 11.5 C 13 11.5, 12.75 11.75, 12.75 12.25 L 12.75 18.25 C 12.75 18.75, 13 19, 13.5 19 L 19.25 16 C 19.75 15.75, 19.75 14.75, 19.25 14.5 L 13.5 11.5 Z" fill="#FFFFFF"/>
+
+    <use href="#starShape32" fill="url(#starGradient32)" transform="translate(28 5.75) scale(1.6) rotate(15)"/>
+    <use href="#starShape32" fill="url(#starGradient32)" transform="translate(30 9) scale(1.1) rotate(-10)"/>
+    <use href="#starShape32" fill="url(#starGradient32)" transform="translate(25.75 10) scale(0.8) rotate(5)"/>
+</svg>

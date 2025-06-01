@@ -1,0 +1,107 @@
+{
+ "enhanceButton": {
+    "message": "✨ 超分"
+  },
+  "enhancing": {
+    "message": "⏳ 启动中..."
+  },
+  "cancelEnhance": {
+    "message": "❌ 取消"
+  },
+  "retryEnhance": {
+    "message": "🔄 重试超分"
+  },
+  "extensionName": {
+    "message": "Anime4K超分辨率设置"
+  },
+  "enhancementModeLabel": {
+    "message": "默认增强模式："
+  },
+  "resolutionLabel": {
+    "message": "目标分辨率："
+  },
+  "saveAndApply": {
+    "message": "保存并应用超分辨率设置"
+  },
+  "nativeResolution": {
+    "message": "原始分辨率 (不超分)"
+  },
+  "enhanceError": {
+    "message": "超分失败，请重试",
+    "description": "超分失败错误消息"
+  },
+  "closeButton": {
+    "message": "关闭",
+    "description": "关闭按钮文本"
+  },
+  "renderError": {
+    "message": "视频渲染失败，请重试",
+    "description": "渲染失败错误消息"
+  },
+  "whitelistEnable": {
+    "message": "启用白名单"
+  },
+  "addCurrentPage": {
+    "message": "添加当前页面"
+  },
+  "addCurrentDomain": {
+    "message": "添加当前域名"
+  },
+  "addParentPath": {
+    "message": "添加父路径"
+  },
+  "manageWhitelist": {
+    "message": "管理白名单"
+  },
+  "pageAdded": {
+    "message": "页面已添加到白名单"
+  },
+  "domainAdded": {
+    "message": "域名已添加到白名单"
+  },
+  "parentPathAdded": {
+    "message": "父路径已添加到白名单"
+  },
+  "whitelistManagement": {
+    "message": "白名单管理"
+  },
+  "addRule": {
+    "message": "添加规则"
+  },
+  "pattern": {
+    "message": "模式"
+  },
+  "enabled": {
+    "message": "启用"
+  },
+  "actions": {
+    "message": "操作"
+  },
+  "import": {
+    "message": "导入"
+  },
+  "export": {
+    "message": "导出"
+  },
+  "importExport": {
+    "message": "导入/导出"
+  },
+  "doImport": {
+    "message": "导入数据"
+  },
+  "doExport": {
+    "message": "导出数据"
+  },
+  "invalidPattern": {
+    "message": "无效的模式格式"
+  },
+  "delete": {
+    "message": "删除"
+  },
+  "importSuccess": {
+    "message": "导入成功"
+  },
+  "importError": {
+    "message": "导入失败：格式无效"
+  }
+}

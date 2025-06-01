@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="__MSG_@@ui_locale__">
+<head>
+  <title data-i18n="extensionName"></title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <h3 data-i18n="extensionName"></h3>
+    </div>
+    
+    <div class="card-body">
+      <div class="setting-group">
+        <label id="mode-label" for="mode-select" data-i18n="enhancementModeLabel">Enhancement Mode</label>
+        <select id="mode-select" aria-labelledby="mode-label">
+          <option value="ModeA">Mode A</option>
+          <option value="ModeB">Mode B</option>
+          <option value="ModeC">Mode C</option>
+          <option value="ModeAA">Mode A+A</option>
+          <option value="ModeBB">Mode B+B</option>
+          <option value="ModeCA">Mode C+A</option>
+        </select>
+      </div>
+      
+      <div class="setting-group">
+        <label id="resolution-label" for="resolution-select" data-i18n="resolutionLabel">Resolution</label>
+        <select id="resolution-select" aria-labelledby="resolution-label">
+          <option value="x2">x2</option>
+          <option value="x4">x4</option>
+          <option value="x8">x8</option>
+          <option value="720p">720p</option>
+          <option value="1080p">1080p</option>
+          <option value="2k">2K (1440p)</option>
+          <option value="4k">4K (2160p)</option>
+          <option value="native" data-i18n="nativeResolution">Native</option>
+        </select>
+      </div>
+      
+      <button id="save-settings" data-i18n="saveAndApply">Save and apply SR settings</button>
+      
+      <div class="whitelist-section">
+        <div class="whitelist-toggle">
+          <label for="whitelist-toggle" data-i18n="whitelistEnable">Enable Whitelist</label>
+          <label class="switch">
+            <input type="checkbox" id="whitelist-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        
+        <div class="whitelist-buttons">
+          <button id="add-current-page" data-i18n="addCurrentPage">Add Current URL</button>
+          <button id="add-current-domain" data-i18n="addCurrentDomain">Add Current Domain</button>
+          <button id="add-parent-path" data-i18n="addParentPath">Add Parent Path</button>
+          <button id="manage-whitelist" data-i18n="manageWhitelist">Manage Whitelist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <footer id="extension-footer">
+    <a href="https://github.com/chenmozhijin/Anime4K-WebExtension" target="_blank" rel="noopener">Anime4K WebExtension</a>
+    <span> • </span>
+    <span id="version-info"></span>
+  </footer>
+
+</body>
+</html>

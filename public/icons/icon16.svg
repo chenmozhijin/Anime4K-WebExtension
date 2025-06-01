@@ -1,0 +1,25 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="screenGradient16" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#2A4A8E"/>
+            <stop offset="100%" style="stop-color:#1C2E57"/>
+        </linearGradient>
+        <linearGradient id="starGradient16" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#FFD700"/>
+            <stop offset="100%" style="stop-color:#FFFACD"/>
+        </linearGradient>
+        <!-- Star shape for 16px, points will be very close -->
+        <path id="starShape16" d="M0,-0.875 L0.219,-0.219 L0.875,0 L0.219,0.219 L0,0.875 L-0.219,0.219 L-0.875,0 L-0.219,-0.219 Z" />
+    </defs>
+
+    <!-- Screen. stroke-width might be too thin, 0.5px is a common minimum. -->
+    <rect x="1.5" y="3.5" width="13" height="9" rx="0.75" ry="0.75" fill="url(#screenGradient16)" stroke="#4A6AA0" stroke-width="0.5"/>
+
+    <!-- Play Button. Coordinates rounded to 2-3 decimal places for precision. -->
+    <path d="M 6.75 5.75 C 6.5 5.75, 6.375 5.875, 6.375 6.125 L 6.375 9.125 C 6.375 9.375, 6.5 9.5, 6.75 9.5 L 9.625 8 C 9.875 7.875, 9.875 7.375, 9.625 7.25 L 6.75 5.75 Z" fill="#FFFFFF"/>
+
+    <!-- Magic Stars. These will be very small. -->
+    <use href="#starShape16" fill="url(#starGradient16)" transform="translate(14 2.875) scale(1.6) rotate(15)"/>
+    <use href="#starShape16" fill="url(#starGradient16)" transform="translate(15 4.5) scale(1.1) rotate(-10)"/>
+    <use href="#starShape16" fill="url(#starGradient16)" transform="translate(12.875 5) scale(0.8) rotate(5)"/>
+</svg>

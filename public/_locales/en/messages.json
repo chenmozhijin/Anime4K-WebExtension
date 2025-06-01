@@ -1,0 +1,107 @@
+{
+  "enhanceButton": {
+    "message": "✨ Enhance"
+  },
+  "enhancing": {
+    "message": "⏳ Starting..."
+  },
+  "cancelEnhance": {
+    "message": "❌ Cancel"
+  },
+  "retryEnhance": {
+    "message": "🔄 Retry Enhancement"
+  },
+  "extensionName": {
+    "message": "Anime4K Enhancement Settings"
+  },
+  "enhancementModeLabel": {
+    "message": "Default Enhancement Mode:"
+  },
+  "resolutionLabel": {
+    "message": "Target Resolution:"
+  },
+  "saveAndApply": {
+    "message": "Save and Apply Enhancement Settings"
+  },
+  "nativeResolution": {
+    "message": "Native Resolution (No Enhancement)"
+  },
+  "enhanceError": {
+    "message": "Enhancement failed, please try again",
+    "description": "Error message for enhancement failure"
+  },
+  "closeButton": {
+    "message": "Close",
+    "description": "Close button text"
+  },
+  "renderError": {
+    "message": "Video rendering failed, please try again",
+    "description": "Error message for rendering failure"
+  },
+  "whitelistEnable": {
+    "message": "Enable Whitelist"
+  },
+  "addCurrentPage": {
+    "message": "Add Current Page"
+  },
+  "addCurrentDomain": {
+    "message": "Add Current Domain"
+  },
+  "addParentPath": {
+    "message": "Add Parent Path"
+  },
+  "manageWhitelist": {
+    "message": "Manage Whitelist"
+  },
+  "pageAdded": {
+    "message": "Page added to whitelist"
+  },
+  "domainAdded": {
+    "message": "Domain added to whitelist"
+  },
+  "parentPathAdded": {
+    "message": "Parent path added to whitelist"
+  },
+  "whitelistManagement": {
+    "message": "Whitelist Management"
+  },
+  "addRule": {
+    "message": "Add Rule"
+  },
+  "pattern": {
+    "message": "Pattern"
+  },
+  "enabled": {
+    "message": "Enabled"
+  },
+  "actions": {
+    "message": "Actions"
+  },
+  "import": {
+    "message": "Import"
+  },
+  "export": {
+    "message": "Export"
+  },
+  "importExport": {
+    "message": "Import/Export"
+  },
+  "doImport": {
+    "message": "Import Data"
+  },
+  "doExport": {
+    "message": "Export Data"
+  },
+  "invalidPattern": {
+    "message": "Invalid pattern format"
+  },
+  "delete": {
+    "message": "Delete"
+  },
+  "importSuccess": {
+    "message": "Import successful"
+  },
+  "importError": {
+    "message": "Import failed: invalid format"
+  }
+}

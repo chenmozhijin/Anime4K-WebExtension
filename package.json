@@ -1,0 +1,26 @@
+{
+  "name": "anime4k-webextension",
+  "version": "0.1.0",
+  "description": "Real-time video super-resolution browser extension based on Anime4K.",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development",
+    "watch": "webpack --mode development --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.5.4",
+    "mini-css-extract-plugin": "^2.9.2",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.90.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-extension-manifest-plugin": "^0.8.0"
+  },
+  "dependencies": {
+    "anime4k-webgpu": "^1.0.0"
+  }
+}

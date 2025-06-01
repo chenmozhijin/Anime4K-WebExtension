@@ -1,0 +1,21 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="screenGradient48" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#2A4A8E"/>
+            <stop offset="100%" style="stop-color:#1C2E57"/>
+        </linearGradient>
+        <linearGradient id="starGradient48" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#FFD700"/>
+            <stop offset="100%" style="stop-color:#FFFACD"/>
+        </linearGradient>
+        <path id="starShape48" d="M0,-2.625 L0.656,-0.656 L2.625,0 L0.656,0.656 L0,2.625 L-0.656,0.656 L-2.625,0 L-0.656,-0.656 Z" />
+    </defs>
+
+    <rect x="4.5" y="10.5" width="39" height="27" rx="2.25" ry="2.25" fill="url(#screenGradient48)" stroke="#4A6AA0" stroke-width="0.75"/>
+
+    <path d="M 20.25 17.25 C 19.5 17.25, 19.125 17.625, 19.125 18.375 L 19.125 27.375 C 19.125 28.125, 19.5 28.5, 20.25 28.5 L 28.875 24 C 29.625 23.625, 29.625 22.125, 28.875 21.75 L 20.25 17.25 Z" fill="#FFFFFF"/>
+
+    <use href="#starShape48" fill="url(#starGradient48)" transform="translate(42 8.625) scale(1.6) rotate(15)"/>
+    <use href="#starShape48" fill="url(#starGradient48)" transform="translate(45 13.5) scale(1.1) rotate(-10)"/>
+    <use href="#starShape48" fill="url(#starGradient48)" transform="translate(38.625 15) scale(0.8) rotate(5)"/>
+</svg>

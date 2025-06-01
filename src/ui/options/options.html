@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="__MSG_@@ui_locale__">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="whitelistManagement">Whitelist Management</title>
+</head>
+<body>
+  <div class="header">
+    <h1 data-i18n="whitelistManagement">Whitelist Management</h1>
+  </div>
+  
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title" data-i18n="rules">Rules</h2>
+      <div class="btn-group">
+        <button id="add-rule" class="btn btn-primary" data-i18n="addRule">Add Rule</button>
+        <button id="import-btn" class="btn btn-outline" data-i18n="import">Import</button>
+        <button id="export-btn" class="btn btn-outline" data-i18n="export">Export</button>
+      </div>
+    </div>
+    
+    <div class="table-container">
+      <table class="whitelist-table">
+        <thead>
+          <tr>
+            <th data-i18n="pattern">Pattern</th>
+            <th data-i18n="enabled">Enabled</th>
+            <th data-i18n="actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rules-container">
+          <!-- 规则将动态添加到这里 -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <div class="card import-export">
+    <h2 class="section-title" data-i18n="importExport">Import/Export</h2>
+    <textarea id="import-export-data" placeholder="Paste JSON data here for import..."></textarea>
+    <div class="btn-group">
+      <button id="do-import" class="btn btn-primary" data-i18n="doImport">Import Data</button>
+      <button id="do-export" class="btn btn-outline" data-i18n="doExport">Export Data</button>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p>Anime4K WebExtension</p>
+  </div>
+
+</body>
+</html>
