@@ -6,42 +6,6 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ExtensionManifestPlugin = require('webpack-extension-manifest-plugin');
 const packageJson = require('./package.json');
 
-const baseManifest = {
-  manifest_version: 3,
-  name: "Anime4K WebExtension",
-  version: packageJson.version,
-  description: packageJson.description,
-  action: {
-    default_popup: 'popup.html',
-    default_icon: {
-      '16': 'icons/icon16.png',
-      '32': 'icons/icon32.png',
-      '48': 'icons/icon48.png',
-      '128': 'icons/icon128.png'
-    }
-  },
-  options_page: 'options.html',
-  background: {
-    service_worker: 'background.js'
-  },
-  content_scripts: [
-    {
-      matches: ['<all_urls>'],
-      js: ['content.js'],
-      run_at: 'document_idle'
-    }
-  ],
-  permissions: ['storage', 'activeTab'],
-  host_permissions: ['<all_urls>'],
-  default_locale: "en",
-  icons: {
-    '16': 'icons/icon16.png',
-    '32': 'icons/icon32.png',
-    '48': 'icons/icon48.png',
-    '128': 'icons/icon128.png'
-  }
-};
-
 module.exports = (env, argv) => {
   const isDevelopment = argv.mode === 'development';
   
@@ -98,8 +62,13 @@ module.exports = (env, argv) => {
       }),
       new ExtensionManifestPlugin({
         config: {
-          base: baseManifest
-        }
+          base: './manifest.json',
+
+        },
+        pkgJsonProps: [
+          'version',
+          'description'
+        ]
       }),
     ].filter(Boolean),
     devtool: isDevelopment ? 'inline-source-map' : false,
