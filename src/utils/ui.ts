@@ -56,8 +56,11 @@ export function manageButtonVisibility(button: HTMLButtonElement, videoElement: 
     }, hideDelay);
   };
 
-  // 初始显示
-  setTimeout(showButton, showDelay);
+  // 初始显示并设置自动隐藏
+  setTimeout(() => {
+    showButton();
+    startHideTimer();
+  }, showDelay);
   
   // 绑定事件监听器到按钮
 
