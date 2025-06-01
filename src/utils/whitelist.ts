@@ -143,6 +143,6 @@ export async function setDefaultWhitelist(): Promise<void> {
   await saveSettings({
     ...await getSettings(),
     whitelist: defaultRules,
-    whitelistEnabled: true
+    whitelistEnabled: false
   });
 }
