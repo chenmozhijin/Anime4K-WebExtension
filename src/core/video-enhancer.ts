@@ -1,7 +1,7 @@
 import { getSettings } from '../utils/settings';
 import { createCanvasForVideo, createEnhanceButton, manageButtonVisibility } from '../utils/ui';
 import { render, RendererInstance } from './renderer';
-import { MODE_CLASSES, ANIME4K_INITIALIZED_ATTR } from '../constants';
+import { MODE_CLASSES, ANIME4K_APPLIED_ATTR } from '../constants';
 import { Dimensions } from '../types';
 
 /**
@@ -37,14 +37,14 @@ export class VideoEnhancer {
    * 切换超分状态
    */
   async toggleEnhancement() {
-    if (this.video.getAttribute(ANIME4K_INITIALIZED_ATTR) === 'true') {
+    if (this.video.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
       console.log('[Anime4KWebExt] 取消视频超分');
       this.uninitialize();
       this.button.innerText = chrome.i18n.getMessage('enhanceButton');
       return;
     }
 
-    this.video.setAttribute(ANIME4K_INITIALIZED_ATTR, 'true');
+    this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
     console.log('[Anime4KWebExt] 开始视频超分处理');
     this.button.innerText = chrome.i18n.getMessage('enhancing');
     this.button.disabled = true;
@@ -180,7 +180,7 @@ export class VideoEnhancer {
    */
   private uninitialize() {
     this.destroyResources();
-    this.video.removeAttribute(ANIME4K_INITIALIZED_ATTR);
+    this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
   }
 
   /**

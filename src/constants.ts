@@ -47,7 +47,7 @@ export const MODE_CLASSES = {
  * 初始化属性标识
  * 用于标记已初始化的视频元素
  */
-export const ANIME4K_INITIALIZED_ATTR = 'data-anime4k-initialized';
+export const ANIME4K_APPLIED_ATTR = 'data-anime4k-applied';
 
 /**
  * 按钮类名

@@ -1,5 +1,5 @@
 import { VideoEnhancer } from './video-enhancer';
-import { ANIME4K_INITIALIZED_ATTR } from '../constants';
+import { ANIME4K_APPLIED_ATTR } from '../constants';
 
 /**
  * 清理视频元素的增强器资源
@@ -30,7 +30,7 @@ export function processVideoElement(videoEl: HTMLVideoElement): void {
  * @param video 视频元素
  */
 function addEnhancerToVideo(video: HTMLVideoElement): void {
-  if (video.hasAttribute(ANIME4K_INITIALIZED_ATTR)) return;
+  if (video._anime4kEnhancer) return;
   if (!video.parentElement) return;
   
   try {
@@ -117,7 +117,7 @@ export async function handleSettingsUpdate(
   const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
   
   for (const videoElement of videos) {
-    if (videoElement.getAttribute(ANIME4K_INITIALIZED_ATTR) === 'true') {
+    if (videoElement.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
       
       const enhancer = videoElement._anime4kEnhancer;
       if (enhancer) {
