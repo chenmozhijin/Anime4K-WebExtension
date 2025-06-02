@@ -24,13 +24,12 @@ jobs:
       - name: Build project
         run: npm run build
         
-      - name: Package extension
+      - name: Rename dist folder
         run: |
-          cd dist
-          zip -r ../anime4k-webextension.zip *
+          mv dist anime4k-webextension
           
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: anime4k-webextension
-          path: anime4k-webextension.zip
+          path: anime4k-webextension
