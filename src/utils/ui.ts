@@ -9,11 +9,8 @@ export function createEnhanceButton(): HTMLButtonElement {
   button.innerText = chrome.i18n.getMessage('enhanceButton');
   button.classList.add(ANIME4K_BUTTON_CLASS);
   Object.assign(button.style, {
-    position: 'absolute',
-    top: '50%',
-    left: '10px',
-    transform: 'translateY(-50%)',
-    zIndex: '2147483647', // 最大z-index确保覆盖
+    position: 'fixed', // 使用fixed定位，确保独立于视频层级
+    zIndex: '2147483647', // 最大z-index确保覆盖所有元素
     padding: '8px 12px',
     opacity: '0',
     transition: 'opacity 0.3s ease-in-out',
@@ -25,8 +22,6 @@ export function createEnhanceButton(): HTMLButtonElement {
     fontSize: '14px',
     boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
     pointerEvents: 'auto', // 确保可点击
-    // 确保按钮位于最上层
-    isolation: 'isolate',
   });
   button.dataset.visible = 'false';
   return button;
@@ -41,11 +36,47 @@ export function manageButtonVisibility(button: HTMLButtonElement, videoElement: 
   let hideTimer: ReturnType<typeof setTimeout>;
   const showDelay = 200;    // 显示延迟(ms)
   const hideDelay = 2000;   // 隐藏延迟(ms)
+  let animationFrameId: number | null = null;
+  let lastPosition = { top: 0, left: 0 };
+
+  const updateButtonPosition = () => {
+    const rect = videoElement.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    
+    const newTop = rect.top + rect.height / 2;
+    const newLeft = rect.left + 10;
+    
+    // 只有位置变化超过1像素时才更新，减少重绘
+    if (Math.abs(newTop - lastPosition.top) > 1 || Math.abs(newLeft - lastPosition.left) > 1) {
+      button.style.top = `${newTop}px`;
+      button.style.left = `${newLeft}px`;
+      button.style.transform = 'translateY(-50%)';
+      lastPosition = { top: newTop, left: newLeft };
+    }
+    
+    // 继续请求下一帧更新
+    animationFrameId = requestAnimationFrame(updateButtonPosition);
+  };
+
+  const startPositionUpdates = () => {
+    if (animationFrameId === null) {
+      animationFrameId = requestAnimationFrame(updateButtonPosition);
+    }
+  };
+
+  const stopPositionUpdates = () => {
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  };
 
   const showButton = () => {
     clearTimeout(hideTimer);
     button.style.opacity = '1';
     button.dataset.visible = 'true';
+    // 确保位置更新在显示时执行
+    updateButtonPosition();
   };
 
   const startHideTimer = () => {
@@ -62,8 +93,17 @@ export function manageButtonVisibility(button: HTMLButtonElement, videoElement: 
     startHideTimer();
   }, showDelay);
   
+  // 开始位置更新
+  startPositionUpdates();
+  
+  // 监听视频元素位置变化
+  const resizeObserver = new ResizeObserver(() => {
+    // 触发位置更新
+    updateButtonPosition();
+  });
+  resizeObserver.observe(videoElement);
+  
   // 绑定事件监听器到按钮
-
   button.addEventListener('mouseenter', showButton);
   button.addEventListener('mouseleave', startHideTimer);
   
@@ -72,6 +112,16 @@ export function manageButtonVisibility(button: HTMLButtonElement, videoElement: 
     console.log('[Anime4KWebExt] 按钮点击事件触发', e);
     e.stopPropagation();
   });
+
+  // 清理函数
+  const cleanup = () => {
+    stopPositionUpdates();
+    resizeObserver.disconnect();
+  };
+
+  // 视频元素移除时清理
+  videoElement.addEventListener('removed', cleanup);
+  window.addEventListener('beforeunload', cleanup);
 }
 
 /**

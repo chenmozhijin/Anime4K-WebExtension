@@ -30,7 +30,7 @@ export class VideoEnhancer {
       e.stopPropagation(); // 阻止事件冒泡
       this.toggleEnhancement();
     };
-    this.video.parentElement?.appendChild(this.button);
+    document.body.appendChild(this.button);
   }
 
   /**
