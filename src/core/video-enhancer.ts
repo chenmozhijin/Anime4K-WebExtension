@@ -39,7 +39,7 @@ export class VideoEnhancer {
   async toggleEnhancement() {
     if (this.video.getAttribute(ANIME4K_INITIALIZED_ATTR) === 'true') {
       console.log('[Anime4KWebExt] 取消视频超分');
-      this.destroy();
+      this.uninitialize();
       this.button.innerText = chrome.i18n.getMessage('enhanceButton');
       return;
     }
@@ -55,7 +55,7 @@ export class VideoEnhancer {
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
       console.error('[Anime4KWebExt] 超分初始化失败: ', error);
-      this.destroy();
+      this.uninitialize();
       this.button.innerText = chrome.i18n.getMessage('retryEnhance');
       this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
     } finally {
@@ -106,7 +106,7 @@ export class VideoEnhancer {
       onError: (error) => {
         console.error('[Anime4KWebExt] 渲染器错误: ', error);
         this.showErrorModal(chrome.i18n.getMessage('renderError') || '渲染失败，请重试');
-        this.destroy();
+        this.uninitialize();
         this.button.innerText = chrome.i18n.getMessage('retryEnhance');
       }
     });
@@ -161,7 +161,7 @@ export class VideoEnhancer {
       await this.initRenderer();
     } catch (error) {
       console.error('重新初始化失败:', error);
-      this.destroy();
+      this.uninitialize();
       this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
     }
   }
@@ -170,6 +170,15 @@ export class VideoEnhancer {
    * 销毁增强器实例和资源
    */
   destroy() {
+    console.log('[Anime4KWebExt] 销毁增强器实例和资源');
+    this.uninitialize();
+    this.button?.remove();
+  }
+
+  /**
+   * 清理增强器实例和资源
+   */
+  private uninitialize() {
     this.destroyResources();
     this.video.removeAttribute(ANIME4K_INITIALIZED_ATTR);
   }

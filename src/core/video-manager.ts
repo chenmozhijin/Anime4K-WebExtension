@@ -2,6 +2,17 @@ import { VideoEnhancer } from './video-enhancer';
 import { ANIME4K_INITIALIZED_ATTR } from '../constants';
 
 /**
+ * 清理视频元素的增强器资源
+ * @param video 视频元素
+ */
+function cleanupVideoEnhancer(video: HTMLVideoElement): void {
+  if (video._anime4kEnhancer) {
+    video._anime4kEnhancer.destroy();
+    delete video._anime4kEnhancer;
+  }
+}
+
+/**
  * 处理单个视频元素，添加增强器
  * @param videoEl 要处理的视频元素
  */
@@ -49,6 +60,7 @@ export function setupDOMObserver(): MutationObserver {
   const observer = new MutationObserver((mutationsList) => {
     for (const mutation of mutationsList) {
       if (mutation.type === 'childList') {
+        // 处理新增节点
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as Element;
@@ -60,11 +72,33 @@ export function setupDOMObserver(): MutationObserver {
             }
           }
         });
+        
+        // 处理移除节点
+        mutation.removedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            // 如果是视频元素直接清理
+            if (element.tagName === 'VIDEO') {
+              cleanupVideoEnhancer(element as HTMLVideoElement);
+            } else {
+              // 检查移除的节点内是否包含视频元素
+              const videos = Array.from(element.querySelectorAll('video'));
+              videos.forEach(vid => cleanupVideoEnhancer(vid as HTMLVideoElement));
+            }
+          }
+        });
       }
     }
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
+  
+  // 添加页面卸载时的全局清理
+  window.addEventListener('beforeunload', () => {
+    const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
+    videos.forEach(cleanupVideoEnhancer);
+  });
+  
   return observer;
 }
 
