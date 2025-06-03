@@ -39,7 +39,7 @@ export class VideoEnhancer {
   async toggleEnhancement() {
     if (this.video.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
       console.log('[Anime4KWebExt] 取消视频超分');
-      this.uninitialize();
+      this.disableEnhancement();
       this.button.innerText = chrome.i18n.getMessage('enhanceButton');
       return;
     }
@@ -55,7 +55,7 @@ export class VideoEnhancer {
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
       console.error('[Anime4KWebExt] 超分初始化失败: ', error);
-      this.uninitialize();
+      this.disableEnhancement();
       this.button.innerText = chrome.i18n.getMessage('retryEnhance');
       this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
     } finally {
@@ -106,7 +106,7 @@ export class VideoEnhancer {
       onError: (error) => {
         console.error('[Anime4KWebExt] 渲染器错误: ', error);
         this.showErrorModal(chrome.i18n.getMessage('renderError') || '渲染失败，请重试');
-        this.uninitialize();
+        this.disableEnhancement();
         this.button.innerText = chrome.i18n.getMessage('retryEnhance');
       }
     });
@@ -156,37 +156,37 @@ export class VideoEnhancer {
   private async reinitialize() {
     try {
       console.log('[Anime4KWebExt] 重新初始化渲染器...');
-      this.destroyResources();
+      this.releaseWebGPUResources();
       this.canvas = createCanvasForVideo(this.video);
       await this.initRenderer();
     } catch (error) {
       console.error('重新初始化失败:', error);
-      this.uninitialize();
+      this.disableEnhancement();
       this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
     }
   }
 
   /**
-   * 销毁增强器实例和资源
+   * 销毁整个增强器实例（包括UI元素和内部资源）
    */
   destroy() {
     console.log('[Anime4KWebExt] 销毁增强器实例和资源');
-    this.uninitialize();
+    this.disableEnhancement();
     this.button?.remove();
   }
 
   /**
-   * 清理增强器实例和资源
+   * 禁用视频增强效果（释放资源并重置视频状态）
    */
-  private uninitialize() {
-    this.destroyResources();
+  private disableEnhancement() {
+    this.releaseWebGPUResources();
     this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
   }
 
   /**
-   * 清理内部资源
+   * 释放WebGPU相关资源（渲染器实例、观察者、画布等）
    */
-  private destroyResources() {
+  private releaseWebGPUResources() {
     console.log('[Anime4KWebExt] 清理渲染资源');
     this.instance?.destroy();
     this.resizeObserver?.disconnect();
