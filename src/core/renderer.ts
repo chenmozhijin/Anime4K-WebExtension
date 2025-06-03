@@ -95,7 +95,10 @@ export async function render(options: RendererOptions): Promise<RendererInstance
   const HEIGHT = video.videoHeight;
 
   // 请求WebGPU适配器
-  const adapter = await navigator.gpu.requestAdapter();
+  // 在Windows上忽略powerPreference选项（crbug.com/369219127）
+  const isWindows = navigator.userAgent.includes('Windows');
+  const adapterOptions = isWindows ? {} : { powerPreference: 'high-performance' as GPUPowerPreference };
+  const adapter = await navigator.gpu.requestAdapter(adapterOptions);
   if (!adapter) {
     throw new Error('WebGPU not supported');
   }
