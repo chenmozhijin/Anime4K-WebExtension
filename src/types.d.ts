@@ -1,6 +1,7 @@
 // 定义视频增强器接口
 interface VideoEnhancer {
   destroy: () => void;
+  toggleEnhancement: () => Promise<void>;
 }
 
 // 扩展HTMLVideoElement接口

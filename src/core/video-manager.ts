@@ -57,7 +57,9 @@ export function initializeOnPage(): void {
  * 设置DOM观察器监听新添加的视频元素
  */
 export function setupDOMObserver(): MutationObserver {
-  const observer = new MutationObserver((mutationsList) => {
+  let debounceTimer: number;
+
+  const handleMutations = (mutationsList: MutationRecord[]) => {
     for (const mutation of mutationsList) {
       if (mutation.type === 'childList') {
         // 处理新增节点
@@ -89,6 +91,11 @@ export function setupDOMObserver(): MutationObserver {
         });
       }
     }
+  };
+
+  const observer = new MutationObserver((mutationsList) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => handleMutations(mutationsList), 100); // 100ms 防抖
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
@@ -125,7 +132,7 @@ export async function handleSettingsUpdate(
           // 重新初始化增强器应用新设置
           enhancer.destroy();
           videoElement._anime4kEnhancer = new VideoEnhancer(videoElement);
-          await (videoElement as any)._anime4kEnhancer.toggleEnhancement();  // 使用类型断言解决HTMLVideoElement扩展问题
+          await videoElement._anime4kEnhancer!.toggleEnhancement();
           reRenderedCount++;
         } catch (error) {
           console.error('Error re-rendering video after settings update:', error, videoElement);
