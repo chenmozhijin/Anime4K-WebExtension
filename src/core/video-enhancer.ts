@@ -1,8 +1,8 @@
 import { getSettings } from '../utils/settings';
-import { createCanvasForVideo, createEnhanceButton, manageButtonVisibility } from '../utils/ui';
 import { render, RendererInstance } from './renderer';
 import { MODE_CLASSES, ANIME4K_APPLIED_ATTR } from '../constants';
 import { Dimensions } from '../types';
+import { OverlayManager } from './overlay-manager';
 
 /**
  * 视频增强器类，封装Anime4K处理逻辑
@@ -10,14 +10,13 @@ import { Dimensions } from '../types';
  */
 export class VideoEnhancer {
   private instance?: RendererInstance;
-  private resizeObserver?: ResizeObserver;
-  private resizeHandler?: () => void;
   private canvas?: HTMLCanvasElement;
-  public button: HTMLButtonElement;
+  private overlay: OverlayManager;
+  private button: HTMLButtonElement;
 
   constructor(private video: HTMLVideoElement) {
-    this.button = createEnhanceButton();
-    console.log(`[Anime4KWebExt]创建按钮`);
+    this.overlay = OverlayManager.create(this.video);
+    this.button = this.overlay.getButton();
     this.initUI();
   }
 
@@ -25,12 +24,11 @@ export class VideoEnhancer {
    * 初始化UI组件
    */
   private initUI() {
-    manageButtonVisibility(this.button, this.video);
     this.button.onclick = (e) => {
       e.stopPropagation(); // 阻止事件冒泡
       this.toggleEnhancement();
     };
-    this.video.parentElement?.appendChild(this.button);
+    // 按钮可见性逻辑现在由 OverlayManager 的 CSS 控制
   }
 
   /**
@@ -50,7 +48,7 @@ export class VideoEnhancer {
     this.button.disabled = true;
 
     try {
-      this.canvas = createCanvasForVideo(this.video);
+      this.canvas = this.overlay.showCanvas();
       await this.initRenderer();
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
@@ -157,7 +155,7 @@ export class VideoEnhancer {
     try {
       console.log('[Anime4KWebExt] 重新初始化渲染器...');
       this.releaseWebGPUResources();
-      this.canvas = createCanvasForVideo(this.video);
+      this.canvas = this.overlay.showCanvas();
       await this.initRenderer();
     } catch (error) {
       console.error('重新初始化失败:', error);
@@ -172,7 +170,7 @@ export class VideoEnhancer {
   destroy() {
     console.log('[Anime4KWebExt] 销毁增强器实例和资源');
     this.disableEnhancement();
-    this.button?.remove();
+    this.overlay.destroy();
   }
 
   /**
@@ -180,6 +178,7 @@ export class VideoEnhancer {
    */
   private disableEnhancement() {
     this.releaseWebGPUResources();
+    this.overlay.hideCanvas(); // 隐藏画布
     this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
   }
 
@@ -189,11 +188,6 @@ export class VideoEnhancer {
   private releaseWebGPUResources() {
     console.log('[Anime4KWebExt] 清理渲染资源');
     this.instance?.destroy();
-    this.resizeObserver?.disconnect();
-    if (this.resizeHandler) {
-      this.video.removeEventListener('resize', this.resizeHandler);
-    }
-    this.canvas?.remove();
   }
 
   /**

@@ -1,6 +1,5 @@
 // 定义视频增强器接口
 interface VideoEnhancer {
-  readonly button: HTMLButtonElement;
   destroy: () => void;
 }
 
