@@ -32,6 +32,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'SETTINGS_UPDATED') {
     handleSettingsUpdate(request.settings, sendResponse);
     return true; // 表示异步响应
+  } else if (request.type === 'URL_UPDATED') {
+    // URL 变化时重新检查白名单
+    console.log('[Anime4KWebExt] URL changed, re-evaluating whitelist...');
+    initializeBasedOnWhitelist();
   }
   return false;
 });

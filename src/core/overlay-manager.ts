@@ -11,8 +11,10 @@ export class OverlayManager {
   private shadowRoot: ShadowRoot;
   private button: HTMLButtonElement;
   private canvas?: HTMLCanvasElement;
+  private hideButtonTimeout?: number;
 
   private resizeObserver: ResizeObserver;
+  private mutationObserver: MutationObserver;
 
   /**
    * 创建并返回一个 OverlayManager 实例。
@@ -42,6 +44,13 @@ export class OverlayManager {
     // 4. 初始化监听器
     this.resizeObserver = new ResizeObserver(() => this.updatePosition());
     this.resizeObserver.observe(this.video);
+
+    // 监听样式变化
+    this.mutationObserver = new MutationObserver(() => this.updatePosition());
+    this.mutationObserver.observe(this.video, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    });
 
     // 立即执行一次以确定初始位置
     this.updatePosition();
@@ -74,6 +83,15 @@ export class OverlayManager {
         zIndex: videoStyle.zIndex === 'auto' ? '1' : (parseInt(videoStyle.zIndex, 10) + 1).toString(),
       });
     }
+
+    // 每次位置更新时，都短暂显示按钮
+    if (this.hideButtonTimeout) {
+      clearTimeout(this.hideButtonTimeout);
+    }
+    this.button.classList.add('show-initially');
+    this.hideButtonTimeout = window.setTimeout(() => {
+      this.button.classList.remove('show-initially');
+    }, 3000);
   }
 
   /**
@@ -116,8 +134,12 @@ export class OverlayManager {
    */
   public destroy(): void {
     this.resizeObserver.disconnect();
+    this.mutationObserver.disconnect();
     this.host.remove();
     this.hideCanvas();
+    if (this.hideButtonTimeout) {
+      clearTimeout(this.hideButtonTimeout);
+    }
   }
 
   // --- 私有辅助方法 ---
@@ -156,6 +178,10 @@ export class OverlayManager {
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         pointer-events: auto; /* 使按钮可点击 */
         isolation: isolate;
+      }
+
+      .${ANIME4K_BUTTON_CLASS}.show-initially {
+        opacity: 1;
       }
 
       .${ANIME4K_BUTTON_CLASS}:hover {
