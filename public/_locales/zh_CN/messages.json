@@ -103,5 +103,8 @@
   },
   "importError": {
     "message": "导入失败：格式无效"
+  },
+  "description": {
+    "message": "基于Anime4K的实时视频超分辨率浏览器扩展。"
   }
 }

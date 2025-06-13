@@ -103,5 +103,8 @@
   },
   "importError": {
     "message": "Import failed: invalid format"
+  },
+  "description": {
+    "message": "Real-time video super-resolution browser extension based on Anime4K."
   }
 }

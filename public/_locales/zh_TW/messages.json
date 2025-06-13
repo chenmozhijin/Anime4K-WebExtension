@@ -103,5 +103,8 @@
   },
   "importError": {
     "message": "匯入失敗：格式無效"
+  },
+  "description": {
+    "message": "基於Anime4K的即時影片超解析瀏覽器擴充功能。"
   }
 }

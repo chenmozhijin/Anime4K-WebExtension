@@ -103,5 +103,8 @@
   },
   "importError": {
     "message": "インポート失敗：形式が無効です"
+  },
+  "description": {
+    "message": "Anime4Kに基づくリアルタイム動画超解像ブラウザ拡張機能。"
   }
 }

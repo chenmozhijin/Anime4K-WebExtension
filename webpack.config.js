@@ -66,8 +66,7 @@ module.exports = (env, argv) => {
 
         },
         pkgJsonProps: [
-          'version',
-          'description'
+          'version'
         ]
       }),
     ].filter(Boolean),
