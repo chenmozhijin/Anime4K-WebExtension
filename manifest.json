@@ -25,7 +25,6 @@
   "permissions": [
     "storage",
     "tabs",
-    "activeTab",
     "scripting"
   ],
   "host_permissions": ["<all_urls>"],
