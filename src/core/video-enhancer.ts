@@ -1,7 +1,7 @@
 import { getSettings } from '../utils/settings';
 import { render, RendererInstance } from './renderer';
-import { MODE_CLASSES, ANIME4K_APPLIED_ATTR } from '../constants';
-import { Dimensions } from '../types';
+import { ANIME4K_APPLIED_ATTR, MODES } from '../constants';
+import { Dimensions, Anime4KMode, ModeClasses } from '../types';
 import { OverlayManager } from './overlay-manager';
 
 /**
@@ -9,6 +9,7 @@ import { OverlayManager } from './overlay-manager';
  * 负责管理单个视频元素的增强状态、渲染实例和资源清理
  */
 export class VideoEnhancer {
+  private static modeClassesPromise: Promise<ModeClasses> | null = null;
   private instance?: RendererInstance;
   private canvas?: HTMLCanvasElement;
   private overlay: OverlayManager;
@@ -62,12 +63,76 @@ export class VideoEnhancer {
   }
 
   /**
+   * 动态加载 Anime4K 模块并缓存结果
+   * @returns 返回包含所有模式类的对象
+   */
+  private static loadAnime4KModule(): Promise<ModeClasses> {
+    if (this.modeClassesPromise) {
+      console.log('[Anime4KWebExt] 使用已缓存的 Anime4K 模块 Promise');
+      return this.modeClassesPromise;
+    }
+
+    console.log('[Anime4KWebExt] 首次请求加载 Anime4K 模块');
+    this.modeClassesPromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
+        this.modeClassesPromise = null; // 允许重试
+        reject(new Error('Anime4K 模块加载超时'));
+      }, 5000); // 5秒超时
+
+      const handleModuleLoaded = (event: Event) => {
+        clearTimeout(timeoutId);
+        console.log('[Anime4KWebExt] 接收到 anime4k-module-loaded 事件');
+        const customEvent = event as CustomEvent<ModeClasses>;
+        if (customEvent.detail) {
+          resolve(customEvent.detail);
+        } else {
+          this.modeClassesPromise = null; // 允许重试
+          reject(new Error('模块加载成功，但未在事件中提供模块内容'));
+        }
+      };
+      document.addEventListener('anime4k-module-loaded', handleModuleLoaded, { once: true });
+
+      console.log('[Anime4KWebExt] 向后台请求加载 anime4k-module...');
+      chrome.runtime.sendMessage({
+        type: 'LOAD_DYNAMIC_MODULE',
+        chunk: 'anime4k-module'
+      }).then(response => {
+        if (response?.success) {
+          console.log('[Anime4KWebExt] 后台脚本确认开始注入模块。');
+        } else {
+          clearTimeout(timeoutId);
+          document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
+          const errorMsg = `后台加载模块失败: ${response?.error || '未知错误'}`;
+          console.error(`[Anime4KWebExt] ${errorMsg}`);
+          this.modeClassesPromise = null; // 允许重试
+          reject(new Error(errorMsg));
+        }
+      }).catch(error => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
+        console.error('[Anime4KWebExt] 发送加载请求到后台时出错:', error);
+        this.modeClassesPromise = null; // 允许重试
+        reject(error);
+      });
+    });
+    return this.modeClassesPromise;
+  }
+
+  /**
    * 初始化渲染器
    */
   private async initRenderer() {
-    const { selectedModeName, targetResolutionSetting } = await getSettings();
+    const [
+      { selectedModeName, targetResolutionSetting },
+      MODE_CLASSES
+    ] = await Promise.all([
+      getSettings(),
+      VideoEnhancer.loadAnime4KModule()
+    ]);
+
     console.log(`[Anime4KWebExt] 初始化渲染器 - 模式: ${selectedModeName}, 目标分辨率: ${targetResolutionSetting}`);
-    const SelectedModeClass = MODE_CLASSES[selectedModeName as keyof typeof MODE_CLASSES] || MODE_CLASSES.ModeA;
+    const SelectedModeClass = MODE_CLASSES[selectedModeName as Anime4KMode] || MODE_CLASSES[MODES.ModeA];
 
     if (!navigator.gpu) {
       throw new Error('WebGPU not supported');

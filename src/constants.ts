@@ -1,17 +1,15 @@
-import { ModeA, ModeB, ModeC, ModeAA, ModeBB, ModeCA } from 'anime4k-webgpu';
-
 /**
  * 增强模式常量
  * 定义可用的Anime4K增强模式及其标识符
  */
 export const MODES = {
-  DEFAULT: 'ModeA', 
-  ModeA: 'ModeA',   
-  ModeB: 'ModeB',   
-  ModeC: 'ModeC',   
-  ModeAA: 'ModeAA', 
-  ModeBB: 'ModeBB', 
-  ModeCA: 'ModeCA', 
+  DEFAULT: 'ModeA',
+  ModeA: 'ModeA',
+  ModeB: 'ModeB',
+  ModeC: 'ModeC',
+  ModeAA: 'ModeAA',
+  ModeBB: 'ModeBB',
+  ModeCA: 'ModeCA',
 } as const;
 
 /**
@@ -28,19 +26,6 @@ export const RESOLUTIONS = {
   '2k': '2k',       // 2K分辨率
   '4k': '4k',       // 4K分辨率
   native: 'native'  // 原始分辨率
-} as const;
-
-/**
- * 模式类映射
- * 将模式标识符映射到对应的实现类
- */
-export const MODE_CLASSES = {
-  [MODES.ModeA]: ModeA,
-  [MODES.ModeB]: ModeB,
-  [MODES.ModeC]: ModeC,
-  [MODES.ModeAA]: ModeAA,
-  [MODES.ModeBB]: ModeBB,
-  [MODES.ModeCA]: ModeCA,
 } as const;
 
 /**

@@ -14,7 +14,8 @@ module.exports = (env, argv) => {
       popup: './src/ui/popup/popup.ts',
       options: './src/ui/options/options.ts',
       content: './src/content.ts',
-      background: './src/background.ts'
+      background: './src/background.ts',
+      'anime4k-module': './src/anime4k-module.ts'
     },
     output: {
       filename: '[name].js',

@@ -1,4 +1,4 @@
-import { Anime4KPipeline } from 'anime4k-webgpu';
+import type { Anime4KPipeline } from 'anime4k-webgpu';
 
 /**
  * 全屏纹理四边形顶点着色器
