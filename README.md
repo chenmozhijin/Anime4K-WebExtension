@@ -20,6 +20,23 @@
 
 ### 安装扩展
 
+#### 从应用商店安装（推荐）
+
+- **Edge扩展商店**：[https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- Chrome应用商店：审核中（暂不可用）
+
+> [!NOTE]
+> 由于审核流程，商店中的版本可能不是最新版。如需最新版，请使用预构建包或从源码构建。
+
+#### 使用预构建包（推荐）
+
+1. 前往[GitHub Releases](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)页面
+2. 在"Assets"部分下载最新构建的 `anime4k-webextension.zip`
+3. 解压zip文件
+4. 在浏览器中加载解压后的目录：
+   - Chrome: 打开拓展页面(`chrome://extensions`) → 启用"开发者模式" → "加载已解压的扩展程序" → 选择解压后的目录
+   - Edge: 打开拓展页面(`edge://extensions`) → 启用"开发人员模式" → "加载解压缩的扩展" → 选择解压后的目录
+
 #### 从源码安装
 
 1. 克隆本仓库
@@ -27,14 +44,7 @@
 3. 运行 `npm run build` 构建项目
 4. 在浏览器中加载构建好的扩展：
    - Chrome: 打开拓展页面(`chrome://extensions`) → 启用"开发者模式" → "加载已解压的扩展程序" → 选择项目中的 `dist` 目录
-   - edge: 打开拓展页面(`edge://extensions`) → 启用"开发人员模式" → "加载解压缩的扩展" → 选择项目中的 `dist` 目录
-
-#### 使用预构建包
-
-1. 前往[GitHub Actions](https://github.com/chenmozhijin/Anime4K-WebExtension/actions)页面,点击Build and Package,打开一个最新的工作流运行
-2. 在Artifacts中下载最新构建的 `anime4k-webextension`
-3. 解压zip文件
-4. 在浏览器中加载解压后的目录（步骤同上）
+   - Edge: 打开拓展页面(`edge://extensions`) → 启用"开发人员模式" → "加载解压缩的扩展" → 选择项目中的 `dist` 目录
 
 ### 基础使用
 

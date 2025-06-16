@@ -20,6 +20,23 @@ A real-time video super-resolution browser extension based on Anime4K-WebGPU, su
 
 ### Install the Extension
 
+#### From App Store (Recommended)
+
+- **Edge Add-ons Store**: [https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- Chrome Web Store: Under review (temporarily unavailable)
+
+> [!NOTE]
+> Due to the review process, the version in the store may not be the latest. For the latest version, please use the pre-built package or build from source.
+
+#### Using Pre-built Packages (Recommended)
+
+1. Go to [GitHub Releases](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
+2. Under "Assets", download the latest `anime4k-webextension.zip`
+3. Unzip the downloaded file
+4. Load the unzipped directory in your browser:
+   - Chrome: Open extensions page (`chrome://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the unzipped directory
+   - Edge: Open extensions page (`edge://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the unzipped directory
+
 #### From Source Code
 
 1. Clone this repository
@@ -28,13 +45,6 @@ A real-time video super-resolution browser extension based on Anime4K-WebGPU, su
 4. Load the built extension in your browser:
    - Chrome: Open extensions page (`chrome://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
    - Edge: Open extensions page (`edge://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
-
-#### Using Pre-built Packages
-
-1. Go to [GitHub Actions](https://github.com/chenmozhijin/Anime4K-WebExtension/actions), click on the latest "Build and Package" workflow run
-2. Download the latest built `anime4k-webextension` from Artifacts
-3. Unzip the downloaded file
-4. Load the unzipped directory in your browser (same steps as above)
 
 ### Basic Usage
 

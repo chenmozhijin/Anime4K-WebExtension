@@ -20,6 +20,23 @@ Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機
 
 ### 拡張機能のインストール
 
+#### アプリストアからインストール（推奨）
+
+- **Edgeアドオンストア**: [https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- Chromeウェブストア：審査中（一時的に利用不可）
+
+> [!NOTE]
+> 審査プロセスのため、ストアのバージョンは最新版ではない可能性があります。最新版が必要な場合は、ビルド済みパッケージの使用またはソースコードからのビルドを行ってください。
+
+#### ビルド済みパッケージの使用（推奨）
+
+1. [GitHub Releases](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest) に移動
+2. "Assets" セクションから最新の `anime4k-webextension.zip` をダウンロード
+3. ZIPファイルを解凍
+4. 解凍したディレクトリをブラウザにロード：
+   - Chrome: 拡張機能ページを開く (`chrome://extensions`) → 「デベロッパーモード」を有効化 → 「パッケージ化されていない拡張機能を読み込む」 → 解凍したディレクトリを選択
+   - Edge: 拡張機能ページを開く (`edge://extensions`) → 「開発者モード」を有効化 → 「解凍された拡張機能を読み込む」 → 解凍したディレクトリを選択
+
 #### ソースコードからインストール
 
 1. 本リポジトリをクローン
@@ -28,13 +45,6 @@ Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機
 4. ブラウザにビルドした拡張機能をロード：
    - Chrome: 拡張機能ページを開く (`chrome://extensions`) → 「デベロッパーモード」を有効化 → 「パッケージ化されていない拡張機能を読み込む」 → プロジェクトの `dist` ディレクトリを選択
    - Edge: 拡張機能ページを開く (`edge://extensions`) → 「開発者モード」を有効化 → 「解凍された拡張機能を読み込む」 → プロジェクトの `dist` ディレクトリを選択
-
-#### ビルド済みパッケージの使用
-
-1. [GitHub Actions](https://github.com/chenmozhijin/Anime4K-WebExtension/actions) に移動し、最新の「Build and Package」ワークフロー実行をクリック
-2. Artifactsから最新のビルド済み `anime4k-webextension` をダウンロード
-3. ZIPファイルを解凍
-4. 解凍したディレクトリをブラウザにロード（上記と同じ手順）
 
 ### 基本使用
 
