@@ -22,8 +22,8 @@
 
 #### 从应用商店安装（推荐）
 
-- **Edge扩展商店**：[https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
-- Chrome应用商店：审核中（暂不可用）
+- [Edge扩展商店](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- [Chrome应用商店](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek)
 
 > [!NOTE]
 > 由于审核流程，商店中的版本可能不是最新版。如需最新版，请使用预构建包或从源码构建。
@@ -48,7 +48,7 @@
 
 ### 基础使用
 
-1. 安装扩展后访问包含视频元素的网站（如Bilibili、動畫瘋）
+1. 安装扩展后访问包含视频元素的网站（如Bilibili、動畫瘋、youtube等）
 2. 播放视频时，视频元素左中部会出现紫色"✨ 超分"按钮
 3. 点击按钮启用超分辨率处理
 4. 再次点击按钮关闭处理

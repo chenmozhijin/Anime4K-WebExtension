@@ -22,8 +22,8 @@ Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機
 
 #### アプリストアからインストール（推奨）
 
-- **Edgeアドオンストア**: [https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
-- Chromeウェブストア：審査中（一時的に利用不可）
+- [Edgeアドオンストア](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- [Chromeウェブストア](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek)
 
 > [!NOTE]
 > 審査プロセスのため、ストアのバージョンは最新版ではない可能性があります。最新版が必要な場合は、ビルド済みパッケージの使用またはソースコードからのビルドを行ってください。
@@ -48,7 +48,7 @@ Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機
 
 ### 基本使用
 
-1. 拡張機能をインストール後、動画要素を含むウェブサイト（Bilibili、Ani-Oneなど）にアクセス
+1. 拡張機能をインストール後、動画要素を含むウェブサイト（Bilibili、youtube）にアクセス
 2. 動画再生時、動画要素の左中部に紫色の「✨ 超解像」ボタンが表示されます
 3. ボタンをクリックして超解像処理を有効化
 4. 再度クリックして処理を無効化

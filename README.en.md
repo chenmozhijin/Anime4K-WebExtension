@@ -22,8 +22,8 @@ A real-time video super-resolution browser extension based on Anime4K-WebGPU, su
 
 #### From App Store (Recommended)
 
-- **Edge Add-ons Store**: [https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
-- Chrome Web Store: Under review (temporarily unavailable)
+- [Edge Add-ons Store](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
+- [Chrome Web Store](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek)
 
 > [!NOTE]
 > Due to the review process, the version in the store may not be the latest. For the latest version, please use the pre-built package or build from source.
@@ -48,7 +48,7 @@ A real-time video super-resolution browser extension based on Anime4K-WebGPU, su
 
 ### Basic Usage
 
-1. After installing the extension, visit websites with video elements (e.g., Bilibili, Ani-One)
+1. After installing the extension, visit websites with video elements (e.g., Bilibili, youtube)
 2. When playing a video, a purple "✨ Enhance" button will appear at the middle-left of the video element
 3. Click the button to enable super-resolution processing
 4. Click the button again to disable processing
