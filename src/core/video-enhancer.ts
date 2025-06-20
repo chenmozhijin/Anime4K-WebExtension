@@ -49,7 +49,6 @@ export class VideoEnhancer {
     this.button.disabled = true;
 
     try {
-      this.canvas = this.overlay.showCanvas();
       await this.initRenderer();
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
@@ -123,6 +122,9 @@ export class VideoEnhancer {
    * 初始化渲染器
    */
   private async initRenderer() {
+    // 在初始化开始时获取Canvas，此时它仍是不可见的
+    this.canvas = this.overlay.getCanvas();
+
     const [
       { selectedModeName, targetResolutionSetting },
       MODE_CLASSES
@@ -174,6 +176,9 @@ export class VideoEnhancer {
       }
     });
     console.log('[Anime4KWebExt] 渲染器初始化成功');
+
+    // 渲染器完全就绪后，再调用 showCanvas 使其可见
+    this.overlay.showCanvas();
   }
 
   /**
@@ -220,7 +225,7 @@ export class VideoEnhancer {
     try {
       console.log('[Anime4KWebExt] 重新初始化渲染器...');
       this.releaseWebGPUResources();
-      this.canvas = this.overlay.showCanvas();
+      // reinitialize 也需要遵循同样的逻辑
       await this.initRenderer();
     } catch (error) {
       console.error('重新初始化失败:', error);

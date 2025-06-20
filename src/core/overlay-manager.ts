@@ -102,9 +102,10 @@ export class OverlayManager {
   }
 
   /**
-   * 创建（如果不存在）并显示 Canvas，然后返回该元素。
+   * 创建（如果不存在）并返回 Canvas 元素，但不将其附加到 DOM。
+   * @returns {HTMLCanvasElement}
    */
-  public showCanvas(): HTMLCanvasElement {
+  public getCanvas(): HTMLCanvasElement {
     if (this.canvas) {
       return this.canvas;
     }
@@ -113,12 +114,27 @@ export class OverlayManager {
     this.canvas.width = this.video.videoWidth;
     this.canvas.height = this.video.videoHeight;
     this.canvas.style.pointerEvents = 'none';
-
-    // 插入到视频同级，以继承CSS变换上下文
-    this.video.parentElement?.insertBefore(this.canvas, this.video);
-    this.updatePosition(); // 确保位置正确
-
+    // 初始时不可见，由 showCanvas 负责显示
+    this.canvas.style.visibility = 'hidden';
     return this.canvas;
+  }
+
+  /**
+   * 将已创建的 Canvas 附加到 DOM 并使其可见。
+   */
+  public showCanvas(): void {
+    if (!this.canvas) {
+      // 理论上 getCanvas 应该先被调用，但作为安全措施我们在这里也创建它
+      this.getCanvas();
+    }
+
+    // 确保 canvas 在 DOM 中
+    if (!this.canvas!.parentElement) {
+      this.video.parentElement?.insertBefore(this.canvas!, this.video);
+    }
+    
+    this.updatePosition(); // 更新位置和尺寸
+    this.canvas!.style.visibility = 'visible'; // 设为可见
   }
 
   /**

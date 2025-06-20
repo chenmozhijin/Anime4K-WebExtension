@@ -182,8 +182,8 @@ export async function render(options: RendererOptions): Promise<RendererInstance
     bindGroupLayouts: [renderBindGroupLayout],
   });
 
-  // 创建渲染流水线
-  const renderPipeline = device.createRenderPipeline({
+  // 创建渲染流水线（异步）
+  const renderPipeline = await device.createRenderPipelineAsync({
     layout: renderPipelineLayout,
     vertex: {
       module: device.createShaderModule({
