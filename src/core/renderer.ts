@@ -69,6 +69,8 @@ export interface RendererOptions {
   targetDimensions: Dimensions;
   /** 发生运行时错误时的回调函数 */
   onError?: (error: Error) => void;
+  /** 成功渲染第一帧时的回调函数 */
+  onFirstFrameRendered?: () => void;
 }
 
 /**
@@ -83,6 +85,7 @@ export class Renderer {
   private modeClasses: ModeClasses;
   private targetDimensions: Dimensions;
   private onError?: (error: Error) => void;
+  private onFirstFrameRendered?: () => void;
 
   // --- 状态标志 ---
   private destroyed = false;
@@ -114,6 +117,7 @@ export class Renderer {
     this.modeClasses = options.modeClasses;
     this.targetDimensions = options.targetDimensions;
     this.onError = options.onError;
+    this.onFirstFrameRendered = options.onFirstFrameRendered;
   }
 
   /**
@@ -166,8 +170,8 @@ export class Renderer {
     await this.createRenderPipeline();
     this.createRenderBindGroup();
 
-    // 启动渲染循环
-    this.animationFrameId = this.video.requestVideoFrameCallback(this.frame);
+    // 启动渲染循环，尝试渲染第一帧并启动持续渲染
+    this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
   }
 
   /**
@@ -301,50 +305,88 @@ export class Renderer {
   }
 
   /**
-   * 渲染循环的回调函数，由 `requestVideoFrameCallback` 在每个视频帧可用时调用。
+   * 处理单帧渲染的核心逻辑。
+   * @returns {boolean} 如果成功渲染了一帧则返回 true，否则返回 false。
    */
-  private frame = (): void => {
-    if (this.destroyed) return;
-    console.log(`[Debug] Render frame. Destroyed: ${this.destroyed}, Paused: ${this.video.paused}, ReadyState: ${this.video.readyState}`);
+  private processFrame(): boolean {
+    if (this.destroyed) return false;
+
     try {
-      if (!this.video.paused && this.video.readyState >= this.video.HAVE_CURRENT_DATA) {
-        if (this.video.videoWidth !== this.videoFrameTexture.width || this.video.videoHeight !== this.videoFrameTexture.height) {
-          console.log(`[Anime4KWebExt] Resolution changed: ${this.videoFrameTexture.width}x${this.videoFrameTexture.height} -> ${this.video.videoWidth}x${this.video.videoHeight}`);
-          this.handleSourceResize();
-          return;
-        }
-
-        this.device.queue.copyExternalImageToTexture(
-          { source: this.video },
-          { texture: this.videoFrameTexture },
-          [this.video.videoWidth, this.video.videoHeight]
-        );
-
-        const commandEncoder = this.device.createCommandEncoder();
-        this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
-        const passEncoder = commandEncoder.beginRenderPass({
-          colorAttachments: [{
-            view: this.context.getCurrentTexture().createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          }],
-        });
-        passEncoder.setPipeline(this.renderPipeline);
-        passEncoder.setBindGroup(0, this.renderBindGroup);
-        passEncoder.draw(6);
-        passEncoder.end();
-        this.device.queue.submit([commandEncoder.finish()]);
+      if (this.video.paused || this.video.readyState < this.video.HAVE_CURRENT_DATA) {
+        return false; // 视频未准备好，跳过此帧
       }
+
+      // 检查分辨率是否变化
+      if (this.video.videoWidth !== this.videoFrameTexture.width || this.video.videoHeight !== this.videoFrameTexture.height) {
+        console.log(`[Anime4KWebExt] Resolution changed: ${this.videoFrameTexture.width}x${this.videoFrameTexture.height} -> ${this.video.videoWidth}x${this.video.videoHeight}`);
+        this.handleSourceResize();
+        return false; // 分辨率已变，跳过此帧的渲染，等待下一帧
+      }
+
+      // --- 执行渲染 ---
+      this.device.queue.copyExternalImageToTexture(
+        { source: this.video },
+        { texture: this.videoFrameTexture },
+        [this.video.videoWidth, this.video.videoHeight]
+      );
+
+      const commandEncoder = this.device.createCommandEncoder();
+      this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: this.context.getCurrentTexture().createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        }],
+      });
+      passEncoder.setPipeline(this.renderPipeline);
+      passEncoder.setBindGroup(0, this.renderBindGroup);
+      passEncoder.draw(6);
+      passEncoder.end();
+      this.device.queue.submit([commandEncoder.finish()]);
+      
+      return true; // 成功渲染
+
     } catch (error) {
       console.error('[Anime4KWebExt] Frame processing failed:', error);
       if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
       this.destroy();
-      return;
+      return false;
     }
+  }
 
+  /**
+   * 尝试渲染第一帧。成功后，调用回调并切换到常规渲染循环。
+   * 如果不成功（例如视频暂停），则重新调度自身。
+   */
+  private renderFirstFrameAndStartLoop = (): void => {
+    if (this.destroyed) return;
+
+    if (this.processFrame()) {
+      // 第一帧成功渲染
+      this.onFirstFrameRendered?.();
+      // 切换到常规渲染循环
+      this.animationFrameId = this.video.requestVideoFrameCallback(this.renderLoop);
+    } else {
+      // 第一帧未成功渲染（例如暂停、分辨率变更），在下一帧重试
+      if (!this.destroyed) {
+        this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
+      }
+    }
+  };
+
+  /**
+   * 常规渲染循环，处理第一帧之后的所有帧。
+   */
+  private renderLoop = (): void => {
+    if (this.destroyed) return;
+
+    this.processFrame();
+
+    // 持续调度自身
     if (!this.destroyed) {
-      this.animationFrameId = this.video.requestVideoFrameCallback(this.frame);
+      this.animationFrameId = this.video.requestVideoFrameCallback(this.renderLoop);
     }
   };
 

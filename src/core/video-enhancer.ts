@@ -146,11 +146,13 @@ export class VideoEnhancer {
         console.error('[Anime4KWebExt] Renderer runtime error:', error);
         this.showErrorModal(chrome.i18n.getMessage('renderError') || 'A rendering error occurred.');
         this.disableEnhancement();
-      }
+      },
+      onFirstFrameRendered: () => {
+        this.overlay.showCanvas();
+      },
     });
 
     console.log(`[Anime4KWebExt] Renderer initialized with mode: ${selectedMode.name}`);
-    this.overlay.showCanvas();
   }
 
   /**
