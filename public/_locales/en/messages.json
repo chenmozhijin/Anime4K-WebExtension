@@ -50,8 +50,8 @@
   "addParentPath": {
     "message": "Add Parent Path"
   },
-  "manageWhitelist": {
-    "message": "Manage Whitelist"
+  "openSettings": {
+    "message": "Settings"
   },
   "pageAdded": {
     "message": "Page added to whitelist"

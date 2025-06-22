@@ -36,10 +36,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const addCurrentPageBtn = document.getElementById('add-current-page') as HTMLButtonElement;
   const addCurrentDomainBtn = document.getElementById('add-current-domain') as HTMLButtonElement;
   const addParentPathBtn = document.getElementById('add-parent-path') as HTMLButtonElement;
-  const manageWhitelistBtn = document.getElementById('manage-whitelist') as HTMLButtonElement;
+  const openSettingsBtn = document.getElementById('open-settings') as HTMLButtonElement;
 
   if (!modeSelect || !resolutionSelect || !saveButton || !whitelistToggle ||
-      !addCurrentPageBtn || !addCurrentDomainBtn || !addParentPathBtn || !manageWhitelistBtn) {
+      !addCurrentPageBtn || !addCurrentDomainBtn || !addParentPathBtn || !openSettingsBtn) {
     console.error('Required elements not found');
     return;
   }
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  manageWhitelistBtn.addEventListener('click', () => {
+  openSettingsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
 });

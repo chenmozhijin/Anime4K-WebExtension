@@ -50,8 +50,8 @@
   "addParentPath": {
     "message": "添加父路径"
   },
-  "manageWhitelist": {
-    "message": "管理白名单"
+  "openSettings": {
+    "message": "设置"
   },
   "pageAdded": {
     "message": "页面已添加到白名单"

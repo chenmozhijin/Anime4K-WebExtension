@@ -79,7 +79,7 @@ const BUILTIN_MODES: EnhancementMode[] = [
  * @param modes The array of enhancement modes to synchronize.
  * @returns A new array of synchronized enhancement modes.
  */
-function synchronizeEffectsForAllModes(modes: EnhancementMode[]): EnhancementMode[] {
+export function synchronizeEffectsForAllModes(modes: EnhancementMode[]): EnhancementMode[] {
   const availableEffectsMap = new Map(
     AVAILABLE_EFFECTS.map(e => [e.id, e])
   );

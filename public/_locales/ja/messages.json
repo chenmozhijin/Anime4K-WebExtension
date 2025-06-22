@@ -50,8 +50,8 @@
   "addParentPath": {
     "message": "親パスを追加"
   },
-  "manageWhitelist": {
-    "message": "ホワイトリスト管理"
+  "openSettings": {
+    "message": "設定"
   },
   "pageAdded": {
     "message": "ページがホワイトリストに追加されました"

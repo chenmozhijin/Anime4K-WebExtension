@@ -1,6 +1,6 @@
 import './options.css';
 import '../common-vars.css';
-import { getSettings, saveSettings } from '../../utils/settings';
+import { getSettings, saveSettings, synchronizeEffectsForAllModes } from '../../utils/settings';
 import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
 import type { EnhancementMode, EnhancementEffect } from '../../types';
@@ -13,18 +13,54 @@ let settingsState: Anime4KWebExtSettings;
 // --- UI Elements ---
 const modesContainer = document.getElementById('modes-container') as HTMLElement;
 const addModeBtn = document.getElementById('add-mode-btn') as HTMLButtonElement;
+const importModesBtn = document.getElementById('import-modes-btn') as HTMLButtonElement;
+const exportModesBtn = document.getElementById('export-modes-btn') as HTMLButtonElement;
 const rulesContainer = document.getElementById('rules-container') as HTMLElement;
 const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
 const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
-const doImportBtn = document.getElementById('do-import') as HTMLButtonElement;
-const doExportBtn = document.getElementById('do-export') as HTMLButtonElement;
-const importExportData = document.getElementById('import-export-data') as HTMLTextAreaElement;
 
 // --- Drag and Drop State ---
 let draggedElement: HTMLElement | null = null;
 let draggedModeId: string | null = null;
 let draggedEffectIndex: number | null = null;
+
+// --- File Helpers ---
+const downloadJSON = (data: unknown, filename: string) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const openFile = (): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          resolve(event.target?.result as string);
+        };
+        reader.onerror = (error) => {
+          reject(error);
+        };
+        reader.readAsText(file);
+      } else {
+        reject(new Error('No file selected'));
+      }
+    };
+    input.click();
+  });
+};
 
 /**
  * Renders the enhancement modes UI based on the current settingsState.
@@ -427,36 +463,83 @@ const setupEventListeners = () => {
    renderRulesUI();
   });
 
-  exportBtn.addEventListener('click', () => {
-    importExportData.value = JSON.stringify(settingsState.whitelist, null, 2);
+  // --- Mode Import/Export Listeners ---
+  exportModesBtn.addEventListener('click', () => {
+    const customModes = settingsState.enhancementModes.filter(mode => !mode.isBuiltIn);
+    downloadJSON(customModes, 'anime4k-modes.json');
   });
 
-  importBtn.addEventListener('click', () => {
-    importExportData.value = '';
-    importExportData.focus();
-  });
-
-  doImportBtn.addEventListener('click', async () => {
+  importModesBtn.addEventListener('click', async () => {
     try {
-      const rules = JSON.parse(importExportData.value);
-      if (!Array.isArray(rules)) throw new Error('Invalid format');
-      for (const rule of rules) {
-        if (typeof rule !== 'object' || typeof rule.pattern !== 'string' || typeof rule.enabled !== 'boolean') {
-          throw new Error('Invalid rule format');
+      const json = await openFile();
+      const importedModes = JSON.parse(json) as EnhancementMode[];
+      
+      if (!Array.isArray(importedModes)) throw new Error('Invalid format: not an array');
+
+      const newModes: EnhancementMode[] = [];
+      for (const mode of importedModes) {
+        if (typeof mode !== 'object' || typeof mode.name !== 'string' || !Array.isArray(mode.effects)) {
+          console.warn('Skipping invalid mode object on import:', mode);
+          continue;
         }
+        
+        const newMode: EnhancementMode = {
+          ...mode,
+          id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          isBuiltIn: false,
+        };
+        newModes.push(newMode);
       }
-      settingsState.whitelist = rules;
-      renderRulesUI();
-      await saveSettings({ whitelist: settingsState.whitelist });
+
+      const allModes = [...settingsState.enhancementModes, ...newModes];
+      settingsState.enhancementModes = synchronizeEffectsForAllModes(allModes);
+      
+      renderModesUI();
+      await saveSettings({ enhancementModes: settingsState.enhancementModes });
+      notifyUpdate();
       alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
     } catch (error) {
+      if (error instanceof Error && error.message === 'No file selected') {
+        console.log('File import cancelled.');
+        return;
+      }
       console.error('Import failed:', error);
-      alert(chrome.i18n.getMessage('importError') || 'Import failed: invalid format');
+      alert(chrome.i18n.getMessage('importError') || 'Import failed: invalid format or file error.');
     }
   });
 
-  doExportBtn.addEventListener('click', () => {
-    importExportData.value = JSON.stringify(settingsState.whitelist, null, 2);
+  // --- Whitelist Import/Export Listeners ---
+  exportBtn.addEventListener('click', () => {
+    downloadJSON(settingsState.whitelist, 'anime4k-whitelist.json');
+  });
+
+  importBtn.addEventListener('click', async () => {
+    try {
+      const json = await openFile();
+      const rules = JSON.parse(json);
+      if (!Array.isArray(rules)) throw new Error('Invalid format: not an array');
+      
+      const validRules: WhitelistRule[] = [];
+      for (const rule of rules) {
+        if (typeof rule === 'object' && rule.pattern && typeof rule.pattern === 'string' && typeof rule.enabled === 'boolean' && validateRulePattern(rule.pattern)) {
+          validRules.push(rule as WhitelistRule);
+        } else {
+          console.warn('Skipping invalid whitelist rule on import:', rule);
+        }
+      }
+      
+      settingsState.whitelist = validRules;
+      await saveSettings({ whitelist: settingsState.whitelist });
+      renderRulesUI();
+      alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'No file selected') {
+        console.log('File import cancelled.');
+        return;
+      }
+      console.error('Import failed:', error);
+      alert(chrome.i18n.getMessage('importError') || 'Import failed: invalid format or file error.');
+    }
   });
 
   // --- Message Listeners ---
@@ -478,7 +561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupInternationalization();
   setupNavigation();
   
-  if (!modesContainer || !addModeBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn || !doImportBtn || !doExportBtn || !importExportData) {
+  if (!modesContainer || !addModeBtn || !importModesBtn || !exportModesBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn) {
     console.error('Required UI elements not found. Aborting initialization.');
     return;
   }
