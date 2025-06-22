@@ -1,401 +1,453 @@
 import './options.css';
 import '../common-vars.css';
 import { getSettings, saveSettings } from '../../utils/settings';
-import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule } from '../../utils/whitelist';
+import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
 import type { EnhancementMode, EnhancementEffect } from '../../types';
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // 应用国际化
+import { Anime4KWebExtSettings } from '../../types';
+
+// --- Global State ---
+let settingsState: Anime4KWebExtSettings;
+
+// --- UI Elements ---
+const modesContainer = document.getElementById('modes-container') as HTMLElement;
+const addModeBtn = document.getElementById('add-mode-btn') as HTMLButtonElement;
+const rulesContainer = document.getElementById('rules-container') as HTMLElement;
+const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
+const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
+const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
+const doImportBtn = document.getElementById('do-import') as HTMLButtonElement;
+const doExportBtn = document.getElementById('do-export') as HTMLButtonElement;
+const importExportData = document.getElementById('import-export-data') as HTMLTextAreaElement;
+
+// --- Drag and Drop State ---
+let draggedElement: HTMLElement | null = null;
+let draggedModeId: string | null = null;
+let draggedEffectIndex: number | null = null;
+
+/**
+ * Renders the enhancement modes UI based on the current settingsState.
+ */
+const renderModesUI = () => {
+  // 1. Preserve expanded state before re-rendering
+  const expandedModeIds = new Set<string>();
+  modesContainer.querySelectorAll('.mode-card:not(.collapsed)').forEach(card => {
+    const modeId = (card as HTMLElement).dataset.modeId;
+    if (modeId) expandedModeIds.add(modeId);
+  });
+
+  modesContainer.innerHTML = ''; // Clear existing cards
+
+  settingsState.enhancementModes.forEach(mode => {
+    const card = document.createElement('div');
+    card.className = 'mode-card collapsed';
+    card.dataset.modeId = mode.id;
+    card.draggable = true;
+
+    // --- Drag and Drop for Mode Sorting ---
+    card.addEventListener('dragstart', (e) => {
+      if (!card.classList.contains('collapsed')) {
+        e.preventDefault();
+        return;
+      }
+      draggedElement = card;
+      draggedModeId = mode.id;
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.setData('text/plain', mode.id);
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      draggedElement = null;
+      draggedModeId = null;
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const target = card;
+      if (draggedElement && draggedElement !== target) {
+        target.classList.add('drag-over');
+      }
+    });
+
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+
+    card.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      if (!draggedModeId || draggedModeId === mode.id) return;
+
+      const fromIndex = settingsState.enhancementModes.findIndex(m => m.id === draggedModeId);
+      const toIndex = settingsState.enhancementModes.findIndex(m => m.id === mode.id);
+
+      if (fromIndex > -1 && toIndex > -1) {
+        const [movedMode] = settingsState.enhancementModes.splice(fromIndex, 1);
+        settingsState.enhancementModes.splice(toIndex, 0, movedMode);
+        
+        renderModesUI(); // Re-render from state
+        await saveSettings({ enhancementModes: settingsState.enhancementModes }); // Persist changes
+        notifyUpdate();
+      }
+    });
+
+    // --- Card Header ---
+    const cardHeader = document.createElement('div');
+    cardHeader.className = 'mode-card-header';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'btn-toggle-collapse';
+    toggleBtn.innerHTML = '&#9654;'; // ▶
+    toggleBtn.title = chrome.i18n.getMessage('expandCollapse') || 'Expand/Collapse';
+    toggleBtn.addEventListener('click', () => {
+      card.classList.toggle('collapsed');
+      toggleBtn.innerHTML = card.classList.contains('collapsed') ? '&#9654;' : '&#9660;'; // ▼
+    });
+
+    const modeName = document.createElement('h2');
+    modeName.textContent = mode.name;
+    modeName.contentEditable = String(!mode.isBuiltIn);
+    modeName.title = mode.isBuiltIn ? (chrome.i18n.getMessage('builtInModeCannotRename') || 'Built-in modes cannot be renamed.') : (chrome.i18n.getMessage('clickToRename') || 'Click to rename');
+    modeName.addEventListener('blur', async (e) => {
+      if (mode.isBuiltIn) return;
+      const newName = (e.target as HTMLElement).textContent?.trim() || '';
+      const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+      if (targetMode && newName && newName !== targetMode.name) {
+        targetMode.name = newName;
+        mode.name = newName; // Update local object for consistency
+        await saveSettings({ enhancementModes: settingsState.enhancementModes });
+        notifyUpdate(mode.id);
+      } else {
+        (e.target as HTMLElement).textContent = mode.name;
+      }
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
+    deleteBtn.className = 'btn btn-danger';
+    deleteBtn.style.display = mode.isBuiltIn ? 'none' : 'block';
+    deleteBtn.onclick = async () => {
+      if (confirm(chrome.i18n.getMessage('deleteModeConfirm', [mode.name]))) {
+        const deletedModeId = mode.id;
+        settingsState.enhancementModes = settingsState.enhancementModes.filter(m => m.id !== deletedModeId);
+        if (settingsState.selectedModeId === deletedModeId) {
+          settingsState.selectedModeId = 'builtin-mode-a'; // Fallback
+        }
+        renderModesUI();
+        await saveSettings({
+          enhancementModes: settingsState.enhancementModes,
+          selectedModeId: settingsState.selectedModeId
+        });
+        notifyUpdate(deletedModeId);
+      }
+    };
+
+    cardHeader.appendChild(toggleBtn);
+    cardHeader.appendChild(modeName);
+    cardHeader.appendChild(deleteBtn);
+    card.appendChild(cardHeader);
+
+    // --- Summary (when collapsed) ---
+    const summary = document.createElement('div');
+    summary.className = 'mode-summary';
+    summary.textContent = mode.effects.map(e => e.name.split('/').pop()).join(' > ') || (chrome.i18n.getMessage('noEffects') || 'No effects');
+    card.appendChild(summary);
+
+    // --- Card Content (when expanded) ---
+    const cardContent = document.createElement('div');
+    cardContent.className = 'mode-card-content';
+    const effectsList = document.createElement('ul');
+    effectsList.className = 'effects-list';
+
+    mode.effects.forEach((effect, index) => {
+      const effectItem = document.createElement('li');
+      effectItem.className = 'effect-item';
+      const effectName = document.createElement('span');
+      effectName.textContent = effect.name;
+      effectItem.appendChild(effectName);
+
+      if (!mode.isBuiltIn) {
+        effectItem.draggable = true;
+
+        // --- Drag and Drop for Effect Sorting ---
+        effectItem.addEventListener('dragstart', (e) => {
+          e.stopPropagation();
+          draggedElement = effectItem;
+          draggedModeId = mode.id;
+          draggedEffectIndex = index;
+          e.dataTransfer!.effectAllowed = 'move';
+          setTimeout(() => effectItem.classList.add('dragging'), 0);
+        });
+
+        effectItem.addEventListener('dragend', (e) => {
+          e.stopPropagation();
+          effectItem.classList.remove('dragging');
+          draggedElement = null;
+          draggedModeId = null;
+          draggedEffectIndex = null;
+        });
+
+        effectItem.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (draggedModeId === mode.id) {
+            effectItem.classList.add('drag-over');
+          }
+        });
+
+        effectItem.addEventListener('dragleave', (e) => {
+          e.stopPropagation();
+          effectItem.classList.remove('drag-over');
+        });
+
+        effectItem.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          effectItem.classList.remove('drag-over');
+          if (draggedModeId !== mode.id || draggedEffectIndex === null || draggedEffectIndex === index) return;
+
+          const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+          if (targetMode && !targetMode.isBuiltIn) {
+            const [movedEffect] = targetMode.effects.splice(draggedEffectIndex, 1);
+            targetMode.effects.splice(index, 0, movedEffect);
+            renderModesUI();
+            await saveSettings({ enhancementModes: settingsState.enhancementModes });
+            notifyUpdate(mode.id);
+          }
+        });
+
+        // --- Effect Action Buttons ---
+        const effectActions = document.createElement('div');
+        effectActions.className = 'effect-actions';
+
+        const createMoveBtn = (dir: 'up' | 'down') => {
+          const btn = document.createElement('button');
+          btn.innerHTML = dir === 'up' ? '&#9650;' : '&#9660;';
+          btn.className = 'btn-move-effect';
+          btn.title = chrome.i18n.getMessage(dir === 'up' ? 'moveUp' : 'moveDown') || (dir === 'up' ? 'Move Up' : 'Move Down');
+          btn.disabled = (dir === 'up' && index === 0) || (dir === 'down' && index === mode.effects.length - 1);
+          btn.onclick = async () => {
+            const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+            if (targetMode && !targetMode.isBuiltIn) {
+              const newIndex = dir === 'up' ? index - 1 : index + 1;
+              const [movedEffect] = targetMode.effects.splice(index, 1);
+              targetMode.effects.splice(newIndex, 0, movedEffect);
+              renderModesUI();
+              await saveSettings({ enhancementModes: settingsState.enhancementModes });
+              notifyUpdate(mode.id);
+            }
+          };
+          return btn;
+        };
+
+        const removeEffectBtn = document.createElement('button');
+        removeEffectBtn.textContent = '×';
+        removeEffectBtn.className = 'btn-remove-effect';
+        removeEffectBtn.title = chrome.i18n.getMessage('removeEffect') || 'Remove effect';
+        removeEffectBtn.onclick = async () => {
+          const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+          if (targetMode && !targetMode.isBuiltIn) {
+            targetMode.effects.splice(index, 1);
+            renderModesUI();
+            await saveSettings({ enhancementModes: settingsState.enhancementModes });
+            notifyUpdate(mode.id);
+          }
+        };
+
+        effectActions.appendChild(createMoveBtn('up'));
+        effectActions.appendChild(createMoveBtn('down'));
+        effectActions.appendChild(removeEffectBtn);
+        effectItem.appendChild(effectActions);
+      }
+      effectsList.appendChild(effectItem);
+    });
+    cardContent.appendChild(effectsList);
+
+    // --- Add Effect Dropdown (for custom modes) ---
+    if (!mode.isBuiltIn) {
+      const addEffectContainer = document.createElement('div');
+      addEffectContainer.className = 'add-effect-container';
+      const effectSelect = document.createElement('select');
+      const defaultOption = document.createElement('option');
+      defaultOption.textContent = chrome.i18n.getMessage('addEffect') || 'Add effect...';
+      defaultOption.disabled = true;
+      defaultOption.selected = true;
+      effectSelect.appendChild(defaultOption);
+
+      AVAILABLE_EFFECTS.forEach(availEffect => {
+        const option = document.createElement('option');
+        option.value = availEffect.id;
+        option.textContent = availEffect.name;
+        effectSelect.appendChild(option);
+      });
+
+      effectSelect.onchange = async (e) => {
+        const selectedEffectId = (e.target as HTMLSelectElement).value;
+        const effectToAdd = AVAILABLE_EFFECTS.find(ef => ef.id === selectedEffectId);
+        const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+
+        if (targetMode && !targetMode.isBuiltIn && effectToAdd) {
+          targetMode.effects.push(effectToAdd);
+          renderModesUI();
+          await saveSettings({ enhancementModes: settingsState.enhancementModes });
+          notifyUpdate(mode.id);
+        }
+        (e.target as HTMLSelectElement).value = defaultOption.value; // Reset select
+      };
+      addEffectContainer.appendChild(effectSelect);
+      cardContent.appendChild(addEffectContainer);
+    }
+    
+    card.appendChild(cardContent);
+
+    // 2. Restore expanded state after rendering
+    if (expandedModeIds.has(mode.id)) {
+      card.classList.remove('collapsed');
+      const toggleBtn = card.querySelector('.btn-toggle-collapse');
+      if (toggleBtn) toggleBtn.innerHTML = '&#9660;'; // ▼
+    }
+
+    modesContainer.appendChild(card);
+  });
+};
+
+/**
+ * Renders the whitelist rules UI based on the current settingsState.
+ */
+const renderRulesUI = () => {
+  rulesContainer.innerHTML = ''; // Clear existing rules
+  settingsState.whitelist.forEach((rule) => {
+    const row = document.createElement('tr');
+    
+    const patternCell = document.createElement('td');
+    const patternInput = document.createElement('input');
+    patternInput.type = 'text';
+    patternInput.value = rule.pattern;
+    patternInput.className = 'pattern-input';
+    patternInput.addEventListener('change', async (e) => {
+      const newPattern = (e.target as HTMLInputElement).value;
+      if (validateRulePattern(newPattern)) {
+        await updateWhitelistRule(rule.pattern, newPattern);
+        rule.pattern = newPattern; // Update state
+      } else {
+        alert(chrome.i18n.getMessage('invalidPattern') || 'Invalid pattern format');
+        (e.target as HTMLInputElement).value = rule.pattern;
+      }
+    });
+    patternCell.appendChild(patternInput);
+    
+    const enabledCell = document.createElement('td');
+    const enabledCheckbox = document.createElement('input');
+    enabledCheckbox.type = 'checkbox';
+    enabledCheckbox.checked = rule.enabled;
+    enabledCheckbox.addEventListener('change', async (e) => {
+      const enabled = (e.target as HTMLInputElement).checked;
+      await updateWhitelistRule(rule.pattern, enabled);
+      rule.enabled = enabled; // Update state
+    });
+    enabledCell.appendChild(enabledCheckbox);
+    
+    const actionsCell = document.createElement('td');
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
+    deleteBtn.className = 'action-btn';
+    deleteBtn.addEventListener('click', async () => {
+      await removeWhitelistRule(rule.pattern);
+      settingsState.whitelist = settingsState.whitelist.filter(r => r.pattern !== rule.pattern);
+      renderRulesUI();
+    });
+    actionsCell.appendChild(deleteBtn);
+    
+    row.appendChild(patternCell);
+    row.appendChild(enabledCell);
+    row.appendChild(actionsCell);
+    rulesContainer.appendChild(row);
+  });
+};
+
+const notifyUpdate = (modifiedModeId?: string) => {
+  chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED', modifiedModeId });
+};
+
+const setupNavigation = () => {
+  const menuItems = document.querySelectorAll('.menu-item');
+  const sections = document.querySelectorAll('.content-section');
+  menuItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      menuItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const sectionName = item.getAttribute('data-section');
+      sections.forEach(section => section.classList.remove('active'));
+      const targetSection = document.getElementById(`${sectionName}-section`);
+      if (targetSection) targetSection.classList.add('active');
+    });
+  });
+};
+
+const setupInternationalization = () => {
   document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(element => {
     const key = element.getAttribute('data-i18n');
     if (key) {
       const message = chrome.i18n.getMessage(key);
       if (message) {
-        if (element.tagName === 'TITLE') {
-          document.title = message;
-        } else {
-          element.textContent = message;
-        }
+        if (element.tagName === 'TITLE') document.title = message;
+        else element.textContent = message;
       }
     }
   });
+};
 
-  // --- 导航逻辑 ---
-  const menuItems = document.querySelectorAll('.menu-item');
-  const sections = document.querySelectorAll('.content-section');
-
-  menuItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.preventDefault();
-      
-      // 移除所有菜单项的 active 类
-      menuItems.forEach(i => i.classList.remove('active'));
-      // 为当前点击的菜单项添加 active 类
-      item.classList.add('active');
-
-      const sectionName = item.getAttribute('data-section');
-
-      // 隐藏所有内容区域
-      sections.forEach(section => section.classList.remove('active'));
-      // 显示目标内容区域
-      const targetSection = document.getElementById(`${sectionName}-section`);
-      if (targetSection) {
-        targetSection.classList.add('active');
-      }
-    });
-  });
-
-  // --- 模式编辑器逻辑 ---
-  const modesContainer = document.getElementById('modes-container') as HTMLElement;
-  const addModeBtn = document.getElementById('add-mode-btn') as HTMLButtonElement;
-
-  let draggedElement: HTMLElement | null = null;
-  let draggedModeId: string | null = null;
-  let draggedEffectIndex: number | null = null;
-
-  const renderModes = async () => {
-    const settings = await getSettings();
-    modesContainer.innerHTML = '';
-
-    settings.enhancementModes.forEach(mode => {
-      const card = document.createElement('div');
-      card.className = 'mode-card';
-      card.dataset.modeId = mode.id;
-      card.draggable = true;
-
-      // --- 拖拽模式排序 ---
-      card.addEventListener('dragstart', (e) => {
-        draggedElement = card;
-        draggedModeId = mode.id;
-        e.dataTransfer!.effectAllowed = 'move';
-        e.dataTransfer!.setData('text/plain', mode.id);
-        setTimeout(() => card.classList.add('dragging'), 0);
-      });
-
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-        draggedElement = null;
-        draggedModeId = null;
-      });
-
-      card.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const target = card;
-        if (draggedElement && draggedElement !== target) {
-          target.classList.add('drag-over');
-        }
-      });
-
-      card.addEventListener('dragleave', () => {
-        card.classList.remove('drag-over');
-      });
-
-      card.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        card.classList.remove('drag-over');
-        if (!draggedModeId || draggedModeId === mode.id) return;
-
-        const settings = await getSettings();
-        const fromIndex = settings.enhancementModes.findIndex(m => m.id === draggedModeId);
-        const toIndex = settings.enhancementModes.findIndex(m => m.id === mode.id);
-
-        if (fromIndex > -1 && toIndex > -1) {
-          const [movedMode] = settings.enhancementModes.splice(fromIndex, 1);
-          settings.enhancementModes.splice(toIndex, 0, movedMode);
-          await saveSettings(settings);
-          renderModes();
-          notifyUpdate();
-        }
-      });
-
-
-      const cardHeader = document.createElement('div');
-      cardHeader.className = 'mode-card-header';
-      
-      const modeName = document.createElement('h2');
-      modeName.textContent = mode.name;
-      modeName.contentEditable = String(!mode.isBuiltIn);
-      modeName.addEventListener('blur', async (e) => {
-        const newName = (e.target as HTMLElement).textContent || '';
-        if (newName && newName !== mode.name) {
-          mode.name = newName;
-          await saveSettings(settings);
-          notifyUpdate(mode.id);
-        }
-      });
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
-      deleteBtn.className = 'btn btn-danger';
-      deleteBtn.style.display = mode.isBuiltIn ? 'none' : 'block';
-      deleteBtn.onclick = async () => {
-        if (confirm(chrome.i18n.getMessage('deleteModeConfirm', [mode.name]))) {
-          const deletedModeId = mode.id;
-          settings.enhancementModes = settings.enhancementModes.filter(m => m.id !== deletedModeId);
-          if (settings.selectedModeId === deletedModeId) {
-            settings.selectedModeId = 'builtin-mode-a'; // Fallback to default
-          }
-          await saveSettings(settings);
-          renderModes();
-          notifyUpdate(deletedModeId);
-        }
-      };
-
-      cardHeader.appendChild(modeName);
-      cardHeader.appendChild(deleteBtn);
-      card.appendChild(cardHeader);
-
-      // --- 效果列表 ---
-      const effectsList = document.createElement('ul');
-      effectsList.className = 'effects-list';
-
-      mode.effects.forEach((effect, index) => {
-        const effectItem = document.createElement('li');
-        effectItem.className = 'effect-item';
-        effectItem.textContent = effect.name;
-        
-        if (!mode.isBuiltIn) {
-          effectItem.draggable = true;
-
-          // --- 拖拽效果排序 ---
-          effectItem.addEventListener('dragstart', (e) => {
-            e.stopPropagation(); // 防止触发卡片的拖拽
-            draggedElement = effectItem;
-            draggedModeId = mode.id;
-            draggedEffectIndex = index;
-            e.dataTransfer!.effectAllowed = 'move';
-            setTimeout(() => effectItem.classList.add('dragging'), 0);
-          });
-
-          effectItem.addEventListener('dragend', (e) => {
-            e.stopPropagation();
-            effectItem.classList.remove('dragging');
-            draggedElement = null;
-            draggedModeId = null;
-            draggedEffectIndex = null;
-          });
-
-          effectItem.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (draggedModeId === mode.id) {
-              effectItem.classList.add('drag-over');
-            }
-          });
-
-          effectItem.addEventListener('dragleave', (e) => {
-            e.stopPropagation();
-            effectItem.classList.remove('drag-over');
-          });
-
-          effectItem.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            effectItem.classList.remove('drag-over');
-
-            if (draggedModeId !== mode.id || draggedEffectIndex === null || draggedEffectIndex === index) {
-              return;
-            }
-
-            const settings = await getSettings();
-            const targetMode = settings.enhancementModes.find(m => m.id === mode.id);
-            if (targetMode) {
-              const [movedEffect] = targetMode.effects.splice(draggedEffectIndex, 1);
-              targetMode.effects.splice(index, 0, movedEffect);
-              await saveSettings(settings);
-              renderModes();
-              notifyUpdate();
-            }
-          });
-
-          const removeEffectBtn = document.createElement('button');
-          removeEffectBtn.textContent = '×';
-          removeEffectBtn.className = 'btn-remove-effect';
-          removeEffectBtn.title = 'Remove effect';
-          removeEffectBtn.onclick = async () => {
-            mode.effects.splice(index, 1);
-            await saveSettings(settings);
-            renderModes();
-            notifyUpdate(mode.id);
-          };
-          effectItem.appendChild(removeEffectBtn);
-        }
-        effectsList.appendChild(effectItem);
-      });
-      card.appendChild(effectsList);
-
-      // --- 添加效果下拉菜单 (仅限自定义模式) ---
-      if (!mode.isBuiltIn) {
-        const addEffectContainer = document.createElement('div');
-        addEffectContainer.className = 'add-effect-container';
-
-        const effectSelect = document.createElement('select');
-        const defaultOption = document.createElement('option');
-        defaultOption.textContent = chrome.i18n.getMessage('addEffect') || 'Add effect...';
-        defaultOption.disabled = true;
-        defaultOption.selected = true;
-        effectSelect.appendChild(defaultOption);
-
-        AVAILABLE_EFFECTS.forEach(availEffect => {
-          const option = document.createElement('option');
-          option.value = availEffect.id;
-          option.textContent = availEffect.name;
-          effectSelect.appendChild(option);
-        });
-
-        effectSelect.onchange = async (e) => {
-          const selectedEffectId = (e.target as HTMLSelectElement).value;
-          const effectToAdd = AVAILABLE_EFFECTS.find(ef => ef.id === selectedEffectId);
-          if (effectToAdd) {
-            mode.effects.push(effectToAdd);
-            await saveSettings(settings);
-            renderModes();
-            notifyUpdate(mode.id);
-          }
-        };
-
-        addEffectContainer.appendChild(effectSelect);
-        card.appendChild(addEffectContainer);
-      }
-
-      modesContainer.appendChild(card);
-    });
-  };
-
-  const notifyUpdate = (modifiedModeId?: string) => {
-    chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED', modifiedModeId });
-  };
-
+const setupEventListeners = () => {
+  // --- Mode Listeners ---
   addModeBtn.addEventListener('click', async () => {
-    const settings = await getSettings();
     const newMode: EnhancementMode = {
       id: `custom-${Date.now()}`,
       name: chrome.i18n.getMessage('newCustomModeName') || 'New Custom Mode',
       isBuiltIn: false,
       effects: [],
     };
-    settings.enhancementModes.push(newMode);
-    await saveSettings(settings);
-    renderModes();
-    // 新增模式不需要通知更新，因为它还没有被任何视频使用
+    settingsState.enhancementModes.unshift(newMode);
+    renderModesUI();
+    await saveSettings({ enhancementModes: settingsState.enhancementModes });
   });
 
-
-  // --- 白名单逻辑 ---
-  
-  // 监听白名单更新消息
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'WHITELIST_UPDATED') {
-      renderRules();
-    }
-  });
-
-  const rulesContainer = document.getElementById('rules-container') as HTMLElement;
-  const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
-  const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
-  const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
-  const doImportBtn = document.getElementById('do-import') as HTMLButtonElement;
-  const doExportBtn = document.getElementById('do-export') as HTMLButtonElement;
-  const importExportData = document.getElementById('import-export-data') as HTMLTextAreaElement;
-
-  if (!rulesContainer || !addRuleBtn || !importBtn || !exportBtn || !doImportBtn || !doExportBtn || !importExportData) {
-    console.error('Required elements not found');
-    return;
-  }
-
-  // 渲染白名单规则列表
-  const renderRules = async () => {
-    const settings = await getSettings();
-    rulesContainer.innerHTML = '';
-
-    settings.whitelist.forEach((rule) => {
-      const row = document.createElement('tr');
-      
-      const patternCell = document.createElement('td');
-      const patternInput = document.createElement('input');
-      patternInput.type = 'text';
-      patternInput.value = rule.pattern;
-      patternInput.className = 'pattern-input';
-      patternInput.addEventListener('change', async (e) => {
-        const newPattern = (e.target as HTMLInputElement).value;
-        if (validateRulePattern(newPattern)) {
-          await updateWhitelistRule(rule.pattern, newPattern);
-          renderRules();
-        } else {
-          alert(chrome.i18n.getMessage('invalidPattern') || 'Invalid pattern format');
-          (e.target as HTMLInputElement).value = rule.pattern;
-        }
-      });
-      patternCell.appendChild(patternInput);
-      
-      const enabledCell = document.createElement('td');
-      const enabledCheckbox = document.createElement('input');
-      enabledCheckbox.type = 'checkbox';
-      enabledCheckbox.checked = rule.enabled;
-      enabledCheckbox.addEventListener('change', async (e) => {
-        const enabled = (e.target as HTMLInputElement).checked;
-        await updateWhitelistRule(rule.pattern, enabled);
-      });
-      enabledCell.appendChild(enabledCheckbox);
-      
-      const actionsCell = document.createElement('td');
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
-      deleteBtn.className = 'action-btn';
-      deleteBtn.addEventListener('click', async () => {
-        await removeWhitelistRule(rule.pattern);
-        renderRules();
-      });
-      actionsCell.appendChild(deleteBtn);
-      
-      row.appendChild(patternCell);
-      row.appendChild(enabledCell);
-      row.appendChild(actionsCell);
-      rulesContainer.appendChild(row);
-    });
-  };
-
-  // 添加新规则
+  // --- Whitelist Listeners ---
   addRuleBtn.addEventListener('click', async () => {
-    const settings = await getSettings();
-    const newRule: WhitelistRule = { pattern: '*.example.com/*', enabled: true };
-    settings.whitelist.push(newRule);
-    await saveSettings(settings);
-    renderRules();
+   const newPattern = '*.example.com/*';
+   // Prevent duplicate additions from the UI side
+   if (settingsState.whitelist.some(r => r.pattern === newPattern)) {
+     alert(chrome.i18n.getMessage('ruleAlreadyExists') || 'This rule already exists.');
+     return;
+   }
+   await addWhitelistRule(newPattern, true);
+   // Re-fetch state to reflect the change
+   settingsState.whitelist = (await getSettings()).whitelist;
+   renderRulesUI();
   });
 
-  // 导出白名单
-  exportBtn.addEventListener('click', async () => {
-    const settings = await getSettings();
-    importExportData.value = JSON.stringify(settings.whitelist, null, 2);
+  exportBtn.addEventListener('click', () => {
+    importExportData.value = JSON.stringify(settingsState.whitelist, null, 2);
   });
 
-  // 导入白名单
   importBtn.addEventListener('click', () => {
     importExportData.value = '';
     importExportData.focus();
   });
 
-  // 执行导入
   doImportBtn.addEventListener('click', async () => {
     try {
       const rules = JSON.parse(importExportData.value);
       if (!Array.isArray(rules)) throw new Error('Invalid format');
-      
-      // 验证每个规则
       for (const rule of rules) {
-        if (typeof rule !== 'object' || 
-            typeof rule.pattern !== 'string' || 
-            typeof rule.enabled !== 'boolean') {
+        if (typeof rule !== 'object' || typeof rule.pattern !== 'string' || typeof rule.enabled !== 'boolean') {
           throw new Error('Invalid rule format');
         }
       }
-      
-      const settings = await getSettings();
-      settings.whitelist = rules;
-      await saveSettings(settings);
-      renderRules();
+      settingsState.whitelist = rules;
+      renderRulesUI();
+      await saveSettings({ whitelist: settingsState.whitelist });
       alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
     } catch (error) {
       console.error('Import failed:', error);
@@ -403,13 +455,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 执行导出
-  doExportBtn.addEventListener('click', async () => {
-    const settings = await getSettings();
-    importExportData.value = JSON.stringify(settings.whitelist, null, 2);
+  doExportBtn.addEventListener('click', () => {
+    importExportData.value = JSON.stringify(settingsState.whitelist, null, 2);
   });
 
-  // 初始化渲染
-  renderModes();
-  renderRules();
+  // --- Message Listeners ---
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'WHITELIST_UPDATED') {
+      // Re-fetch settings to get the latest whitelist from other parts of the extension
+      getSettings().then(newSettings => {
+        settingsState = newSettings;
+        renderRulesUI();
+      });
+    }
+  });
+};
+
+/**
+ * Main initialization function.
+ */
+document.addEventListener('DOMContentLoaded', async () => {
+  setupInternationalization();
+  setupNavigation();
+  
+  if (!modesContainer || !addModeBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn || !doImportBtn || !doExportBtn || !importExportData) {
+    console.error('Required UI elements not found. Aborting initialization.');
+    return;
+  }
+
+  // Load initial state from storage
+  settingsState = await getSettings();
+
+  // Initial UI render from state
+  renderModesUI();
+  renderRulesUI();
+
+  // Attach all event listeners
+  setupEventListeners();
 });

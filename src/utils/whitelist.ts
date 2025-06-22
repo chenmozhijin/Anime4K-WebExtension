@@ -64,18 +64,16 @@ export function isUrlWhitelisted(url: string, rules: WhitelistRule[]): boolean {
  * @param enabled 是否启用
  */
 export async function addWhitelistRule(pattern: string, enabled: boolean = true): Promise<void> {
-  const settings = await getSettings();
+  const { whitelist } = await getSettings();
   const newRule: WhitelistRule = { pattern, enabled };
-  
-  if (!settings.whitelist) {
-    settings.whitelist = [];
-  }
-  
+
+  const newWhitelist = whitelist || [];
+
   // 避免重复添加
-  if (!settings.whitelist.some(r => r.pattern === pattern)) {
-    settings.whitelist.push(newRule);
-    await saveSettings(settings);
-    
+  if (!newWhitelist.some(r => r.pattern === pattern)) {
+    newWhitelist.push(newRule);
+    await saveSettings({ whitelist: newWhitelist });
+
     // 通知白名单已更新
     chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
   }
@@ -86,12 +84,12 @@ export async function addWhitelistRule(pattern: string, enabled: boolean = true)
  * @param pattern 要删除的规则模式
  */
 export async function removeWhitelistRule(pattern: string): Promise<void> {
-  const settings = await getSettings();
-  
-  if (settings.whitelist) {
-    settings.whitelist = settings.whitelist.filter(r => r.pattern !== pattern);
-    await saveSettings(settings);
-    
+  const { whitelist } = await getSettings();
+
+  if (whitelist) {
+    const newWhitelist = whitelist.filter(r => r.pattern !== pattern);
+    await saveSettings({ whitelist: newWhitelist });
+
     // 通知白名单已更新
     chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
   }
@@ -103,20 +101,20 @@ export async function removeWhitelistRule(pattern: string): Promise<void> {
  * @param update 更新内容（可以是新的启用状态或新的模式）
  */
 export async function updateWhitelistRule(oldPattern: string, update: boolean | string): Promise<void> {
-  const settings = await getSettings();
-  
-  if (settings.whitelist) {
-    const ruleIndex = settings.whitelist.findIndex(r => r.pattern === oldPattern);
+  const { whitelist } = await getSettings();
+
+  if (whitelist) {
+    const ruleIndex = whitelist.findIndex(r => r.pattern === oldPattern);
     if (ruleIndex !== -1) {
       if (typeof update === 'boolean') {
         // 更新启用状态
-        settings.whitelist[ruleIndex].enabled = update;
+        whitelist[ruleIndex].enabled = update;
       } else {
         // 更新模式字符串
-        settings.whitelist[ruleIndex].pattern = update;
+        whitelist[ruleIndex].pattern = update;
       }
-      await saveSettings(settings);
-      
+      await saveSettings({ whitelist });
+
       // 通知白名单已更新
       chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
     }
@@ -139,9 +137,8 @@ export async function setDefaultWhitelist(): Promise<void> {
     { pattern: 'ani.gamer.com.tw/animeVideo.php', enabled: true },
     { pattern: 'www.bilibili.com/bangumi/play/*', enabled: true }
   ];
-  
+
   await saveSettings({
-    ...await getSettings(),
     whitelist: defaultRules,
     whitelistEnabled: false
   });

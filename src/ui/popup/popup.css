@@ -52,7 +52,8 @@ select, button {
   padding: 10px 12px;
   border-radius: var(--border-radius);
   border: 1px solid var(--border);
-  background: white;
+  background: var(--card-bg);
+  color: var(--text);
   font-size: 14px;
   transition: all 0.2s;
   box-sizing: border-box;
@@ -115,7 +116,7 @@ button:active {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: var(--border);
   transition: .4s;
   border-radius: 24px;
 }
@@ -152,11 +153,15 @@ input:checked + .slider:before {
   padding: 8px;
 }
 
+#open-settings {
+  margin-top: var(--margin-md);
+}
+
 #extension-footer {
   text-align: center;
   margin-top: var(--margin-md);
   font-size: 12px;
-  color: #666;
+  color: var(--text-light);
   padding: 5px 0;
 }
 

@@ -87,11 +87,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedResolution = resolutionSelect.value;
     
     try {
-      // 获取最新设置并更新
-      const updatedSettings = await getSettings();
-      updatedSettings.selectedModeId = selectedModeId;
-      updatedSettings.targetResolutionSetting = selectedResolution;
-      
+      const updatedSettings = {
+        selectedModeId: selectedModeId,
+        targetResolutionSetting: selectedResolution,
+      };
       await saveSettings(updatedSettings);
       
       console.log('Settings saved:', updatedSettings);
@@ -137,16 +136,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 白名单开关改变事件
   whitelistToggle.addEventListener('change', async () => {
     try {
-      const selectedModeId = modeSelect.value;
-      const selectedResolution = resolutionSelect.value;
       const whitelistEnabled = whitelistToggle.checked;
-      
-      // 获取最新设置并更新
-      const updatedSettings = await getSettings();
-      updatedSettings.selectedModeId = selectedModeId;
-      updatedSettings.targetResolutionSetting = selectedResolution;
-      updatedSettings.whitelistEnabled = whitelistEnabled;
-      
+      const updatedSettings = { whitelistEnabled: whitelistEnabled };
+
       await saveSettings(updatedSettings);
       
       console.log('Settings saved on toggle:', updatedSettings);

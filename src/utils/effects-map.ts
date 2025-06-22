@@ -98,7 +98,7 @@ export const AVAILABLE_EFFECTS: EnhancementEffect[] = [
   // `ClampHighlights` 可由用户选择。
   {
     id: 'anime4k/Helper/ClampHighlights',
-    name: 'Helper: Clamp Highlights',
+    name: 'Clamp Highlights',
     className: 'ClampHighlights',
   },
 ];

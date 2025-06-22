@@ -1,16 +1,30 @@
 :root {
-  /* 颜色变量 */
+  /* Light Theme (Default) */
   --primary: #6A0DAD;
   --primary-dark: #52088A;
+  --primary-light: #f3e5f5;
   --secondary: #4361ee;
   --success: #06d6a0;
   --danger: #ef476f;
   --text: #333;
-  --text-light: #f8f9fa;
+  --text-light: #6c757d;
   --text-dark: #212529;
   --border: #e0e0e0;
   --card-bg: white;
   --bg-light: #f8fafc;
+  --bg-dark: #e9ecef;
+
+  /* Dark Theme */
+  --primary-dark-theme: #a55eea;
+  --primary-dark-dark-theme: #8e44ad;
+  --primary-light-dark-theme: #3d2c4a;
+  --secondary-dark-theme: #6a89cc;
+  --text-dark-theme: #f1f2f6;
+  --text-light-dark-theme: #ced6e0;
+  --border-dark-theme: #4a4a4a;
+  --card-bg-dark-theme: #2c3e50;
+  --bg-light-dark-theme: #34495e;
+  --bg-dark-dark-theme: #2f3640;
   
   /* 尺寸变量 */
   --border-radius: 8px;
@@ -27,4 +41,23 @@
   --margin-sm: 8px;
   --margin-md: 12px;
   --margin-lg: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: var(--primary-dark-theme);
+    --primary-dark: var(--primary-dark-dark-theme);
+    --primary-light: var(--primary-light-dark-theme);
+    --secondary: var(--secondary-dark-theme);
+    --text: var(--text-dark-theme);
+    --text-light: var(--text-light-dark-theme);
+    --border: var(--border-dark-theme);
+    --card-bg: var(--card-bg-dark-theme);
+    --bg-light: var(--bg-light-dark-theme);
+    --bg-dark: var(--bg-dark-dark-theme);
+
+    /* Specific overrides for dark mode */
+    --shadow: 0 2px 10px rgba(0,0,0,0.4);
+    --box-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+  }
 }
