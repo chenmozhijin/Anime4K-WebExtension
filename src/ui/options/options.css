@@ -8,6 +8,61 @@ body {
   padding: 2rem;
 }
 
+/* --- Layout --- */
+.container {
+  display: flex;
+  gap: 2rem;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.main-content {
+  flex-grow: 1;
+}
+
+.content-section {
+  display: none;
+}
+
+.content-section.active {
+  display: block;
+}
+
+/* --- Sidebar --- */
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: var(--primary);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.menu-item {
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  color: var(--text);
+  transition: background-color 0.2s;
+}
+
+.menu-item:hover {
+  background-color: var(--bg-light);
+}
+
+.menu-item.active {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .header {
   text-align: center;
   margin-bottom: 2rem;
@@ -84,6 +139,110 @@ h1 {
 .btn-group {
   display: flex;
   gap: 0.5rem;
+}
+
+/* --- Mode Editor --- */
+.modes-container {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.mode-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  transition: box-shadow 0.2s;
+  cursor: grab;
+}
+
+.mode-card:active {
+  cursor: grabbing;
+}
+
+.mode-card.dragging {
+  opacity: 0.5;
+  border: 2px dashed var(--primary);
+}
+
+.mode-card.drag-over {
+    border-top: 2px solid var(--primary);
+}
+
+.mode-card-header h2 {
+  font-size: 1.25rem;
+  margin: 0;
+  outline: none;
+}
+
+.mode-card-header h2[contenteditable="true"] {
+  cursor: text;
+  padding: 0.25rem;
+}
+
+.mode-card-header h2[contenteditable="true"]:focus {
+  background-color: var(--bg-light);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.effects-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.effect-item {
+  background-color: var(--bg-light);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--border);
+  cursor: grab;
+}
+
+.effect-item:active {
+  cursor: grabbing;
+}
+
+.effect-item.dragging {
+    opacity: 0.5;
+}
+
+.effect-item.drag-over {
+    border-top: 2px solid var(--secondary);
+}
+
+.btn-remove-effect {
+  background: none;
+  border: none;
+  color: var(--secondary);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.btn-remove-effect:hover {
+  color: var(--danger);
+}
+
+.add-effect-container {
+  margin-top: 1rem;
+}
+
+.add-effect-container select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border);
+  background-color: var(--card-bg);
+  color: var(--text);
 }
 
 .table-container {

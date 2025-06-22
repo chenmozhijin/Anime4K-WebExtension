@@ -1,5 +1,7 @@
 import { VideoEnhancer } from './video-enhancer';
 import { ANIME4K_APPLIED_ATTR } from '../constants';
+import { getSettings } from '../utils/settings';
+import { Anime4KWebExtSettings } from '../types';
 
 /**
  * 清理视频元素的增强器资源
@@ -115,35 +117,34 @@ export function setupDOMObserver(): MutationObserver {
  * @param sendResponse 响应回调函数
  */
 export async function handleSettingsUpdate(
-  settings: any,
+  message: { type: string, modifiedModeId?: string },
   sendResponse: (response?: any) => void
 ): Promise<void> {
-  console.log('Received settings update:', settings);
-  
-  let reRenderedCount = 0;
+  console.log('Received settings update:', message);
+
+  const newSettings = await getSettings();
+  let updatedCount = 0;
   const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
-  
+
   for (const videoElement of videos) {
-    if (videoElement.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
-      
-      const enhancer = videoElement._anime4kEnhancer;
-      if (enhancer) {
+    const enhancer = videoElement._anime4kEnhancer;
+    if (enhancer && videoElement.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
+      const shouldUpdate = !message.modifiedModeId || enhancer.getCurrentModeId() === message.modifiedModeId;
+
+      if (shouldUpdate) {
         try {
-          // 重新初始化增强器应用新设置
-          enhancer.destroy();
-          videoElement._anime4kEnhancer = new VideoEnhancer(videoElement);
-          await videoElement._anime4kEnhancer!.toggleEnhancement();
-          reRenderedCount++;
+          await enhancer.updateSettings(newSettings);
+          updatedCount++;
         } catch (error) {
-          console.error('Error re-rendering video after settings update:', error, videoElement);
+          console.error('Error updating video settings:', error, videoElement);
         }
       }
     }
   }
 
-  if (reRenderedCount > 0) {
-    sendResponse({ status: 'SUCCESS', message: 'Videos re-rendered successfully' });
+  if (updatedCount > 0) {
+    sendResponse({ status: 'SUCCESS', message: `Updated ${updatedCount} videos.` });
   } else {
-    sendResponse({ status: 'NO_ACTION', message: 'No active instances to update' });
+    sendResponse({ status: 'NO_ACTION', message: 'No active instances needed an update.' });
   }
 }

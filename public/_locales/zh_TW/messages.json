@@ -106,5 +106,29 @@
   },
   "description": {
     "message": "基於Anime4K的即時影片超解析瀏覽器擴充功能。"
+  },
+  "optionsTitle": {
+    "message": "擴充選項"
+  },
+  "enhancementModes": {
+    "message": "增強模式"
+  },
+  "addMode": {
+    "message": "新增模式"
+  },
+  "addEffect": {
+    "message": "新增效果..."
+  },
+  "newCustomModeName": {
+    "message": "新自訂模式"
+  },
+  "deleteModeConfirm": {
+    "message": "您確定要刪除模式「$modeName$」嗎？",
+    "placeholders": {
+      "modeName": {
+        "content": "$1",
+        "example": "我的自訂模式"
+      }
+    }
   }
 }

@@ -106,5 +106,29 @@
   },
   "description": {
     "message": "Anime4Kに基づくリアルタイム動画超解像ブラウザ拡張機能。"
+  },
+  "optionsTitle": {
+    "message": "拡張機能オプション"
+  },
+  "enhancementModes": {
+    "message": "拡張モード"
+  },
+  "addMode": {
+    "message": "モードを追加"
+  },
+  "addEffect": {
+    "message": "エフェクトを追加..."
+  },
+  "newCustomModeName": {
+    "message": "新しいカスタムモード"
+  },
+  "deleteModeConfirm": {
+    "message": "本当にモード「$modeName$」を削除しますか？",
+    "placeholders": {
+      "modeName": {
+        "content": "$1",
+        "example": "私のカスタムモード"
+      }
+    }
   }
 }

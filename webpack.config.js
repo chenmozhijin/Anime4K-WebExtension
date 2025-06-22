@@ -5,6 +5,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ExtensionManifestPlugin = require('webpack-extension-manifest-plugin');
 const packageJson = require('./package.json');
+const { clear } = require('console');
 
 module.exports = (env, argv) => {
   const isDevelopment = argv.mode === 'development';
@@ -20,6 +21,7 @@ module.exports = (env, argv) => {
     output: {
       filename: '[name].js',
       path: path.resolve(__dirname, 'dist'),
+      clean: true, // 清理输出目录
     },
     module: {
       rules: [

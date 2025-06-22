@@ -1,7 +1,7 @@
 import { getSettings } from '../utils/settings';
-import { render, RendererInstance } from './renderer';
-import { ANIME4K_APPLIED_ATTR, MODES } from '../constants';
-import { Dimensions, Anime4KMode, ModeClasses } from '../types';
+import { Renderer } from './renderer';
+import { ANIME4K_APPLIED_ATTR } from '../constants';
+import { Dimensions, EnhancementEffect, ModeClasses, Anime4KWebExtSettings, EnhancementMode } from '../types';
 import { OverlayManager } from './overlay-manager';
 
 /**
@@ -10,8 +10,9 @@ import { OverlayManager } from './overlay-manager';
  */
 export class VideoEnhancer {
   private static modeClassesPromise: Promise<ModeClasses> | null = null;
-  private instance?: RendererInstance;
-  private canvas?: HTMLCanvasElement;
+
+  private renderer: Renderer | null = null;
+  private currentModeId: string | null = null;
   private overlay: OverlayManager;
   private button: HTMLButtonElement;
 
@@ -22,40 +23,42 @@ export class VideoEnhancer {
   }
 
   /**
-   * 初始化UI组件
+   * 初始化UI组件和事件监听
    */
-  private initUI() {
+  private initUI(): void {
     this.button.onclick = (e) => {
-      e.stopPropagation(); // 阻止事件冒泡
+      e.stopPropagation();
       this.toggleEnhancement();
     };
-    // 按钮可见性逻辑现在由 OverlayManager 的 CSS 控制
   }
 
   /**
-   * 切换超分状态
+   * 切换视频增强的开关状态
    */
-  async toggleEnhancement() {
-    if (this.video.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
-      console.log('[Anime4KWebExt] 取消视频超分');
+  async toggleEnhancement(): Promise<void> {
+    console.log(`[Debug] toggleEnhancement called. Current renderer state: ${this.renderer ? 'exists' : 'null'}`);
+    if (this.renderer) {
+      console.log('[Anime4KWebExt] Disabling video enhancement.');
       this.disableEnhancement();
-      this.button.innerText = chrome.i18n.getMessage('enhanceButton');
       return;
     }
 
-    this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
-    console.log('[Anime4KWebExt] 开始视频超分处理');
+    console.log('[Anime4KWebExt] Starting video enhancement.');
     this.button.innerText = chrome.i18n.getMessage('enhancing');
     this.button.disabled = true;
 
     try {
       await this.initRenderer();
+      this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
-      console.error('[Anime4KWebExt] 超分初始化失败: ', error);
-      this.disableEnhancement();
+      console.error('[Debug] Error during toggleEnhancement -> initRenderer:', error);
+      console.error('[Anime4KWebExt] Failed to initialize enhancer:', error);
+      this.disableEnhancement(); // Clean up on failure
       this.button.innerText = chrome.i18n.getMessage('retryEnhance');
-      this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
+      this.showErrorModal(
+        (error as Error).message || chrome.i18n.getMessage('enhanceError') || 'Enhancement failed, please try again.'
+      );
     } finally {
       this.button.disabled = false;
     }
@@ -63,140 +66,134 @@ export class VideoEnhancer {
 
   /**
    * 动态加载 Anime4K 模块并缓存结果
-   * @returns 返回包含所有模式类的对象
    */
   private static loadAnime4KModule(): Promise<ModeClasses> {
     if (this.modeClassesPromise) {
-      console.log('[Anime4KWebExt] 使用已缓存的 Anime4K 模块 Promise');
       return this.modeClassesPromise;
     }
-
-    console.log('[Anime4KWebExt] 首次请求加载 Anime4K 模块');
     this.modeClassesPromise = new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-        this.modeClassesPromise = null; // 允许重试
-        reject(new Error('Anime4K 模块加载超时'));
-      }, 5000); // 5秒超时
+        this.modeClassesPromise = null;
+        reject(new Error('Anime4K module loading timed out.'));
+      }, 5000);
 
       const handleModuleLoaded = (event: Event) => {
         clearTimeout(timeoutId);
-        console.log('[Anime4KWebExt] 接收到 anime4k-module-loaded 事件');
         const customEvent = event as CustomEvent<ModeClasses>;
         if (customEvent.detail) {
           resolve(customEvent.detail);
         } else {
-          this.modeClassesPromise = null; // 允许重试
-          reject(new Error('模块加载成功，但未在事件中提供模块内容'));
+          this.modeClassesPromise = null;
+          reject(new Error('Module loaded successfully but no content was provided.'));
         }
       };
       document.addEventListener('anime4k-module-loaded', handleModuleLoaded, { once: true });
 
-      console.log('[Anime4KWebExt] 向后台请求加载 anime4k-module...');
-      chrome.runtime.sendMessage({
-        type: 'LOAD_DYNAMIC_MODULE',
-        chunk: 'anime4k-module'
-      }).then(response => {
-        if (response?.success) {
-          console.log('[Anime4KWebExt] 后台脚本确认开始注入模块。');
-        } else {
+      chrome.runtime.sendMessage({ type: 'LOAD_DYNAMIC_MODULE', chunk: 'anime4k-module' })
+        .then(response => {
+          if (!response?.success) {
+            clearTimeout(timeoutId);
+            document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
+            const errorMsg = `Background script failed to load module: ${response?.error || 'Unknown error'}`;
+            this.modeClassesPromise = null;
+            reject(new Error(errorMsg));
+          }
+        }).catch(error => {
           clearTimeout(timeoutId);
           document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-          const errorMsg = `后台加载模块失败: ${response?.error || '未知错误'}`;
-          console.error(`[Anime4KWebExt] ${errorMsg}`);
-          this.modeClassesPromise = null; // 允许重试
-          reject(new Error(errorMsg));
-        }
-      }).catch(error => {
-        clearTimeout(timeoutId);
-        document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-        console.error('[Anime4KWebExt] 发送加载请求到后台时出错:', error);
-        this.modeClassesPromise = null; // 允许重试
-        reject(error);
-      });
+          this.modeClassesPromise = null;
+          reject(error);
+        });
     });
     return this.modeClassesPromise;
   }
 
   /**
-   * 初始化渲染器
+   * 初始化渲染器，包括获取设置、加载模块和创建Renderer实例
    */
-  private async initRenderer() {
-    // 在初始化开始时获取Canvas，此时它仍是不可见的
-    this.canvas = this.overlay.getCanvas();
+  private async initRenderer(): Promise<void> {
+    if (!navigator.gpu) {
+      throw new Error('WebGPU is not supported on this browser.');
+    }
 
-    const [
-      { selectedModeName, targetResolutionSetting },
-      MODE_CLASSES
-    ] = await Promise.all([
+    const [settings, modeClasses] = await Promise.all([
       getSettings(),
       VideoEnhancer.loadAnime4KModule()
     ]);
 
-    console.log(`[Anime4KWebExt] 初始化渲染器 - 模式: ${selectedModeName}, 目标分辨率: ${targetResolutionSetting}`);
-    const SelectedModeClass = MODE_CLASSES[selectedModeName as Anime4KMode] || MODE_CLASSES[MODES.ModeA];
-
-    if (!navigator.gpu) {
-      throw new Error('WebGPU not supported');
-    }
+    const { selectedModeId, enhancementModes, targetResolutionSetting } = settings;
+    const selectedMode = enhancementModes.find((m: EnhancementMode) => m.id === selectedModeId) || enhancementModes.find((m: EnhancementMode) => m.isBuiltIn)!;
+    this.currentModeId = selectedMode.id;
 
     const targetDimensions = this.calculateTargetDimensions(
       this.video.videoWidth,
       this.video.videoHeight,
       targetResolutionSetting
     );
-    console.log(`[Anime4KWebExt] 视频原始尺寸: ${this.video.videoWidth}x${this.video.videoHeight}, 目标尺寸: ${targetDimensions.width}x${targetDimensions.height}`);
 
-    this.instance = await render({
+    const canvas = this.overlay.getCanvas();
+    canvas.width = targetDimensions.width;
+    canvas.height = targetDimensions.height;
+
+    this.renderer = await Renderer.create({
       video: this.video,
-      canvas: this.canvas!,
-      pipelineBuilder: (device: GPUDevice, inputTexture: GPUTexture) => {
-        const preset = new SelectedModeClass({
-          device,
-          inputTexture,
-          nativeDimensions: {
-            width: this.video.videoWidth,
-            height: this.video.videoHeight,
-          },
-          targetDimensions
-        });
-        this.canvas!.width = targetDimensions.width;
-        this.canvas!.height = targetDimensions.height;
-        return [preset];
-      },
-      onResolutionChanged: () => {
-        console.log('[Anime4KWebExt] 收到分辨率变化通知，重新初始化渲染器');
-        this.reinitialize();
-      },
-      onError: (error) => {
-        console.error('[Anime4KWebExt] 渲染器错误: ', error);
-        this.showErrorModal(chrome.i18n.getMessage('renderError') || '渲染失败，请重试');
+      canvas: canvas,
+      effects: selectedMode.effects,
+      modeClasses,
+      targetDimensions,
+      onError: (error: Error) => {
+        console.error('[Anime4KWebExt] Renderer runtime error:', error);
+        this.showErrorModal(chrome.i18n.getMessage('renderError') || 'A rendering error occurred.');
         this.disableEnhancement();
-        this.button.innerText = chrome.i18n.getMessage('retryEnhance');
       }
     });
-    console.log('[Anime4KWebExt] 渲染器初始化成功');
 
-    // 渲染器完全就绪后，再调用 showCanvas 使其可见
+    console.log(`[Anime4KWebExt] Renderer initialized with mode: ${selectedMode.name}`);
     this.overlay.showCanvas();
   }
 
   /**
-   * 计算目标渲染尺寸
-   * @param videoWidth 视频原始宽度
-   * @param videoHeight 视频原始高度
-   * @param resolutionSetting 分辨率设置
-   * @returns 目标尺寸对象
+   * 根据新设置更新渲染器。
+   * 这比完全重新初始化要高效得多。
+   * @param newSettings - 最新的设置对象
    */
-  private calculateTargetDimensions(
-    videoWidth: number,
-    videoHeight: number,
-    resolutionSetting: string
-  ): Dimensions {
-    const multipliers: Record<string, number> = {
-      'x2': 2, 'x4': 4, 'x8': 8,
-    };
-    
+  public async updateSettings(newSettings: Anime4KWebExtSettings): Promise<void> {
+    if (!this.renderer) return;
+
+    console.log('[Anime4KWebExt] Updating renderer with new settings...');
+    const { selectedModeId, enhancementModes, targetResolutionSetting } = newSettings;
+    const selectedMode = enhancementModes.find((m: EnhancementMode) => m.id === selectedModeId) || enhancementModes.find((m: EnhancementMode) => m.isBuiltIn)!;
+
+    const newTargetDimensions = this.calculateTargetDimensions(
+      this.video.videoWidth,
+      this.video.videoHeight,
+      targetResolutionSetting
+    );
+
+    // 如果目标尺寸变化，更新canvas的大小。这必须在调用渲染器更新之前完成。
+    const canvas = this.overlay.getCanvas();
+    if (newTargetDimensions.width !== canvas.width || newTargetDimensions.height !== canvas.height) {
+      console.log(`[Anime4KWebExt] Target resolution changed, resizing canvas to ${newTargetDimensions.width}x${newTargetDimensions.height}.`);
+      canvas.width = newTargetDimensions.width;
+      canvas.height = newTargetDimensions.height;
+    }
+
+    // 调用渲染器统一的配置更新方法，它会智能地处理变更
+    this.renderer.updateConfiguration({
+      effects: selectedMode.effects,
+      targetDimensions: newTargetDimensions
+    });
+
+    this.currentModeId = selectedMode.id;
+    console.log(`[Anime4KWebExt] Renderer updated to mode: ${selectedMode.name}`);
+  }
+
+  /**
+   * 计算目标渲染尺寸
+   */
+  private calculateTargetDimensions(videoWidth: number, videoHeight: number, resolutionSetting: string): Dimensions {
+    const multipliers: Record<string, number> = { 'x2': 2, 'x4': 4, 'x8': 8 };
     const fixedResolutions: Record<string, Dimensions> = {
       '720p': { width: 1280, height: 720 },
       '1080p': { width: 1920, height: 1080 },
@@ -205,40 +202,25 @@ export class VideoEnhancer {
     };
 
     if (multipliers[resolutionSetting]) {
-      return {
-        width: videoWidth * multipliers[resolutionSetting],
-        height: videoHeight * multipliers[resolutionSetting]
-      };
+      return { width: videoWidth * multipliers[resolutionSetting], height: videoHeight * multipliers[resolutionSetting] };
     } else if (fixedResolutions[resolutionSetting]) {
       return fixedResolutions[resolutionSetting];
     }
-    
     return { width: videoWidth, height: videoHeight };
   }
 
-
-
   /**
-   * 重新初始化渲染器
+   * 获取当前正在使用的模式ID
    */
-  private async reinitialize() {
-    try {
-      console.log('[Anime4KWebExt] 重新初始化渲染器...');
-      this.releaseWebGPUResources();
-      // reinitialize 也需要遵循同样的逻辑
-      await this.initRenderer();
-    } catch (error) {
-      console.error('重新初始化失败:', error);
-      this.disableEnhancement();
-      this.showErrorModal(chrome.i18n.getMessage('enhanceError') || '超分失败，请重试');
-    }
+  public getCurrentModeId(): string | null {
+    return this.currentModeId;
   }
 
   /**
    * 销毁整个增强器实例（包括UI元素和内部资源）
    */
-  destroy() {
-    console.log('[Anime4KWebExt] 销毁增强器实例和资源');
+  public destroy(): void {
+    console.log('[Anime4KWebExt] Destroying enhancer instance.');
     this.disableEnhancement();
     this.overlay.destroy();
   }
@@ -246,65 +228,48 @@ export class VideoEnhancer {
   /**
    * 禁用视频增强效果（释放资源并重置视频状态）
    */
-  private disableEnhancement() {
+  private disableEnhancement(): void {
     this.releaseWebGPUResources();
-    this.overlay.hideCanvas(); // 隐藏画布
+    this.overlay.hideCanvas();
     this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
+    this.button.innerText = chrome.i18n.getMessage('enhanceButton');
+    this.currentModeId = null;
   }
 
   /**
-   * 释放WebGPU相关资源（渲染器实例、观察者、画布等）
+   * 释放WebGPU相关资源
    */
-  private releaseWebGPUResources() {
-    console.log('[Anime4KWebExt] 清理渲染资源');
-    this.instance?.destroy();
+  private releaseWebGPUResources(): void {
+    if (this.renderer) {
+      console.log('[Debug] Releasing WebGPU resources. Entering release block.');
+      try {
+        this.renderer.destroy();
+        console.log('[Debug] renderer.destroy() completed.');
+      } catch (e) {
+        console.error('[Debug] Error caught during renderer.destroy():', e);
+      } finally {
+        this.renderer = null;
+        console.log('[Debug] renderer set to null.');
+      }
+    }
   }
 
   /**
-   * 显示错误提示框（右上角）
-   * @param message 错误消息
+   * 显示错误提示框
    */
   private showErrorModal(message: string): void {
     const notification = document.createElement('div');
-    notification.style.position = 'fixed';
-    notification.style.top = '20px';
-    notification.style.right = '20px';
-    notification.style.backgroundColor = '#333';
-    notification.style.color = '#fff';
-    notification.style.padding = '15px 20px';
-    notification.style.borderRadius = '4px';
-    notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-    notification.style.zIndex = '10000';
-    notification.style.maxWidth = '300px';
-    notification.style.fontFamily = 'Arial, sans-serif';
-    notification.style.fontSize = '14px';
-    notification.style.lineHeight = '1.5';
+    Object.assign(notification.style, {
+      position: 'fixed', top: '20px', right: '20px',
+      backgroundColor: '#333', color: '#fff', padding: '15px 20px',
+      borderRadius: '4px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+      zIndex: '10000', maxWidth: '300px', fontFamily: 'Arial, sans-serif',
+      fontSize: '14px', lineHeight: '1.5'
+    });
 
-    const messageText = document.createElement('div');
-    messageText.textContent = `[Anime4K WebExtension] ${message}`;
-    messageText.style.marginBottom = '10px';
-    messageText.style.fontWeight = 'bold';
-
-    const closeButton = document.createElement('button');
-    closeButton.textContent = chrome.i18n.getMessage('closeButton') || '关闭';
-    closeButton.style.backgroundColor = 'transparent';
-    closeButton.style.color = '#fff';
-    closeButton.style.border = '1px solid #fff';
-    closeButton.style.padding = '4px 8px';
-    closeButton.style.borderRadius = '3px';
-    closeButton.style.cursor = 'pointer';
-    closeButton.style.float = 'right';
-    closeButton.onclick = () => notification.remove();
-
-    notification.appendChild(messageText);
-    notification.appendChild(closeButton);
+    notification.textContent = `[Anime4K WebExtension] ${message}`;
     document.body.appendChild(notification);
 
-    // 5秒后自动关闭
-    setTimeout(() => {
-      if (document.body.contains(notification)) {
-        notification.remove();
-      }
-    }, 5000);
+    setTimeout(() => notification.remove(), 5000);
   }
 }

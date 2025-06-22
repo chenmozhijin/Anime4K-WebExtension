@@ -1,4 +1,5 @@
 import type { Anime4KPipeline } from 'anime4k-webgpu';
+import type { Anime4KClass, Dimensions, EnhancementEffect, ModeClasses } from '../types';
 
 /**
  * 全屏纹理四边形顶点着色器
@@ -53,279 +54,377 @@ fn main(@location(0) fragUV : vec2f) -> @location(0) vec4f {
 `;
 
 /**
- * 渲染器选项接口
- * 定义渲染器初始化所需的参数
+ * RendererOptions 定义了创建 Renderer 实例所需的配置项
  */
 export interface RendererOptions {
-  video: HTMLVideoElement;  // 输入视频元素
-  canvas: HTMLCanvasElement; // 输出画布元素
-  pipelineBuilder: (device: GPUDevice, inputTexture: GPUTexture) =>
-  [...Anime4KPipeline[], Anime4KPipeline]; // 流水线构建函数
-  onResolutionChanged?: () => void; // 分辨率变化回调
-  onError?: (error: Error) => void; // 错误回调
+  /** 视频播放器元素 */
+  video: HTMLVideoElement;
+  /** 用于渲染的 Canvas 元素 */
+  canvas: HTMLCanvasElement;
+  /** 要应用的增强效果数组 */
+  effects: EnhancementEffect[];
+  /** 动态加载的 Anime4K 效果类模块 */
+  modeClasses: ModeClasses;
+  /** 渲染的目标分辨率 */
+  targetDimensions: Dimensions;
+  /** 发生运行时错误时的回调函数 */
+  onError?: (error: Error) => void;
 }
 
 /**
- * 渲染器实例接口
- * 定义渲染器实例的方法
+ * Renderer 类封装了所有与 WebGPU 相关的渲染逻辑。
+ * 它负责管理 GPU 设备、上下文、渲染管线、纹理和渲染循环。
  */
-export interface RendererInstance {
-  destroy: () => void; // 销毁渲染器的方法
-}
+export class Renderer {
+  // --- 核心属性 ---
+  private video: HTMLVideoElement;
+  private canvas: HTMLCanvasElement;
+  private effects: EnhancementEffect[];
+  private modeClasses: ModeClasses;
+  private targetDimensions: Dimensions;
+  private onError?: (error: Error) => void;
 
-/**
- * 渲染函数
- * 初始化WebGPU渲染管道并开始渲染循环
- * @param options 渲染器选项
- * @returns 渲染器实例
- */
-export async function render(options: RendererOptions): Promise<RendererInstance> {
-  const { video, canvas, pipelineBuilder, onResolutionChanged, onError } = options;
-  let destroyed = false;
-  
-  // 确保视频元数据已加载
-  if (video.readyState < video.HAVE_FUTURE_DATA) {
-    await new Promise((resolve) => {
-      video.onloadeddata = resolve;
+  // --- 状态标志 ---
+  private destroyed = false;
+  private animationFrameId: number | null = null;
+
+  // --- WebGPU 对象 ---
+  private device!: GPUDevice;
+  private context!: GPUCanvasContext;
+  private presentationFormat!: GPUTextureFormat;
+  /** 用于从视频帧复制图像数据的中间纹理 */
+  private videoFrameTexture!: GPUTexture;
+  /** 效果处理管线链 */
+  private pipelines: Anime4KPipeline[] = [];
+
+  // --- 最终渲染阶段的对象 ---
+  private renderBindGroupLayout!: GPUBindGroupLayout;
+  private renderPipeline!: GPURenderPipeline;
+  private sampler!: GPUSampler;
+  private renderBindGroup!: GPUBindGroup;
+
+  /**
+   * Renderer 的构造函数是私有的，请使用 `Renderer.create()` 静态方法来创建实例。
+   * @param options - 初始化渲染器所需的配置
+   */
+  private constructor(options: RendererOptions) {
+    this.video = options.video;
+    this.canvas = options.canvas;
+    this.effects = options.effects;
+    this.modeClasses = options.modeClasses;
+    this.targetDimensions = options.targetDimensions;
+    this.onError = options.onError;
+  }
+
+  /**
+   * 创建并异步初始化一个新的 Renderer 实例。
+   * 这是实例化 Renderer 的首选方法。
+   * @param options - 初始化渲染器所需的配置
+   * @returns 返回一个 Promise，解析为一个完全初始化的 Renderer 实例
+   */
+  public static async create(options: RendererOptions): Promise<Renderer> {
+    const renderer = new Renderer(options);
+    await renderer.initialize();
+    return renderer;
+  }
+
+  /**
+   * 初始化 WebGPU 设备、上下文和所有必要的渲染资源。
+   */
+  private async initialize(): Promise<void> {
+    // 等待视频数据加载完成
+    if (this.video.readyState < this.video.HAVE_FUTURE_DATA) {
+      await new Promise((resolve) => {
+        this.video.onloadeddata = resolve;
+      });
+    }
+
+    // 请求 GPU 适配器，并根据平台设置能效偏好
+    const adapterOptions: GPURequestAdapterOptions = {};
+    // 在 Windows 上设置 powerPreference 会产生警告，因此仅在非 Windows 平台使用
+    if (!navigator.platform.startsWith('Win')) {
+      adapterOptions.powerPreference = 'high-performance';
+    }
+    const adapter = await navigator.gpu.requestAdapter(adapterOptions);
+    if (!adapter) {
+      throw new Error('WebGPU not supported');
+    }
+
+    // 请求 GPU 设备并配置 Canvas 上下文
+    this.device = await adapter.requestDevice();
+    this.context = this.canvas.getContext('webgpu')!;
+    this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+    this.context.configure({
+      device: this.device,
+      format: this.presentationFormat,
+      alphaMode: 'premultiplied',
+    });
+
+    // 创建初始资源
+    this.createResources();
+    this.buildPipelines();
+    await this.createRenderPipeline();
+    this.createRenderBindGroup();
+
+    // 启动渲染循环
+    this.animationFrameId = this.video.requestVideoFrameCallback(this.frame);
+  }
+
+  /**
+   * 创建处理所需的 GPU 资源，主要是用于接收视频帧的纹理。
+   * 当视频源分辨率变化时，此方法会被调用以重新创建纹理。
+   */
+  private createResources(): void {
+    this.videoFrameTexture?.destroy(); // 销毁旧纹理
+    this.videoFrameTexture = this.device.createTexture({
+      size: [this.video.videoWidth, this.video.videoHeight, 1],
+      format: 'rgba16float', // 使用 float 格式以获得更高精度
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING | // 可以作为着色器输入
+        GPUTextureUsage.COPY_DST |        // 可以作为拷贝目的地
+        GPUTextureUsage.RENDER_ATTACHMENT, // 可以作为渲染目标
     });
   }
-  
-  // 获取视频原始尺寸
-  const WIDTH = video.videoWidth;
-  const HEIGHT = video.videoHeight;
-
-  // 请求WebGPU适配器
-  // 在Windows上忽略powerPreference选项（crbug.com/369219127）
-  const isWindows = navigator.userAgent.includes('Windows');
-  const adapterOptions = isWindows ? {} : { powerPreference: 'high-performance' as GPUPowerPreference };
-  const adapter = await navigator.gpu.requestAdapter(adapterOptions);
-  if (!adapter) {
-    throw new Error('WebGPU not supported');
-  }
-  
-  // 请求GPU设备
-  const device = await adapter.requestDevice();
-  
-  // 配置画布上下文
-  const context = canvas.getContext('webgpu') ?? (() => { 
-  throw new Error('WebGPU context not available') 
-  })();
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({
-    device,
-    format: presentationFormat,
-    alphaMode: 'premultiplied', // 使用预乘alpha混合
-  });
-
-  // 创建视频帧纹理
-  const videoFrameTexture = device.createTexture({
-    size: [WIDTH, HEIGHT, 1],
-    format: 'rgba16float', // 16位浮点格式提供更宽的色域
-    usage: GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_DST |
-      GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-  console.log(`[Anime4KWebExt] 视频帧纹理已创建, 纹理大小: ${WIDTH}x${HEIGHT} | ${videoFrameTexture.width}x${videoFrameTexture.height}`);
-
-
-
-  // 构建Anime4K处理流水线
-  const pipelines = pipelineBuilder(device, videoFrameTexture);
-  let animationFrameId: number | null = null;
 
   /**
-   * 更新视频帧纹理
-   * 将当前视频帧复制到GPU纹理
+   * 根据当前的效果链（this.effects）构建 Anime4K 处理管线。
+   * 此方法会销毁旧管线并创建新管线。
    */
-  function updateVideoFrameTexture() {
-    
-    // 检查分辨率是否变化
-    if (video.videoWidth !== videoFrameTexture.width || video.videoHeight !== videoFrameTexture.height) {
-      console.log(`[Anime4KWebExt] 检测到视频分辨率变化: ${videoFrameTexture.width}x${videoFrameTexture.height} -> ${video.videoWidth}x${video.videoHeight}`);
-      
-      // 销毁当前实例
-      destroy();
-      
-      // 通知外层需要重新初始化渲染器
-      if (onResolutionChanged) {
-        onResolutionChanged();
+  private buildPipelines(): void {
+    this.pipelines.forEach(p => (p as any).destroy?.());
+
+    const pipelines: Anime4KPipeline[] = [];
+    let currentTexture = this.videoFrameTexture;
+    let curWidth = this.video.videoWidth;
+    let curHeight = this.video.videoHeight;
+    const DownscaleClass = this.modeClasses['Downscale' as keyof typeof this.modeClasses] as Anime4KClass;
+
+    const upscaleFactors = this.effects.map(e => e.upscaleFactor ?? 1);
+    const remainingUpscaleFactors = upscaleFactors.map((_, i) =>
+      upscaleFactors.slice(i + 1).reduce((acc, val) => acc * val, 1)
+    );
+
+    for (let i = 0; i < this.effects.length; i++) {
+      const effect = this.effects[i];
+      const EffectClass = this.modeClasses[effect.className as keyof typeof this.modeClasses] as Anime4KClass;
+      if (EffectClass) {
+        const pipeline = new EffectClass({
+          device: this.device,
+          inputTexture: currentTexture,
+          nativeDimensions: { width: curWidth, height: curHeight },
+          targetDimensions: this.targetDimensions,
+        });
+        pipelines.push(pipeline);
+        currentTexture = pipeline.getOutputTexture();
+
+        if (effect.upscaleFactor) {
+          curWidth *= effect.upscaleFactor;
+          curHeight *= effect.upscaleFactor;
+
+          const remainingFactor = remainingUpscaleFactors[i];
+          if (DownscaleClass && remainingFactor > 1) {
+            const idealIntermediateWidth = this.targetDimensions.width / remainingFactor;
+            const idealIntermediateHeight = this.targetDimensions.height / remainingFactor;
+
+            if (curWidth > idealIntermediateWidth * 1.1) {
+              const intermediateDownscale = new DownscaleClass({
+                device: this.device,
+                inputTexture: currentTexture,
+                nativeDimensions: { width: curWidth, height: curHeight },
+                targetDimensions: {
+                  width: Math.ceil(idealIntermediateWidth),
+                  height: Math.ceil(idealIntermediateHeight),
+                },
+              });
+              pipelines.push(intermediateDownscale);
+              currentTexture = intermediateDownscale.getOutputTexture();
+              curWidth = Math.ceil(idealIntermediateWidth);
+              curHeight = Math.ceil(idealIntermediateHeight);
+            }
+          }
+        }
       }
-      return;
     }
 
-    device.queue.copyExternalImageToTexture(
-      { source: video },
-      { texture: videoFrameTexture },
-      [WIDTH, HEIGHT],
-    );
-    return;
+    if (pipelines.length === 0) {
+      pipelines.push({
+        pass: () => {},
+        getOutputTexture: () => this.videoFrameTexture,
+        updateParam: () => {},
+      });
+    }
+    this.pipelines = pipelines;
   }
 
-  // 创建渲染绑定组布局
-  const renderBindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        sampler: {}, // 采样器绑定
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: {}, // 纹理绑定
-      },
-    ],
-  });
-
-  // 创建渲染流水线布局
-  const renderPipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [renderBindGroupLayout],
-  });
-
-  // 创建渲染流水线（异步）
-  const renderPipeline = await device.createRenderPipelineAsync({
-    layout: renderPipelineLayout,
-    vertex: {
-      module: device.createShaderModule({
-        code: fullscreenTexturedQuadWGSL, // 使用顶点着色器
-      }),
-      entryPoint: 'vert_main',
-    },
-    fragment: {
-      module: device.createShaderModule({
-        code: sampleExternalTextureWGSL, // 使用片段着色器
-      }),
-      entryPoint: 'main',
-      targets: [
-        {
-          format: presentationFormat,
-        },
+  /**
+   * 创建最终的渲染管线，该管线负责将处理完成的纹理绘制到 Canvas 上。
+   */
+  private async createRenderPipeline(): Promise<void> {
+    // 定义绑定组布局，描述着色器所需的资源
+    this.renderBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} }, // 采样器
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} }, // 输入纹理
       ],
-    },
-    primitive: {
-      topology: 'triangle-list', // 三角形列表图元
-    },
-  });
+    });
 
-  // 创建纹理采样器
-  const sampler = device.createSampler({
-    magFilter: 'linear', // 放大时使用线性过滤
-    minFilter: 'linear', // 缩小时使用线性过滤
-  });
+    // 异步创建渲染管线以提高性能
+    this.renderPipeline = await this.device.createRenderPipelineAsync({
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.renderBindGroupLayout] }),
+      vertex: {
+        module: this.device.createShaderModule({ code: fullscreenTexturedQuadWGSL }),
+        entryPoint: 'vert_main',
+      },
+      fragment: {
+        module: this.device.createShaderModule({ code: sampleExternalTextureWGSL }),
+        entryPoint: 'main',
+        targets: [{ format: this.presentationFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
 
-  // 创建渲染绑定组
-  const renderBindGroup = device.createBindGroup({
-    layout: renderBindGroupLayout,
-    entries: [
-      {
-        binding: 1,
-        resource: sampler, // 采样器资源
-      },
-      {
-        binding: 2,
-        resource: pipelines.at(-1)!.getOutputTexture().createView(), // 最终输出纹理视图
-      },
-    ],
-  });
+    this.sampler = this.device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+  }
 
   /**
-   * 渲染帧函数
-   * 每帧执行的主要渲染逻辑
+   * 创建渲染绑定组，它将实际的资源（采样器和最终纹理）绑定到渲染管线。
    */
-  function frame() {
-    if (destroyed) return;
-    
+  private createRenderBindGroup(): void {
+    this.renderBindGroup = this.device.createBindGroup({
+      layout: this.renderBindGroupLayout,
+      entries: [
+        { binding: 1, resource: this.sampler },
+        // 获取效果链中最后一个管线的输出纹理作为最终渲染的输入
+        { binding: 2, resource: this.pipelines.at(-1)!.getOutputTexture().createView() },
+      ],
+    });
+  }
+
+  /**
+   * 渲染循环的回调函数，由 `requestVideoFrameCallback` 在每个视频帧可用时调用。
+   */
+  private frame = (): void => {
+    if (this.destroyed) return;
+    console.log(`[Debug] Render frame. Destroyed: ${this.destroyed}, Paused: ${this.video.paused}, ReadyState: ${this.video.readyState}`);
     try {
-      // 仅在视频播放时处理帧
-      if (!video.paused) {
-        // 更新纹理
-        updateVideoFrameTexture();
-        
-        // 创建命令编码器
-        const commandEncoder = device.createCommandEncoder();
-        
-        // 执行所有Anime4K处理流水线
-        pipelines.forEach((pipeline) => {
-          pipeline.pass(commandEncoder);
-        });
-        
-        // 开始渲染通道
+      if (!this.video.paused && this.video.readyState >= this.video.HAVE_CURRENT_DATA) {
+        if (this.video.videoWidth !== this.videoFrameTexture.width || this.video.videoHeight !== this.videoFrameTexture.height) {
+          console.log(`[Anime4KWebExt] Resolution changed: ${this.videoFrameTexture.width}x${this.videoFrameTexture.height} -> ${this.video.videoWidth}x${this.video.videoHeight}`);
+          this.handleSourceResize();
+          return;
+        }
+
+        this.device.queue.copyExternalImageToTexture(
+          { source: this.video },
+          { texture: this.videoFrameTexture },
+          [this.video.videoWidth, this.video.videoHeight]
+        );
+
+        const commandEncoder = this.device.createCommandEncoder();
+        this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
         const passEncoder = commandEncoder.beginRenderPass({
-          colorAttachments: [
-            {
-              view: context.getCurrentTexture().createView(),
-              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-              loadOp: 'clear',
-              storeOp: 'store',
-            },
-          ],
+          colorAttachments: [{
+            view: this.context.getCurrentTexture().createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
         });
-        
-        // 设置渲染流水线和绑定组
-        passEncoder.setPipeline(renderPipeline);
-        passEncoder.setBindGroup(0, renderBindGroup);
-        
-        // 绘制
+        passEncoder.setPipeline(this.renderPipeline);
+        passEncoder.setBindGroup(0, this.renderBindGroup);
         passEncoder.draw(6);
-        
-        // 结束渲染通道并提交命令
         passEncoder.end();
-        device.queue.submit([commandEncoder.finish()]);
+        this.device.queue.submit([commandEncoder.finish()]);
       }
     } catch (error) {
-      console.error('[Anime4KWebExt] 渲染帧处理失败: ', error);
-      // 通知上层错误
-      if (onError) {
-        onError(error instanceof Error ? error : new Error(String(error)));
-      }
-      // 避免频繁错误导致控制台溢出
-      if (!destroyed) {
-        destroy();
-      }
+      console.error('[Anime4KWebExt] Frame processing failed:', error);
+      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
+      this.destroy();
       return;
     }
-    
-    // 请求下一帧（无论是否暂停都需要继续监听）
-    if (!destroyed) {
-      animationFrameId = video.requestVideoFrameCallback(frame);
+
+    if (!this.destroyed) {
+      this.animationFrameId = this.video.requestVideoFrameCallback(this.frame);
     }
+  };
+
+  /**
+   * 当视频源本身的分辨率发生变化时调用（例如，用户在视频播放器中切换了清晰度）
+   * 这将重新创建基于视频原始尺寸的资源
+   */
+  public handleSourceResize(): void {
+    if (this.destroyed) return;
+    console.log('[Anime4KWebExt] Resizing renderer due to video source dimension change...');
+    this.createResources();
+    this.buildPipelines();
+    this.createRenderBindGroup();
+    console.log('[Anime4KWebExt] Renderer resized for source.');
   }
-  
-  
 
-  function destroy() {
+  /**
+   * 根据用户设置（效果或目标分辨率）更新渲染器配置
+   * @param options 包含新效果和目标尺寸的对象
+   */
+  public updateConfiguration(options: { effects: EnhancementEffect[], targetDimensions: Dimensions }): void {
+    if (this.destroyed) return;
+
+    const { effects, targetDimensions } = options;
+
+    // 使用JSON字符串比较来检测效果数组是否有实质性变化
+    const effectsChanged = JSON.stringify(this.effects) !== JSON.stringify(effects);
+    const dimensionsChanged = this.targetDimensions.width !== targetDimensions.width || this.targetDimensions.height !== targetDimensions.height;
+
+    if (!effectsChanged && !dimensionsChanged) {
+      console.log('[Anime4KWebExt] Configuration unchanged, skipping pipeline rebuild.');
+      return;
+    }
+
+    if (dimensionsChanged) {
+      console.log(`[Anime4KWebExt] Updating target dimensions to ${targetDimensions.width}x${targetDimensions.height}.`);
+      this.targetDimensions = targetDimensions;
+    }
+
+    if (effectsChanged) {
+      console.log('[Anime4KWebExt] Updating effects.');
+      this.effects = effects;
+    }
+
+    console.log('[Anime4KWebExt] Rebuilding pipeline due to configuration update.');
+    this.buildPipelines();
+    this.createRenderBindGroup();
+    console.log('[Anime4KWebExt] Renderer configuration updated.');
+  }
+
+  /**
+   * 销毁渲染器并释放所有 WebGPU 资源。
+   * 这是一个关键的清理方法，以防止内存和 GPU 资源泄漏。
+   */
+  public destroy(): void {
+    if (this.destroyed) return;
+    // 立即设置销毁标志，以防止任何异步操作（如 device.lost）在销毁过程中执行不必要的操作
+    this.destroyed = true;
+
+    // 停止渲染循环
+    if (this.animationFrameId) {
+      this.video.cancelVideoFrameCallback(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    // 安全地销毁所有 GPU 资源
     try {
-      if (destroyed) {
-        console.log('[Anime4KWebExt] 渲染器已销毁，跳过重复销毁');
-        return;
-      }
-      destroyed = true;
-
-      // 取消动画帧回调
-      if (animationFrameId) {
-        video.cancelVideoFrameCallback(animationFrameId);
-      }
-      
-      // 销毁所有处理流水线
-      pipelines.forEach(pipeline => {
+      this.pipelines.forEach(pipeline => {
         if (typeof (pipeline as any).destroy === 'function') {
           (pipeline as any).destroy();
         }
       });
-      
-      // 销毁纹理和GPU设备
-      videoFrameTexture.destroy();
-      device.destroy();
-      // 清理引用
-      animationFrameId = null;
-      console.log('[Anime4KWebExt] 渲染器已销毁');
+      this.videoFrameTexture?.destroy();
+      // 解除画布与GPU设备的关联，这对于后续重新初始化至关重要
+      this.context?.unconfigure();
+      // 主动销毁设备，这将触发 device.lost Promise
+      this.device?.destroy();
+      console.log('[Anime4KWebExt] Renderer destroyed.');
     } catch (error) {
-      console.error('[Anime4KWebExt] 销毁渲染器时发生错误: ', error);
+      console.error('[Anime4KWebExt] Error during renderer destruction:', error);
     }
   }
-    // 启动渲染循环
-  animationFrameId = video.requestVideoFrameCallback(frame);
-
-  // 返回渲染器实例
-  return {destroy};
 }

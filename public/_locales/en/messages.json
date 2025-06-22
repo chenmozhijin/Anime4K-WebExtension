@@ -106,5 +106,29 @@
   },
   "description": {
     "message": "Real-time video super-resolution browser extension based on Anime4K."
+  },
+  "optionsTitle": {
+    "message": "Extension Options"
+  },
+  "enhancementModes": {
+    "message": "Enhancement Modes"
+  },
+  "addMode": {
+    "message": "Add Mode"
+  },
+  "addEffect": {
+    "message": "Add effect..."
+  },
+  "newCustomModeName": {
+    "message": "New Custom Mode"
+  },
+  "deleteModeConfirm": {
+    "message": "Are you sure you want to delete mode \"$modeName$\"?",
+    "placeholders": {
+      "modeName": {
+        "content": "$1",
+        "example": "My Custom Mode"
+      }
+    }
   }
 }

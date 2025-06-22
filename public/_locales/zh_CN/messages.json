@@ -106,5 +106,29 @@
   },
   "description": {
     "message": "基于Anime4K的实时视频超分辨率浏览器扩展。"
+  },
+  "optionsTitle": {
+    "message": "扩展选项"
+  },
+  "enhancementModes": {
+    "message": "增强模式"
+  },
+  "addMode": {
+    "message": "添加模式"
+  },
+  "addEffect": {
+    "message": "添加效果..."
+  },
+  "newCustomModeName": {
+    "message": "新自定义模式"
+  },
+  "deleteModeConfirm": {
+    "message": "您确定要删除模式“$modeName$”吗？",
+    "placeholders": {
+      "modeName": {
+        "content": "$1",
+        "example": "我的自定义模式"
+      }
+    }
   }
 }

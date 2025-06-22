@@ -3,51 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="whitelistManagement">Whitelist Management</title>
+  <title data-i18n="optionsTitle">Extension Options</title>
 </head>
 <body>
-  <div class="header">
-    <h1 data-i18n="whitelistManagement">Whitelist Management</h1>
+  <div class="container">
+    <aside class="sidebar">
+      <h1 class="logo" data-i18n="extensionName">Anime4K</h1>
+      <nav class="menu">
+        <a href="#" class="menu-item active" data-section="modes" data-i18n="enhancementModes">Enhancement Modes</a>
+        <a href="#" class="menu-item" data-section="whitelist" data-i18n="whitelistManagement">Whitelist Management</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <section id="modes-section" class="content-section active">
+        <div class="header">
+          <h1 data-i18n="enhancementModes">Enhancement Modes</h1>
+          <div class="btn-group">
+            <button id="add-mode-btn" class="btn btn-primary" data-i18n="addMode">Add Mode</button>
+            <button id="import-modes-btn" class="btn btn-outline" data-i18n="import">Import</button>
+            <button id="export-modes-btn" class="btn btn-outline" data-i18n="export">Export</button>
+          </div>
+        </div>
+        <div id="modes-container" class="modes-container">
+          <!-- 模式卡片将动态添加到这里 -->
+        </div>
+      </section>
+      <section id="whitelist-section" class="content-section">
+        <div class="header">
+          <h1 data-i18n="whitelistManagement">Whitelist Management</h1>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="rules">Rules</h2>
+            <div class="btn-group">
+              <button id="add-rule" class="btn btn-primary" data-i18n="addRule">Add Rule</button>
+              <button id="import-btn" class="btn btn-outline" data-i18n="import">Import</button>
+              <button id="export-btn" class="btn btn-outline" data-i18n="export">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="whitelist-table">
+              <thead>
+                <tr>
+                  <th data-i18n="pattern">Pattern</th>
+                  <th data-i18n="enabled">Enabled</th>
+                  <th data-i18n="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rules-container">
+                <!-- 规则将动态添加到这里 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card import-export">
+          <h2 class="section-title" data-i18n="importExport">Import/Export</h2>
+          <textarea id="import-export-data" placeholder="Paste JSON data here for import..."></textarea>
+          <div class="btn-group">
+            <button id="do-import" class="btn btn-primary" data-i18n="doImport">Import Data</button>
+            <button id="do-export" class="btn btn-outline" data-i18n="doExport">Export Data</button>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
-  
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title" data-i18n="rules">Rules</h2>
-      <div class="btn-group">
-        <button id="add-rule" class="btn btn-primary" data-i18n="addRule">Add Rule</button>
-        <button id="import-btn" class="btn btn-outline" data-i18n="import">Import</button>
-        <button id="export-btn" class="btn btn-outline" data-i18n="export">Export</button>
-      </div>
-    </div>
-    
-    <div class="table-container">
-      <table class="whitelist-table">
-        <thead>
-          <tr>
-            <th data-i18n="pattern">Pattern</th>
-            <th data-i18n="enabled">Enabled</th>
-            <th data-i18n="actions">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="rules-container">
-          <!-- 规则将动态添加到这里 -->
-        </tbody>
-      </table>
-    </div>
-  </div>
-  
-  <div class="card import-export">
-    <h2 class="section-title" data-i18n="importExport">Import/Export</h2>
-    <textarea id="import-export-data" placeholder="Paste JSON data here for import..."></textarea>
-    <div class="btn-group">
-      <button id="do-import" class="btn btn-primary" data-i18n="doImport">Import Data</button>
-      <button id="do-export" class="btn btn-outline" data-i18n="doExport">Export Data</button>
-    </div>
-  </div>
-  
   <div class="footer">
     <p>Anime4K WebExtension</p>
   </div>
-
 </body>
 </html>

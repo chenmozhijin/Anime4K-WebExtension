@@ -53,7 +53,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentSettings;
   try {
     currentSettings = await getSettings();
-    modeSelect.value = currentSettings.selectedModeName;
+    
+    // 动态填充模式下拉框
+    modeSelect.innerHTML = ''; // 清空现有选项
+    currentSettings.enhancementModes.forEach(mode => {
+      const option = document.createElement('option');
+      option.value = mode.id;
+      option.textContent = mode.name;
+      modeSelect.appendChild(option);
+    });
+
+    modeSelect.value = currentSettings.selectedModeId;
     resolutionSelect.value = currentSettings.targetResolutionSetting;
     whitelistToggle.checked = currentSettings.whitelistEnabled;
     
@@ -65,26 +75,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (error) {
     console.error('Error loading settings:', error);
     // 设置默认值
-    modeSelect.value = 'ModeA';
+    modeSelect.value = 'builtin-mode-a';
     resolutionSelect.value = 'x2';
     whitelistToggle.checked = false;
-    currentSettings = {
-      selectedModeName: 'ModeA',
-      targetResolutionSetting: 'x2',
-      whitelistEnabled: false,
-      whitelist: []
-    };
+    currentSettings = await getSettings(); // 获取包含默认模式的设置
   }
 
   // 保存设置
   saveButton.addEventListener('click', async () => {
-    const selectedMode = modeSelect.value;
+    const selectedModeId = modeSelect.value;
     const selectedResolution = resolutionSelect.value;
     
     try {
       // 获取最新设置并更新
       const updatedSettings = await getSettings();
-      updatedSettings.selectedModeName = selectedMode;
+      updatedSettings.selectedModeId = selectedModeId;
       updatedSettings.targetResolutionSetting = selectedResolution;
       
       await saveSettings(updatedSettings);
@@ -103,8 +108,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tabs[0]?.id) {
           chrome.tabs.sendMessage(tabs[0].id, {
             type: 'SETTINGS_UPDATED',
-            settings: {
-              defaultMode: selectedMode,
+            settings: { // 这个 payload 实际上没有被 video-manager 使用，但我们保留它以防万一
+              selectedModeId: selectedModeId,
               targetResolution: selectedResolution,
             }
           }, (response) => {
@@ -132,13 +137,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 白名单开关改变事件
   whitelistToggle.addEventListener('change', async () => {
     try {
-      const selectedMode = modeSelect.value;
+      const selectedModeId = modeSelect.value;
       const selectedResolution = resolutionSelect.value;
       const whitelistEnabled = whitelistToggle.checked;
       
       // 获取最新设置并更新
       const updatedSettings = await getSettings();
-      updatedSettings.selectedModeName = selectedMode;
+      updatedSettings.selectedModeId = selectedModeId;
       updatedSettings.targetResolutionSetting = selectedResolution;
       updatedSettings.whitelistEnabled = whitelistEnabled;
       
