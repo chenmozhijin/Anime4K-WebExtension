@@ -80,7 +80,7 @@ export class OverlayManager {
         position: 'absolute',
         objectFit: videoStyle.objectFit,
         objectPosition: videoStyle.objectPosition,
-        zIndex: videoStyle.zIndex === 'auto' ? '1' : (parseInt(videoStyle.zIndex, 10) + 1).toString(),
+        zIndex: videoStyle.zIndex,
       });
     }
 
@@ -135,6 +135,7 @@ export class OverlayManager {
     
     this.updatePosition(); // 更新位置和尺寸
     this.canvas!.style.visibility = 'visible'; // 设为可见
+    this.video.style.opacity = '0'; // 隐藏原视频
   }
 
   /**
@@ -143,6 +144,7 @@ export class OverlayManager {
   public hideCanvas(): void {
     this.canvas?.remove();
     this.canvas = undefined;
+    this.video.style.opacity = ''; // 恢复原视频
   }
 
   /**
