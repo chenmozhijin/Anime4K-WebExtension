@@ -1,6 +1,6 @@
 {
   "name": "anime4k-webextension",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Real-time video super-resolution browser extension based on Anime4K.",
   "scripts": {
     "build": "webpack --mode production",
