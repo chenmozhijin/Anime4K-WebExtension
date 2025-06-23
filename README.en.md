@@ -1,6 +1,6 @@
 # Anime4K WebExtension
 
-[中文](./README.md) | English | [日本語](./README.ja.md)
+[中文](./README.md) | English | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
 A real-time video super-resolution browser extension based on Anime4K-WebGPU, supporting multiple enhancement modes and resolution settings.
 
@@ -11,7 +11,7 @@ A real-time video super-resolution browser extension based on Anime4K-WebGPU, su
 - 📏 Multiple resolution options (2x/4x/8x/720p/1080p/4K)
 - ⚡ WebGPU acceleration, high efficiency and low latency
 - 📋 Page whitelist system (disabled by default)
-- 🌐 Multi-language support (Chinese/English/Japanese)
+- 🌐 Multi-language support (Chinese/English/Japanese/Russian)
 
 > [!WARNING]
 > This extension does not work on video websites with Encrypted Media Extensions (EME) or DRM protection, such as Netflix.
