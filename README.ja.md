@@ -1,6 +1,6 @@
 # Anime4K WebExtension
 
-[中文](./README.md) | [English](./README.en.md) | 日本語
+[中文](./README.md) | [English](./README.en.md) | 日本語 | [Русский](./README.ru.md)
 
 Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機能。複数の拡張モードと解像度設定をサポート。
 
@@ -11,7 +11,7 @@ Anime4K-WebGPUに基づくリアルタイム動画超解像ブラウザ拡張機
 - 📏 複数の解像度オプション（2x/4x/8x/720p/1080p/4K）
 - ⚡ WebGPU加速、高効率・低遅延
 - 📋 ページホワイトリストシステム（デフォルト無効）
-- 🌐 多言語対応（中国語/英語/日本語）
+- 🌐 多言語対応（中国語/英語/日本語/ロシア語）
 
 > [!WARNING]
 > この拡張機能は、Encrypted Media Extensions (EME) または DRM で保護された動画サイト（Netflixなど）では動作しません。
