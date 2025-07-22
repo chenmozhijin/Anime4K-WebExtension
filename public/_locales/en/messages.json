@@ -130,5 +130,23 @@
         "example": "My Custom Mode"
       }
     }
+  },
+  "generalSettings": {
+    "message": "General Settings"
+  },
+  "compatibility": {
+    "message": "Compatibility"
+  },
+  "crossOriginCompatMode": {
+    "message": "Cross-Origin Compatibility Mode"
+  },
+  "crossOriginCompatModeDesc": {
+    "message": "Enable this if video enhancement fails on certain websites. This mode attempts to fix cross-origin loading issues. Note: For changes to take effect on open tabs, you must refresh them."
+  },
+  "crossOriginHint": {
+    "message": "Enhancement failed due to cross-origin restrictions. Please enable Compatibility Mode in the options."
+  },
+  "goToOptions": {
+    "message": "Go to Options"
   }
 }

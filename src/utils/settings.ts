@@ -162,6 +162,7 @@ export async function getSettings(): Promise<Anime4KWebExtSettings> {
       'targetResolutionSetting',
       'whitelistEnabled',
       'whitelist',
+      'enableCrossOriginFix', // 新增
     ], (data) => {
       // This function now assumes that `syncBuiltInModes` has been run at startup.
       // It primarily just retrieves data and applies defaults.
@@ -170,7 +171,8 @@ export async function getSettings(): Promise<Anime4KWebExtSettings> {
         enhancementModes: data.enhancementModes || [], // Should have been synced
         targetResolutionSetting: data.targetResolutionSetting || 'x2',
         whitelistEnabled: data.whitelistEnabled !== undefined ? data.whitelistEnabled : false,
-        whitelist: data.whitelist || []
+        whitelist: data.whitelist || [],
+        enableCrossOriginFix: data.enableCrossOriginFix !== undefined ? data.enableCrossOriginFix : false, // 新增
       });
     });
   });

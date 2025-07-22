@@ -43,6 +43,7 @@ interface Anime4KWebExtSettings {
   whitelistEnabled: boolean;
   whitelist: WhitelistRule[];
   enhancementModes: EnhancementMode[];
+  enableCrossOriginFix: boolean;
 }
 
 // 定义尺寸接口

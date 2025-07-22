@@ -19,6 +19,7 @@ const rulesContainer = document.getElementById('rules-container') as HTMLElement
 const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
 const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
+const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
 
 // --- Drag and Drop State ---
 let draggedElement: HTMLElement | null = null;
@@ -435,7 +436,19 @@ const setupInternationalization = () => {
   });
 };
 
+const renderGeneralSettingsUI = () => {
+  crossOriginFixToggle.checked = settingsState.enableCrossOriginFix;
+};
+
 const setupEventListeners = () => {
+  // --- General Settings Listeners ---
+  crossOriginFixToggle.addEventListener('change', async (e) => {
+    const enabled = (e.target as HTMLInputElement).checked;
+    settingsState.enableCrossOriginFix = enabled;
+    await saveSettings({ enableCrossOriginFix: enabled });
+    notifyUpdate();
+  });
+
   // --- Mode Listeners ---
   addModeBtn.addEventListener('click', async () => {
     const newMode: EnhancementMode = {
@@ -572,6 +585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initial UI render from state
   renderModesUI();
   renderRulesUI();
+  renderGeneralSettingsUI();
 
   // Attach all event listeners
   setupEventListeners();

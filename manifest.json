@@ -26,9 +26,20 @@
   "permissions": [
     "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": ["<all_urls>"],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": false,
+        "path": "rules.json"
+      }
+    ]
+  },
   "default_locale": "en",
   "icons": {
     "16": "icons/icon16.png",

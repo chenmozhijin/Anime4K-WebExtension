@@ -1,16 +1,38 @@
-import { syncModes } from './utils/settings';
+import { syncModes, getSettings } from './utils/settings';
+
+const RULESET_ID = 'ruleset_1';
+
+/**
+ * Updates the declarativeNetRequest ruleset based on the current settings.
+ */
+async function updateDNRuleset() {
+  const { enableCrossOriginFix } = await getSettings();
+  if (enableCrossOriginFix) {
+    await chrome.declarativeNetRequest.updateEnabledRulesets({
+      enableRulesetIds: [RULESET_ID]
+    });
+    console.log('[Background] Cross-origin DNR ruleset enabled.');
+  } else {
+    await chrome.declarativeNetRequest.updateEnabledRulesets({
+      disableRulesetIds: [RULESET_ID]
+    });
+    console.log('[Background] Cross-origin DNR ruleset disabled.');
+  }
+}
 
 // 后台服务脚本
 
-// Sync built-in modes on startup
+// Sync built-in modes and DNR rules on startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log('Browser startup, syncing built-in modes.');
+  console.log('Browser startup, syncing modes and DNR rules.');
   syncModes();
+  updateDNRuleset();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Anime4K WebExtension installed or updated.');
   syncModes();
+  updateDNRuleset();
 });
 
 // 监听标签页更新
@@ -60,5 +82,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     // 返回 true 表示我们将异步发送响应
     return true;
+  } else if (request.type === 'SETTINGS_UPDATED') {
+    // 当设置更新时，检查是否需要更新DNR规则
+    console.log('[Background] Settings updated, checking DNR rules...');
+    updateDNRuleset();
+  } else if (request.type === 'OPEN_OPTIONS_PAGE') {
+    chrome.runtime.openOptionsPage();
   }
 });
