@@ -32,33 +32,116 @@ export class VideoEnhancer {
     };
   }
 
+  private fixAttempted = false;
+
+  /**
+   * 检查并修复视频的跨域问题。
+   * @param isFallback - 是否作为错误后的兜底方案调用
+   * @returns {Promise<void>}
+   */
+  private async fixCrossOrigin(isFallback = false): Promise<void> {
+    console.log(`[Anime4KWebExt] Executing cross-origin fix. Is fallback: ${isFallback}`);
+    this.fixAttempted = true;
+    this.video.crossOrigin = 'anonymous';
+
+    const currentTime = this.video.currentTime;
+    const originalSrc = this.video.src;
+    const isPaused = this.video.paused;
+
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        this.video.oncanplay = null;
+        this.video.onerror = null;
+      };
+
+      this.video.oncanplay = () => {
+        cleanup();
+        this.video.currentTime = currentTime;
+        if (!isPaused) {
+          this.video.play().catch(e => console.warn('[Anime4KWebExt] Autoplay after reload was blocked.', e));
+        }
+        console.log('[Anime4KWebExt] Video reloaded successfully with crossOrigin attribute.');
+        resolve();
+      };
+
+      this.video.onerror = (e) => {
+        cleanup();
+        console.error('[Anime4KWebExt] Failed to reload video after setting crossOrigin.', e);
+        reject(new Error('Failed to reload video with cross-origin attribute.'));
+      };
+
+      this.video.src = '';
+      this.video.src = originalSrc;
+      this.video.load();
+    });
+  }
+
   /**
    * 切换视频增强的开关状态
    */
   async toggleEnhancement(): Promise<void> {
-    console.log(`[Debug] toggleEnhancement called. Current renderer state: ${this.renderer ? 'exists' : 'null'}`);
     if (this.renderer) {
       console.log('[Anime4KWebExt] Disabling video enhancement.');
       this.disableEnhancement();
       return;
     }
 
-    console.log('[Anime4KWebExt] Starting video enhancement.');
     this.button.innerText = chrome.i18n.getMessage('enhancing');
     this.button.disabled = true;
+    this.fixAttempted = false; // Reset fix attempt flag
+
+    const settings = await getSettings();
 
     try {
+      if (settings.enableCrossOriginFix) {
+        // --- 第一道防线：前置检查 ---
+        const videoUrl = this.video.src;
+        if (videoUrl && videoUrl.startsWith('http') && !this.video.crossOrigin) {
+          try {
+            const videoOrigin = new URL(videoUrl).origin;
+            if (videoOrigin !== window.location.origin) {
+              console.log('[Anime4KWebExt] Proactive check: Cross-origin video detected. Applying fix...');
+              await this.fixCrossOrigin();
+            }
+          } catch (e) {
+            console.warn('[Anime4KWebExt] Could not parse video src URL for proactive check.', e);
+          }
+        }
+      }
+
+      // --- 核心操作 ---
       await this.initRenderer();
       this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
+
     } catch (error) {
-      console.error('[Debug] Error during toggleEnhancement -> initRenderer:', error);
-      console.error('[Anime4KWebExt] Failed to initialize enhancer:', error);
-      this.disableEnhancement(); // Clean up on failure
-      this.button.innerText = chrome.i18n.getMessage('retryEnhance');
-      this.showErrorModal(
-        (error as Error).message || chrome.i18n.getMessage('enhanceError') || 'Enhancement failed, please try again.'
-      );
+      const err = error as Error;
+      const isCrossOriginError = err.name === 'SecurityError' && err.message.includes('tainted');
+
+      if (isCrossOriginError && settings.enableCrossOriginFix && !this.fixAttempted) {
+        // --- 第二道防线：错误兜底 ---
+        console.warn('[Anime4KWebExt] Fallback: Caught a SecurityError. Attempting to fix and retry...');
+        try {
+          await this.fixCrossOrigin();
+          await this.initRenderer(); // 重试
+          this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+          this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
+        } catch (retryError) {
+          console.error('[Anime4KWebExt] Enhancer failed even after retry:', retryError);
+          this.disableEnhancement();
+          this.showErrorModal((retryError as Error).message || chrome.i18n.getMessage('enhanceError'));
+        }
+      } else if (isCrossOriginError && !settings.enableCrossOriginFix) {
+        // --- 用户提示 ---
+        console.warn('[Anime4KWebExt] Cross-origin error detected, but fix is disabled. Prompting user.');
+        this.disableEnhancement();
+        this.showErrorModal(chrome.i18n.getMessage('crossOriginHint') || 'Enhancement failed due to cross-origin restrictions. Please enable Compatibility Mode in the options.', true);
+      } else {
+        // --- 其他错误 ---
+        console.error('[Anime4KWebExt] Failed to initialize enhancer:', err);
+        this.disableEnhancement();
+        this.showErrorModal(err.message || chrome.i18n.getMessage('enhanceError'));
+      }
     } finally {
       this.button.disabled = false;
     }
@@ -142,9 +225,16 @@ export class VideoEnhancer {
       effects: selectedMode.effects,
       modeClasses,
       targetDimensions,
-      onError: (error: Error) => {
+      onError: async (error: Error) => {
         console.error('[Anime4KWebExt] Renderer runtime error:', error);
-        this.showErrorModal(chrome.i18n.getMessage('renderError') || 'A rendering error occurred.');
+        const isCrossOriginError = error.name === 'SecurityError' && error.message.includes('tainted');
+        const settings = await getSettings();
+
+        if (isCrossOriginError && !settings.enableCrossOriginFix) {
+          this.showErrorModal(chrome.i18n.getMessage('crossOriginHint') || 'Enhancement failed due to cross-origin restrictions. Please enable Compatibility Mode in the options.', true);
+        } else {
+          this.showErrorModal(chrome.i18n.getMessage('renderError') || 'A rendering error occurred.');
+        }
         this.disableEnhancement();
       },
       onFirstFrameRendered: () => {
@@ -259,19 +349,37 @@ export class VideoEnhancer {
   /**
    * 显示错误提示框
    */
-  private showErrorModal(message: string): void {
+  private showErrorModal(message: string, showOptionsLink = false): void {
     const notification = document.createElement('div');
     Object.assign(notification.style, {
       position: 'fixed', top: '20px', right: '20px',
       backgroundColor: '#333', color: '#fff', padding: '15px 20px',
       borderRadius: '4px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-      zIndex: '10000', maxWidth: '300px', fontFamily: 'Arial, sans-serif',
+      zIndex: '10000', maxWidth: '350px', fontFamily: 'Arial, sans-serif',
       fontSize: '14px', lineHeight: '1.5'
     });
 
-    notification.textContent = `[Anime4K WebExtension] ${message}`;
+    const messageNode = document.createElement('p');
+    messageNode.textContent = `[Anime4K WebExtension] ${message}`;
+    messageNode.style.margin = '0';
+    notification.appendChild(messageNode);
+
+    if (showOptionsLink) {
+      const link = document.createElement('a');
+      link.textContent = chrome.i18n.getMessage('goToOptions') || 'Go to Options';
+      link.href = '#';
+      link.style.color = '#8ab4f8';
+      link.style.marginTop = '8px';
+      link.style.display = 'block';
+      link.onclick = (e) => {
+        e.preventDefault();
+        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
+      };
+      notification.appendChild(link);
+    }
+
     document.body.appendChild(notification);
 
-    setTimeout(() => notification.remove(), 5000);
+    setTimeout(() => notification.remove(), 8000);
   }
 }

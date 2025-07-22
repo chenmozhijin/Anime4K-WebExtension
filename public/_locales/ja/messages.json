@@ -130,5 +130,23 @@
         "example": "私のカスタムモード"
       }
     }
+  },
+  "generalSettings": {
+    "message": "一般設定"
+  },
+  "compatibility": {
+    "message": "互換性"
+  },
+  "crossOriginCompatMode": {
+    "message": "クロスオリジン互換モード"
+  },
+  "crossOriginCompatModeDesc": {
+    "message": "特定のウェブサイトで動画の超解像に失敗する場合に有効にしてください。このモードはクロスオリジンの読み込み問題を修正しようとします。注意：変更を開いているタブで有効にするには、リフレッシュする必要があります。"
+  },
+  "crossOriginHint": {
+    "message": "クロスオリジンの制限により超解像に失敗しました。オプションで「クロスオリジン互換モード」を有効にしてください。"
+  },
+  "goToOptions": {
+    "message": "オプションへ移動"
   }
 }

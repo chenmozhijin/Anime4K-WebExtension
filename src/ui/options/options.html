@@ -12,7 +12,13 @@
       <nav class="menu">
         <ul>
           <li>
-            <a href="#" class="menu-item active" data-section="modes">
+            <a href="#" class="menu-item active" data-section="general">
+              <svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-4.44a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.38"/><path d="M16 2l4 4h-4V2z"/><path d="M12.5 11.5a2.5 2.5 0 0 1 5 0Z"/><path d="M12.5 19.5a2.5 2.5 0 0 1 5 0Z"/><path d="M12.5 15.5a2.5 2.5 0 0 1 5 0Z"/></svg>
+              <span data-i18n="generalSettings">General Settings</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="menu-item" data-section="modes">
               <svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
               <span data-i18n="enhancementModes">Enhancement Modes</span>
             </a>
@@ -27,7 +33,31 @@
       </nav>
     </aside>
     <main class="main-content">
-      <section id="modes-section" class="content-section active">
+      <section id="general-section" class="content-section active">
+        <div class="header">
+          <h1 data-i18n="generalSettings">General Settings</h1>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title" data-i18n="compatibility">Compatibility</h2>
+          </div>
+          <div class="setting-item">
+            <div class="setting-label">
+              <label for="cross-origin-fix-toggle" data-i18n="crossOriginCompatMode">Cross-Origin Compatibility Mode</label>
+              <p class="setting-description" data-i18n="crossOriginCompatModeDesc">
+                Enable this if video enhancement fails on certain websites. This mode attempts to fix cross-origin loading issues but may have minor security implications.
+              </p>
+            </div>
+            <div class="setting-control">
+              <label class="switch">
+                <input type="checkbox" id="cross-origin-fix-toggle">
+                <span class="slider round"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="modes-section" class="content-section">
         <div class="header">
           <h1 data-i18n="enhancementModes">Enhancement Modes</h1>
           <div class="btn-group">

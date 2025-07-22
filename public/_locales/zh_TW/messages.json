@@ -130,5 +130,23 @@
         "example": "我的自訂模式"
       }
     }
+  },
+  "generalSettings": {
+    "message": "通用設定"
+  },
+  "compatibility": {
+    "message": "相容性"
+  },
+  "crossOriginCompatMode": {
+    "message": "跨來源相容模式"
+  },
+  "crossOriginCompatModeDesc": {
+    "message": "如果影片增強在某些網站上失敗，請啟用此選項。此模式會嘗試修復跨來源載入問題。注意：要使變更在已開啟的標籤頁上生效，您必須重新整理它們。"
+  },
+  "crossOriginHint": {
+    "message": "由於跨來源限制，增強失敗。請在選項中啟用「跨來源相容模式」。"
+  },
+  "goToOptions": {
+    "message": "前往選項頁面"
   }
 }

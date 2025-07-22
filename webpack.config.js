@@ -48,6 +48,7 @@ module.exports = (env, argv) => {
         patterns: [
           { from: '*.png', context: 'public/icons', to: 'icons' },
           { from: 'public/_locales', to: '_locales' },
+          { from: 'rules.json' },
         ],
       }),
       new HtmlWebpackPlugin({

@@ -130,5 +130,23 @@
         "example": "我的自定义模式"
       }
     }
+  },
+  "generalSettings": {
+    "message": "常规设置"
+  },
+  "compatibility": {
+    "message": "兼容性"
+  },
+  "crossOriginCompatMode": {
+    "message": "跨域兼容模式"
+  },
+  "crossOriginCompatModeDesc": {
+    "message": "如果视频增强在某些网站上失败，请启用此选项。此模式会尝试修复跨域加载问题。注意：要使更改在已打开的标签页上生效，您必须刷新它们。"
+  },
+  "crossOriginHint": {
+    "message": "由于跨域限制，增强失败。请在选项中启用“跨域兼容模式”。"
+  },
+  "goToOptions": {
+    "message": "前往选项页面"
   }
 }
