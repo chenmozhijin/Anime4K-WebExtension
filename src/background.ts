@@ -34,10 +34,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'LOAD_DYNAMIC_MODULE') {
     if (sender.tab?.id && request.chunk) {
       const scriptPath = `${request.chunk}.js`;
-      console.log(`[Background] Received request to load module: ${scriptPath} for tab: ${sender.tab.id}`);
+      const target: chrome.scripting.InjectionTarget = { tabId: sender.tab.id };
+      // 仅当 frameId 存在且不为0时才指定 frameIds，以确保注入到正确的 iframe
+      // frameId 为 0 通常代表主框架
+      if (sender.frameId) {
+        target.frameIds = [sender.frameId];
+      }
+      
+      console.log(`[Background] Received request to load module: ${scriptPath} for target:`, target);
       chrome.scripting.executeScript({
-        target: { tabId: sender.tab.id },
-        files: [scriptPath], // 直接注入编译后的入口文件
+        target: target,
+        files: [scriptPath],
       })
       .then(() => {
         console.log(`[Background] Successfully injected script: ${scriptPath}`);
