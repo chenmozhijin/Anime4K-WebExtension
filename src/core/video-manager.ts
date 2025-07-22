@@ -3,6 +3,11 @@ import { ANIME4K_APPLIED_ATTR } from '../constants';
 import { getSettings } from '../utils/settings';
 import { Anime4KWebExtSettings } from '../types';
 
+// 使用 WeakSet 跟踪已处理的文档或 ShadowRoot，避免重复绑定监听器
+const processedDocs = new WeakSet<Document | ShadowRoot>();
+// 定义需要监听的核心媒体事件，以最优化性能
+const mediaEventsToWatch: ReadonlyArray<string> = ['loadedmetadata', 'play', 'playing'];
+
 /**
  * 清理视频元素的增强器资源
  * @param video 视频元素
@@ -11,101 +16,138 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
   if (video._anime4kEnhancer) {
     video._anime4kEnhancer.destroy();
     delete video._anime4kEnhancer;
+    console.log('[Anime4KWebExt] Cleaned up enhancer for video:', video);
   }
 }
 
 /**
- * 处理单个视频元素，添加增强器
+ * 处理单个视频元素，为其添加增强器。
+ * 这是所有视频发现途径（事件、DOM变动）的最终处理入口。
  * @param videoEl 要处理的视频元素
  */
 export function processVideoElement(videoEl: HTMLVideoElement): void {
-  // 确保视频元数据已加载
+  // 如果视频已经处理过，则直接返回，避免重复工作
+  if (videoEl._anime4kEnhancer || videoEl.hasAttribute(ANIME4K_APPLIED_ATTR)) {
+    return;
+  }
+
+  // 视频需要加载完元数据后才能获取宽高信息，因此在此处等待
   if (videoEl.readyState >= 1) { // HAVE_METADATA
     addEnhancerToVideo(videoEl);
   } else {
+    // 如果元数据未加载，则添加一次性监听器
     videoEl.addEventListener('loadedmetadata', () => addEnhancerToVideo(videoEl), { once: true });
   }
 }
 
 /**
- * 为视频元素添加增强器
+ * 核心实现：为视频元素创建并附加增强器实例
  * @param video 视频元素
  */
 function addEnhancerToVideo(video: HTMLVideoElement): void {
   if (video._anime4kEnhancer) return;
+  // 视频必须在DOM中才能附加UI
   if (!video.parentElement) return;
   
   try {
-    // 创建并关联增强器实例
     const enhancer = new VideoEnhancer(video);
     video._anime4kEnhancer = enhancer;
+    console.log('[Anime4KWebExt] Attached enhancer to video:', video);
   } catch (error) {
     console.error('Failed to create enhancer for video:', video, error);
   }
 }
 
 /**
- * 初始化页面上的所有视频元素
+ * 媒体事件的统一回调处理函数。
+ * 使用事件委托模式，在根节点捕获事件。
+ * @param event 媒体事件
+ */
+function handleMediaEvent(event: Event): void {
+  const target = event.target;
+  // 确认事件源是视频元素
+  if (target instanceof HTMLVideoElement) {
+    processVideoElement(target);
+  }
+}
+
+/**
+ * 为指定的文档或 ShadowRoot 节点添加媒体事件监听器。
+ * 这是实现对 Shadow DOM 内视频进行监听的关键。
+ * @param doc Document 或 ShadowRoot
+ */
+function processDoc(doc: Document | ShadowRoot): void {
+  if (processedDocs.has(doc)) {
+    return; // 避免重复处理
+  }
+
+  console.log('[Anime4KWebExt] Processing document/shadowRoot for media events:', doc);
+  for (const eventName of mediaEventsToWatch) {
+    // 使用捕获模式，尽早发现视频
+    doc.addEventListener(eventName, handleMediaEvent, { capture: true, passive: true });
+  }
+  processedDocs.add(doc);
+}
+
+/**
+ * 初始化页面，设置事件监听和 DOM 观察器
  */
 export function initializeOnPage(): void {
-  const videos = Array.from(document.querySelectorAll('video'));
-  videos.forEach(processVideoElement);
+  // 1. 处理主文档
+  processDoc(document);
   
-  // 设置DOM观察器
+  // 2. 初始扫描页面上已存在的视频，以处理静态加载的视频
+  document.querySelectorAll('video').forEach(processVideoElement);
+
+  // 3. 设置DOM观察器以处理动态加载的视频和Shadow DOM
   setupDOMObserver();
 }
 
 /**
- * 设置DOM观察器监听新添加的视频元素
+ * 设置DOM观察器，以监听新添加的视频元素和 Shadow DOM 的创建
  */
 export function setupDOMObserver(): MutationObserver {
-  let debounceTimer: number;
-
   const handleMutations = (mutationsList: MutationRecord[]) => {
     for (const mutation of mutationsList) {
-      if (mutation.type === 'childList') {
-        // 处理新增节点
-        mutation.addedNodes.forEach(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            if (element.tagName === 'VIDEO') {
-              processVideoElement(element as HTMLVideoElement);
-            } else {
-              const videos = Array.from(element.querySelectorAll('video'));
-              videos.forEach(vid => processVideoElement(vid as HTMLVideoElement));
-            }
-          }
-        });
+      // A. 处理新增的节点
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
         
-        // 处理移除节点
-        mutation.removedNodes.forEach(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            // 如果是视频元素直接清理
-            if (element.tagName === 'VIDEO') {
-              cleanupVideoEnhancer(element as HTMLVideoElement);
-            } else {
-              // 检查移除的节点内是否包含视频元素
-              const videos = Array.from(element.querySelectorAll('video'));
-              videos.forEach(vid => cleanupVideoEnhancer(vid as HTMLVideoElement));
-            }
-          }
-        });
-      }
+        const element = node as Element;
+
+        // Case 1: 新增节点本身就是 video
+        if (element.tagName === 'VIDEO') {
+          processVideoElement(element as HTMLVideoElement);
+        }
+        // Case 2: 新增节点包含 Shadow DOM
+        if (element.shadowRoot) {
+          processDoc(element.shadowRoot);
+          // 立即扫描这个新的 Shadow DOM 内部可能已存在的 video
+          element.shadowRoot.querySelectorAll('video').forEach(processVideoElement);
+        }
+        // Case 3: 扫描新增节点内部的常规 video 元素
+        element.querySelectorAll('video').forEach(processVideoElement);
+      });
+      
+      // B. 处理被移除的节点，进行资源清理
+      mutation.removedNodes.forEach(node => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const element = node as Element;
+        if (element.tagName === 'VIDEO') {
+          cleanupVideoEnhancer(element as HTMLVideoElement);
+        } else {
+          element.querySelectorAll('video').forEach(cleanupVideoEnhancer);
+        }
+      });
     }
   };
 
-  const observer = new MutationObserver((mutationsList) => {
-    clearTimeout(debounceTimer);
-    debounceTimer = window.setTimeout(() => handleMutations(mutationsList), 100); // 100ms 防抖
-  });
-
+  const observer = new MutationObserver(handleMutations);
   observer.observe(document.body, { childList: true, subtree: true });
   
-  // 添加页面卸载时的全局清理
+  // 添加页面卸载时的全局清理，确保不会有内存泄漏
   window.addEventListener('beforeunload', () => {
-    const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
-    videos.forEach(cleanupVideoEnhancer);
+    document.querySelectorAll('video').forEach(cleanupVideoEnhancer);
   });
   
   return observer;
