@@ -3,7 +3,7 @@ import { syncModes, getSettings } from './utils/settings';
 const RULESET_ID = 'ruleset_1';
 
 /**
- * Updates the declarativeNetRequest ruleset based on the current settings.
+ * 根据当前设置更新 declarativeNetRequest 规则集。
  */
 async function updateDNRuleset() {
   const { enableCrossOriginFix } = await getSettings();
@@ -22,7 +22,7 @@ async function updateDNRuleset() {
 
 // 后台服务脚本
 
-// Sync built-in modes and DNR rules on startup
+// 在启动时同步内置模式和DNR规则
 chrome.runtime.onStartup.addListener(() => {
   console.log('Browser startup, syncing modes and DNR rules.');
   syncModes();
