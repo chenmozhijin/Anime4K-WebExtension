@@ -7,10 +7,10 @@ import type { EnhancementMode, EnhancementEffect } from '../../types';
 
 import { Anime4KWebExtSettings } from '../../types';
 
-// --- Global State ---
+// --- 全局状态 ---
 let settingsState: Anime4KWebExtSettings;
 
-// --- UI Elements ---
+// --- UI 元素 ---
 const modesContainer = document.getElementById('modes-container') as HTMLElement;
 const addModeBtn = document.getElementById('add-mode-btn') as HTMLButtonElement;
 const importModesBtn = document.getElementById('import-modes-btn') as HTMLButtonElement;
@@ -22,12 +22,12 @@ const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
 const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
 
-// --- Drag and Drop State ---
+// --- 拖放状态 ---
 let draggedElement: HTMLElement | null = null;
 let draggedModeId: string | null = null;
 let draggedEffectIndex: number | null = null;
 
-// --- File Helpers ---
+// --- 文件助手函数 ---
 const downloadJSON = (data: unknown, filename: string) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -65,17 +65,17 @@ const openFile = (): Promise<string> => {
 };
 
 /**
- * Renders the enhancement modes UI based on the current settingsState.
+ * 根据当前的 settingsState 渲染增强模式 UI。
  */
 const renderModesUI = () => {
-  // 1. Preserve expanded state before re-rendering
+  // 1. 重新渲染前保留展开状态
   const expandedModeIds = new Set<string>();
   modesContainer.querySelectorAll('.mode-card:not(.collapsed)').forEach(card => {
     const modeId = (card as HTMLElement).dataset.modeId;
     if (modeId) expandedModeIds.add(modeId);
   });
 
-  modesContainer.innerHTML = ''; // Clear existing cards
+  modesContainer.innerHTML = ''; // 清除现有卡片
 
   settingsState.enhancementModes.forEach(mode => {
     const card = document.createElement('div');
@@ -83,7 +83,7 @@ const renderModesUI = () => {
     card.dataset.modeId = mode.id;
     card.draggable = true;
 
-    // --- Drag and Drop for Mode Sorting ---
+    // --- 模式排序的拖放功能 ---
     card.addEventListener('dragstart', (e) => {
       if (!card.classList.contains('collapsed')) {
         e.preventDefault();
@@ -124,13 +124,13 @@ const renderModesUI = () => {
         const [movedMode] = settingsState.enhancementModes.splice(fromIndex, 1);
         settingsState.enhancementModes.splice(toIndex, 0, movedMode);
         
-        renderModesUI(); // Re-render from state
-        await saveSettings({ enhancementModes: settingsState.enhancementModes }); // Persist changes
+        renderModesUI(); // 从状态重新渲染
+        await saveSettings({ enhancementModes: settingsState.enhancementModes }); // 持久化更改
         notifyUpdate();
       }
     });
 
-    // --- Card Header ---
+    // --- 卡片头部 ---
     const cardHeader = document.createElement('div');
     cardHeader.className = 'mode-card-header';
 
@@ -153,7 +153,7 @@ const renderModesUI = () => {
       const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
       if (targetMode && newName && newName !== targetMode.name) {
         targetMode.name = newName;
-        mode.name = newName; // Update local object for consistency
+        mode.name = newName; // 更新本地对象以保持一致性
         await saveSettings({ enhancementModes: settingsState.enhancementModes });
         notifyUpdate(mode.id);
       } else {
@@ -170,7 +170,7 @@ const renderModesUI = () => {
         const deletedModeId = mode.id;
         settingsState.enhancementModes = settingsState.enhancementModes.filter(m => m.id !== deletedModeId);
         if (settingsState.selectedModeId === deletedModeId) {
-          settingsState.selectedModeId = 'builtin-mode-a'; // Fallback
+          settingsState.selectedModeId = 'builtin-mode-a'; // 回退到默认模式
         }
         renderModesUI();
         await saveSettings({
@@ -186,13 +186,13 @@ const renderModesUI = () => {
     cardHeader.appendChild(deleteBtn);
     card.appendChild(cardHeader);
 
-    // --- Summary (when collapsed) ---
+    // --- 摘要（折叠时显示）---
     const summary = document.createElement('div');
     summary.className = 'mode-summary';
     summary.textContent = mode.effects.map(e => e.name.split('/').pop()).join(' > ') || (chrome.i18n.getMessage('noEffects') || 'No effects');
     card.appendChild(summary);
 
-    // --- Card Content (when expanded) ---
+    // --- 卡片内容（展开时显示）---
     const cardContent = document.createElement('div');
     cardContent.className = 'mode-card-content';
     const effectsList = document.createElement('ul');
@@ -208,7 +208,7 @@ const renderModesUI = () => {
       if (!mode.isBuiltIn) {
         effectItem.draggable = true;
 
-        // --- Drag and Drop for Effect Sorting ---
+        // --- 效果排序的拖放功能 ---
         effectItem.addEventListener('dragstart', (e) => {
           e.stopPropagation();
           draggedElement = effectItem;
@@ -255,7 +255,7 @@ const renderModesUI = () => {
           }
         });
 
-        // --- Effect Action Buttons ---
+        // --- 效果操作按钮 ---
         const effectActions = document.createElement('div');
         effectActions.className = 'effect-actions';
 
@@ -302,7 +302,7 @@ const renderModesUI = () => {
     });
     cardContent.appendChild(effectsList);
 
-    // --- Add Effect Dropdown (for custom modes) ---
+    // --- 添加效果下拉菜单（用于自定义模式）---
     if (!mode.isBuiltIn) {
       const addEffectContainer = document.createElement('div');
       addEffectContainer.className = 'add-effect-container';
@@ -331,7 +331,7 @@ const renderModesUI = () => {
           await saveSettings({ enhancementModes: settingsState.enhancementModes });
           notifyUpdate(mode.id);
         }
-        (e.target as HTMLSelectElement).value = defaultOption.value; // Reset select
+        (e.target as HTMLSelectElement).value = defaultOption.value; // 重置下拉菜单
       };
       addEffectContainer.appendChild(effectSelect);
       cardContent.appendChild(addEffectContainer);
@@ -339,7 +339,7 @@ const renderModesUI = () => {
     
     card.appendChild(cardContent);
 
-    // 2. Restore expanded state after rendering
+    // 2. 渲染后恢复展开状态
     if (expandedModeIds.has(mode.id)) {
       card.classList.remove('collapsed');
       const toggleBtn = card.querySelector('.btn-toggle-collapse');
@@ -351,10 +351,10 @@ const renderModesUI = () => {
 };
 
 /**
- * Renders the whitelist rules UI based on the current settingsState.
+ * 根据当前的 settingsState 渲染白名单规则 UI。
  */
 const renderRulesUI = () => {
-  rulesContainer.innerHTML = ''; // Clear existing rules
+  rulesContainer.innerHTML = ''; // 清除现有规则
   settingsState.whitelist.forEach((rule) => {
     const row = document.createElement('tr');
     
@@ -367,7 +367,7 @@ const renderRulesUI = () => {
       const newPattern = (e.target as HTMLInputElement).value;
       if (validateRulePattern(newPattern)) {
         await updateWhitelistRule(rule.pattern, newPattern);
-        rule.pattern = newPattern; // Update state
+        rule.pattern = newPattern; // 更新状态
       } else {
         alert(chrome.i18n.getMessage('invalidPattern') || 'Invalid pattern format');
         (e.target as HTMLInputElement).value = rule.pattern;
@@ -382,7 +382,7 @@ const renderRulesUI = () => {
     enabledCheckbox.addEventListener('change', async (e) => {
       const enabled = (e.target as HTMLInputElement).checked;
       await updateWhitelistRule(rule.pattern, enabled);
-      rule.enabled = enabled; // Update state
+      rule.enabled = enabled; // 更新状态
     });
     enabledCell.appendChild(enabledCheckbox);
     
@@ -449,7 +449,7 @@ const renderAboutSectionUI = () => {
 }
 
 const setupEventListeners = () => {
-  // --- General Settings Listeners ---
+  // --- 常规设置监听器 ---
   crossOriginFixToggle.addEventListener('change', async (e) => {
     const enabled = (e.target as HTMLInputElement).checked;
     settingsState.enableCrossOriginFix = enabled;
@@ -457,7 +457,7 @@ const setupEventListeners = () => {
     notifyUpdate();
   });
 
-  // --- Mode Listeners ---
+  // --- 模式监听器 ---
   addModeBtn.addEventListener('click', async () => {
     const newMode: EnhancementMode = {
       id: `custom-${Date.now()}`,
@@ -470,21 +470,21 @@ const setupEventListeners = () => {
     await saveSettings({ enhancementModes: settingsState.enhancementModes });
   });
 
-  // --- Whitelist Listeners ---
+  // --- 白名单监听器 ---
   addRuleBtn.addEventListener('click', async () => {
    const newPattern = '*.example.com/*';
-   // Prevent duplicate additions from the UI side
+   // 从 UI 端防止重复添加
    if (settingsState.whitelist.some(r => r.pattern === newPattern)) {
      alert(chrome.i18n.getMessage('ruleAlreadyExists') || 'This rule already exists.');
      return;
    }
    await addWhitelistRule(newPattern, true);
-   // Re-fetch state to reflect the change
+   // 重新获取状态以反映更改
    settingsState.whitelist = (await getSettings()).whitelist;
    renderRulesUI();
   });
 
-  // --- Mode Import/Export Listeners ---
+  // --- 模式导入/导出监听器 ---
   exportModesBtn.addEventListener('click', () => {
     const customModes = settingsState.enhancementModes.filter(mode => !mode.isBuiltIn);
     downloadJSON(customModes, 'anime4k-modes.json');
@@ -529,7 +529,7 @@ const setupEventListeners = () => {
     }
   });
 
-  // --- Whitelist Import/Export Listeners ---
+  // --- 白名单导入/导出监听器 ---
   exportBtn.addEventListener('click', () => {
     downloadJSON(settingsState.whitelist, 'anime4k-whitelist.json');
   });
@@ -563,10 +563,10 @@ const setupEventListeners = () => {
     }
   });
 
-  // --- Message Listeners ---
+  // --- 消息监听器 ---
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'WHITELIST_UPDATED') {
-      // Re-fetch settings to get the latest whitelist from other parts of the extension
+      // 重新获取设置以从扩展的其他部分获取最新的白名单
       getSettings().then(newSettings => {
         settingsState = newSettings;
         renderRulesUI();
@@ -576,7 +576,7 @@ const setupEventListeners = () => {
 };
 
 /**
- * Main initialization function.
+ * 主初始化函数。
  */
 document.addEventListener('DOMContentLoaded', async () => {
   setupInternationalization();
@@ -587,15 +587,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Load initial state from storage
+  // 从存储加载初始状态
   settingsState = await getSettings();
 
-  // Initial UI render from state
+  // 从状态进行初始 UI 渲染
   renderModesUI();
   renderRulesUI();
   renderGeneralSettingsUI();
   renderAboutSectionUI();
 
-  // Attach all event listeners
+  // 附加所有事件监听器
   setupEventListeners();
 });

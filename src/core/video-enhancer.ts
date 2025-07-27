@@ -88,7 +88,7 @@ export class VideoEnhancer {
 
     this.button.innerText = chrome.i18n.getMessage('enhancing');
     this.button.disabled = true;
-    this.fixAttempted = false; // Reset fix attempt flag
+    this.fixAttempted = false; // 重置修复尝试标志
 
     const settings = await getSettings();
 
@@ -109,7 +109,7 @@ export class VideoEnhancer {
         }
       }
 
-      // --- 核心操作 ---
+      // --- Core operation ---
       await this.initRenderer();
       this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
