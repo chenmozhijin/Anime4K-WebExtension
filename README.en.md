@@ -2,16 +2,16 @@
 
 [中文](./README.md) | English | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
-A real-time video super-resolution browser extension based on Anime4K-WebGPU, supporting multiple enhancement modes and resolution settings.
+Significantly improve the image quality of anime videos with the Anime4K real-time super-resolution algorithm, delivering a clearer and sharper visual experience frame by frame!
 
 ## Features
 
-- 🚀 Real-time video super-resolution processing
-- ⚙️ 6 super-resolution algorithm modes (A/B/C/A+A/B+B/C+A) [Detailed Explanation](https://github.com/bloc97/Anime4K/blob/master/md/GLSL_Instructions_Advanced.md)
-- 📏 Multiple resolution options (2x/4x/8x/720p/1080p/4K)
-- ⚡ WebGPU acceleration, high efficiency and low latency
-- 📋 Page whitelist system (disabled by default)
-- 🌐 Multi-language support (Chinese/English/Japanese/Russian)
+- 🚀 **Real-time Super-Resolution:** Provides instant super-resolution effects during video playback in the browser using WebGPU technology.
+- ⚙️ **Flexible Enhancement Modes:** Offers multiple preset modes and supports custom modes, allowing free combination of different enhancement effects to suit various videos and devices.
+- 📏 **Flexible Scaling:** Provides 2x/4x/8x output, or fixed output resolutions of 720p/1080p/2K/4K.
+- ⚡ **One-Click Enhancement:** A purple "✨ Enhance" button automatically appears on the video player; click to enable the effect.
+- 📋 **Precise Whitelist:** Works only on specified websites or pages to avoid interference and save resources.
+- 🌐 **Multi-language Interface:** Supports Chinese, English, Japanese, Russian, etc.
 
 > [!WARNING]
 > This extension does not work on video websites with Encrypted Media Extensions (EME) or DRM protection, such as Netflix.
