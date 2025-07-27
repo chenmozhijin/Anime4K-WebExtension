@@ -148,5 +148,26 @@
   },
   "goToOptions": {
     "message": "前往选项页面"
+  },
+  "about": {
+    "message": "关于"
+  },
+  "author": {
+    "message": "作者"
+  },
+  "license": {
+    "message": "许可证"
+  },
+  "sourceCode": {
+    "message": "源代码"
+  },
+  "reportIssues": {
+    "message": "报告问题"
+  },
+  "issueTracker": {
+    "message": "问题跟踪器"
+  },
+  "extensionDescription": {
+    "message": "基于Anime4K-WebGPU的实时视频超分辨率浏览器扩展。"
   }
 }

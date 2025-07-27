@@ -148,5 +148,26 @@
   },
   "goToOptions": {
     "message": "Перейти в настройки"
+  },
+  "about": {
+    "message": "О программе"
+  },
+  "author": {
+    "message": "Автор"
+  },
+  "license": {
+    "message": "Лицензия"
+  },
+  "sourceCode": {
+    "message": "Исходный код"
+  },
+  "reportIssues": {
+    "message": "Сообщить о проблеме"
+  },
+  "issueTracker": {
+    "message": "Трекер проблем"
+  },
+  "extensionDescription": {
+    "message": "Браузерное расширение для супер-разрешения видео в реальном времени на основе Anime4K."
   }
 }

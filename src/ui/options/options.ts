@@ -20,6 +20,7 @@ const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
 const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
+const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
 
 // --- Drag and Drop State ---
 let draggedElement: HTMLElement | null = null;
@@ -440,6 +441,13 @@ const renderGeneralSettingsUI = () => {
   crossOriginFixToggle.checked = settingsState.enableCrossOriginFix;
 };
 
+const renderAboutSectionUI = () => {
+  if (versionNumberSpan) {
+    const manifest = chrome.runtime.getManifest();
+    versionNumberSpan.textContent = manifest.version;
+  }
+}
+
 const setupEventListeners = () => {
   // --- General Settings Listeners ---
   crossOriginFixToggle.addEventListener('change', async (e) => {
@@ -586,6 +594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderModesUI();
   renderRulesUI();
   renderGeneralSettingsUI();
+  renderAboutSectionUI();
 
   // Attach all event listeners
   setupEventListeners();
