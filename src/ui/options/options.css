@@ -534,3 +534,69 @@ textarea:focus {
   color: var(--border);
   cursor: not-allowed;
 }
+
+/* --- About Section --- */
+.about-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.extension-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--border-radius);
+}
+
+.extension-name {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.version-info {
+  font-size: 1rem;
+  color: var(--text);
+  margin: 0.25rem 0 0;
+}
+
+.about-content p {
+  margin-top: 0;
+  line-height: 1.6;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.info-item {
+  background-color: var(--bg-light);
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border);
+}
+
+.info-item strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-dark);
+}
+
+.info-item a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.info-item a:hover {
+  text-decoration: underline;
+}

@@ -148,5 +148,26 @@
   },
   "goToOptions": {
     "message": "Go to Options"
+  },
+  "about": {
+    "message": "About"
+  },
+  "author": {
+    "message": "Author"
+  },
+  "license": {
+    "message": "License"
+  },
+  "sourceCode": {
+    "message": "Source Code"
+  },
+  "reportIssues": {
+    "message": "Report Issues"
+  },
+  "issueTracker": {
+    "message": "Issue Tracker"
+  },
+  "extensionDescription": {
+    "message": "Real-time video super-resolution browser extension based on Anime4K."
   }
 }

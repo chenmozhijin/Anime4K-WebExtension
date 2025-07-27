@@ -148,5 +148,26 @@
   },
   "goToOptions": {
     "message": "オプションへ移動"
+  },
+  "about": {
+    "message": "เกี่ยวกับ"
+  },
+  "author": {
+    "message": "著者"
+  },
+  "license": {
+    "message": "ライセンス"
+  },
+  "sourceCode": {
+    "message": "ソースコード"
+  },
+  "reportIssues": {
+    "message": "問題を報告"
+  },
+  "issueTracker": {
+    "message": "問題トラッカー"
+  },
+  "extensionDescription": {
+    "message": "Anime4K-WebGPUに基づくリアルタイムビデオ超解像ブラウザ拡張機能。"
   }
 }

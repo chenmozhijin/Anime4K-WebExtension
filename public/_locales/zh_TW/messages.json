@@ -148,5 +148,26 @@
   },
   "goToOptions": {
     "message": "前往選項頁面"
+  },
+  "about": {
+    "message": "關於"
+  },
+  "author": {
+    "message": "作者"
+  },
+  "license": {
+    "message": "授權條款"
+  },
+  "sourceCode": {
+    "message": "原始碼"
+  },
+  "reportIssues": {
+    "message": "回報問題"
+  },
+  "issueTracker": {
+    "message": "問題追蹤器"
+  },
+  "extensionDescription": {
+    "message": "基於Anime4K-WebGPU的即時影片超解析瀏覽器擴充功能。"
   }
 }
