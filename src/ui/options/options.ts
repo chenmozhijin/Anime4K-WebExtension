@@ -21,6 +21,9 @@ const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
 const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
+const sidebar = document.querySelector('.sidebar') as HTMLElement;
+const sidebarToggle = document.querySelector('.sidebar-toggle') as HTMLButtonElement;
+const overlay = document.querySelector('.main-content-overlay') as HTMLElement;
 
 // --- 拖放状态 ---
 let draggedElement: HTMLElement | null = null;
@@ -136,11 +139,10 @@ const renderModesUI = () => {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'btn-toggle-collapse';
-    toggleBtn.innerHTML = '&#9654;'; // ▶
+    toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
     toggleBtn.title = chrome.i18n.getMessage('expandCollapse') || 'Expand/Collapse';
     toggleBtn.addEventListener('click', () => {
       card.classList.toggle('collapsed');
-      toggleBtn.innerHTML = card.classList.contains('collapsed') ? '&#9654;' : '&#9660;'; // ▼
     });
 
     const modeName = document.createElement('h2');
@@ -342,8 +344,6 @@ const renderModesUI = () => {
     // 2. 渲染后恢复展开状态
     if (expandedModeIds.has(mode.id)) {
       card.classList.remove('collapsed');
-      const toggleBtn = card.querySelector('.btn-toggle-collapse');
-      if (toggleBtn) toggleBtn.innerHTML = '&#9660;'; // ▼
     }
 
     modesContainer.appendChild(card);
@@ -420,6 +420,12 @@ const setupNavigation = () => {
       sections.forEach(section => section.classList.remove('active'));
       const targetSection = document.getElementById(`${sectionName}-section`);
       if (targetSection) targetSection.classList.add('active');
+
+      // 在小屏设备上，单击菜单项后关闭侧边栏
+      if (window.innerWidth <= 900) {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+      }
     });
   });
 };
@@ -572,6 +578,17 @@ const setupEventListeners = () => {
         renderRulesUI();
       });
     }
+  });
+
+  // --- 侧边栏切换监听器 ---
+  sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+  });
+
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
   });
 };
 
