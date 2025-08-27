@@ -305,6 +305,41 @@ export class Renderer {
   }
 
   /**
+   * Copy an HTMLVideoElement frame to the gpu texture
+   */
+  private copyFrameSnapshotToTexture(): void {
+    // --- 执行渲染 ---
+    this.device.queue.copyExternalImageToTexture(
+      { source: this.video },
+      { texture: this.videoFrameTexture },
+      [this.video.videoWidth, this.video.videoHeight]
+    );
+  }
+
+  /**
+   * Firefox-specific
+   * Copy a video frame bitmap to the gpu texture
+   */
+  private async copyFrameSnapshotToTextureGecko(): Promise<void> {
+    // This function will not be awaited in 'processFrame',
+    // so we should catch any errors directly here
+    try {
+      const frameImageBitmap = await createImageBitmap(this.video);
+
+      // --- 执行渲染 ---
+      this.device.queue.copyExternalImageToTexture(
+        { source: frameImageBitmap },
+        { texture: this.videoFrameTexture },
+        [this.video.videoWidth, this.video.videoHeight]
+      );
+    } catch(error) {
+      console.error('[Anime4KWebExt] (Firefox-specific) Copying frame snapshot to texture failed:', error);
+      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
+      this.destroy();
+    }
+  }
+
+  /**
    * 处理单帧渲染的核心逻辑。
    * @returns {boolean} 如果成功渲染了一帧则返回 true，否则返回 false。
    */
@@ -323,12 +358,12 @@ export class Renderer {
         return false; // 分辨率已变，跳过此帧的渲染，等待下一帧
       }
 
-      // --- 执行渲染 ---
-      this.device.queue.copyExternalImageToTexture(
-        { source: this.video },
-        { texture: this.videoFrameTexture },
-        [this.video.videoWidth, this.video.videoHeight]
-      );
+      // Use a different approach based on the browser
+      // because Firefox doesn't support HTMLVideoElement as the source type
+      navigator.userAgent.match(/firefox/i)
+        // Ignore the promise
+        ? this.copyFrameSnapshotToTextureGecko()
+        : this.copyFrameSnapshotToTexture();
 
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
@@ -345,7 +380,7 @@ export class Renderer {
       passEncoder.draw(6);
       passEncoder.end();
       this.device.queue.submit([commandEncoder.finish()]);
-      
+
       return true; // 成功渲染
 
     } catch (error) {

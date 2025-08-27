@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Anime4K WebExtension",
   "description": "__MSG_description__",
+  "version": "1.0",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -13,7 +14,13 @@
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "@anime4k-web-extension.chenmozhijin"
+    }
   },
   "content_scripts": [
     {
