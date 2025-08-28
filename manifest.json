@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anime4K WebExtension",
   "description": "__MSG_description__",
-  "version": "1.0",
+  "version": "0.3.0",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
