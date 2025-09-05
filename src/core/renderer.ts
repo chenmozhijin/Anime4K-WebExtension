@@ -422,7 +422,7 @@ export class Renderer {
    * 处理单帧渲染的核心逻辑。
    * @returns {boolean} 如果成功渲染了一帧则返回 true，否则返回 false。
    */
-  private processFrame(): boolean {
+  private async processFrame(): Promise<boolean> {
     if (this.destroyed) return false;
 
     try {
@@ -439,9 +439,7 @@ export class Renderer {
 
       // 根据特性检测结果，决定使用哪种方法复制帧
       if (this.useImageBitmapFallback) {
-        // 此 promise 被有意地不使用 await，以避免阻塞渲染循环。
-        // 错误处理在其专用于 Firefox 的函数内部进行管理。
-        this.copyFrameSnapshotToTextureWithImageBitmap();
+        await this.copyFrameSnapshotToTextureWithImageBitmap();
       } else {
         this.copyFrameSnapshotToTexture();
       }
@@ -476,10 +474,10 @@ export class Renderer {
    * 尝试渲染第一帧。成功后，调用回调并切换到常规渲染循环。
    * 如果不成功（例如视频暂停），则重新调度自身。
    */
-  private renderFirstFrameAndStartLoop = (): void => {
+  private renderFirstFrameAndStartLoop = async (): Promise<void> => {
     if (this.destroyed) return;
 
-    if (this.processFrame()) {
+    if (await this.processFrame()) {
       // 第一帧成功渲染
       this.onFirstFrameRendered?.();
       // 切换到常规渲染循环
@@ -495,10 +493,10 @@ export class Renderer {
   /**
    * 常规渲染循环，处理第一帧之后的所有帧。
    */
-  private renderLoop = (): void => {
+  private renderLoop = async (): Promise<void> => {
     if (this.destroyed) return;
 
-    this.processFrame();
+    await this.processFrame();
 
     // 持续调度自身
     if (!this.destroyed) {
