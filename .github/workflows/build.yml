@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-chrome:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -22,14 +22,41 @@ jobs:
         run: npm ci
         
       - name: Build project
-        run: npm run build
+        run: npm run build:chrome
         
       - name: Rename dist folder
         run: |
-          mv dist anime4k-webextension
+          mv dist-chrome anime4k-webextension
           
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: anime4k-webextension
+          name: anime4k-webextension-chrome
+          path: anime4k-webextension
+
+  build-firefox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build project
+        run: npm run build:firefox
+        
+      - name: Rename dist folder
+        run: |
+          mv dist-firefox anime4k-webextension
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anime4k-webextension-firefox
           path: anime4k-webextension

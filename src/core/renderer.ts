@@ -90,6 +90,8 @@ export class Renderer {
   // --- 状态标志 ---
   private destroyed = false;
   private animationFrameId: number | null = null;
+  /** 是否使用 ImageBitmap 作为回退方案来复制视频帧 */
+  private useImageBitmapFallback = false;
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
@@ -105,6 +107,10 @@ export class Renderer {
   private renderPipeline!: GPURenderPipeline;
   private sampler!: GPUSampler;
   private renderBindGroup!: GPUBindGroup;
+
+  // --- 静态属性，用于确保只检测一次 ---
+  private static hasCheckedWebGPUFeatures = false;
+  private static webgpuFeatureCheckPromise: Promise<boolean> | null = null;
 
   /**
    * Renderer 的构造函数是私有的，请使用 `Renderer.create()` 静态方法来创建实例。
@@ -156,6 +162,14 @@ export class Renderer {
 
     // 请求 GPU 设备并配置 Canvas 上下文
     this.device = await adapter.requestDevice();
+
+    // 检查是否需要使用 ImageBitmap 回退方案
+    const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
+    this.useImageBitmapFallback = !supportsVideoTexture;
+    if (this.useImageBitmapFallback) {
+      console.log('[Anime4KWebExt] Renderer: Using ImageBitmap fallback for copying video frames.');
+    }
+
     this.context = this.canvas.getContext('webgpu')!;
     this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
     this.context.configure({
@@ -261,6 +275,71 @@ export class Renderer {
   }
 
   /**
+   * 检测当前环境的 WebGPU 实现是否支持直接从 VideoFrame 复制纹理。
+   */
+  public static async detectWebGPUFeatures(): Promise<boolean> {
+    // 如果已经检测过，直接返回结果
+    if (Renderer.hasCheckedWebGPUFeatures) {
+      return Renderer.webgpuFeatureCheckPromise ?? false;
+    }
+
+    // 如果正在检测中，等待检测完成
+    if (Renderer.webgpuFeatureCheckPromise) {
+      return Renderer.webgpuFeatureCheckPromise;
+    }
+
+    // 开始检测
+    Renderer.webgpuFeatureCheckPromise = (async () => {
+      try {
+        // 在 initialize() 中已经检测了基本的 WebGPU 支持，这里只需要检测 VideoFrame 支持
+        
+        const adapter = await navigator.gpu.requestAdapter();
+        const device = await adapter?.requestDevice();
+        if (!device) {
+          throw new Error('Failed to get GPU device.');
+        }
+
+        // 创建一个 OffscreenCanvas
+        const offscreenCanvas = new OffscreenCanvas(1, 1);
+        // 获取 2D 上下文
+        const context = offscreenCanvas.getContext('2d');
+        if (!context) {
+          throw new Error('Failed to get 2d context from OffscreenCanvas');
+        }
+        // context.fillStyle = 'black';
+        context.fillRect(0, 0, 1, 1);
+        // 创建一个最小化的 VideoFrame 和 GPUTexture 用于测试
+        const frame = new VideoFrame(offscreenCanvas, { timestamp: 0 });
+        const texture = device.createTexture({
+          size: [1, 1],
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.COPY_DST,
+        });
+
+        // 核心测试：此操作如果不支持会抛出异常
+        device.queue.copyExternalImageToTexture({ source: frame }, { texture }, [1, 1]);
+
+        // 清理资源
+        frame.close();
+        texture.destroy();
+        device.destroy();
+
+        // 如果成功，则说明支持
+        console.log('[Anime4KWebExt] WebGPU feature detection: VideoFrame as texture source is SUPPORTED.');
+        Renderer.hasCheckedWebGPUFeatures = true;
+        return true;
+      } catch (error) {
+        // 任何步骤失败都意味着不支持
+        console.log('[Anime4KWebExt] WebGPU feature detection: VideoFrame as texture source is NOT SUPPORTED.', error);
+        Renderer.hasCheckedWebGPUFeatures = true;
+        return false;
+      }
+    })();
+
+    return Renderer.webgpuFeatureCheckPromise;
+  }
+
+  /**
    * 创建最终的渲染管线，该管线负责将处理完成的纹理绘制到 Canvas 上。
    */
   private async createRenderPipeline(): Promise<void> {
@@ -305,7 +384,7 @@ export class Renderer {
   }
 
   /**
-   * Copy an HTMLVideoElement frame to the gpu texture
+   * 将 HTMLVideoElement 的一帧画面复制到 GPU 纹理
    */
   private copyFrameSnapshotToTexture(): void {
     // --- 执行渲染 ---
@@ -317,12 +396,12 @@ export class Renderer {
   }
 
   /**
-   * Firefox-specific
-   * Copy a video frame bitmap to the gpu texture
+   * 浏览器不支持 VideoFrame 复制纹理的回退方案
+   * 将视频帧位图复制到 GPU 纹理
    */
-  private async copyFrameSnapshotToTextureGecko(): Promise<void> {
-    // This function will not be awaited in 'processFrame',
-    // so we should catch any errors directly here
+  private async copyFrameSnapshotToTextureWithImageBitmap(): Promise<void> {
+    // 此函数在 'processFrame' 中不会被等待（await），
+    // 因此我们应该直接在这里捕获任何错误
     try {
       const frameImageBitmap = await createImageBitmap(this.video);
 
@@ -358,12 +437,14 @@ export class Renderer {
         return false; // 分辨率已变，跳过此帧的渲染，等待下一帧
       }
 
-      // Use a different approach based on the browser
-      // because Firefox doesn't support HTMLVideoElement as the source type
-      navigator.userAgent.match(/firefox/i)
-        // Ignore the promise
-        ? this.copyFrameSnapshotToTextureGecko()
-        : this.copyFrameSnapshotToTexture();
+      // 根据特性检测结果，决定使用哪种方法复制帧
+      if (this.useImageBitmapFallback) {
+        // 此 promise 被有意地不使用 await，以避免阻塞渲染循环。
+        // 错误处理在其专用于 Firefox 的函数内部进行管理。
+        this.copyFrameSnapshotToTextureWithImageBitmap();
+      } else {
+        this.copyFrameSnapshotToTexture();
+      }
 
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));

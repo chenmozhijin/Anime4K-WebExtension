@@ -3,12 +3,18 @@
   "version": "0.3.0",
   "description": "Real-time video super-resolution browser extension based on Anime4K.",
   "scripts": {
-    "build": "webpack --mode production",
-    "dev": "webpack --mode development",
-    "watch": "webpack --mode development --watch"
+    "build": "npm run build:chrome",
+    "build:chrome": "cross-env TARGET_BROWSER=chrome webpack --mode production",
+    "build:firefox": "cross-env TARGET_BROWSER=firefox webpack --mode production",
+    "dev": "npm run dev:chrome",
+    "dev:chrome": "cross-env TARGET_BROWSER=chrome webpack --mode development",
+    "dev:firefox": "cross-env TARGET_BROWSER=firefox webpack --mode development",
+    "watch:chrome": "cross-env TARGET_BROWSER=chrome webpack --mode development --watch",
+    "watch:firefox": "cross-env TARGET_BROWSER=firefox webpack --mode development --watch"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.326",
+    "cross-env": "^7.0.3",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^13.0.0",
     "css-loader": "^7.1.2",
