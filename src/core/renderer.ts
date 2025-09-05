@@ -185,7 +185,7 @@ export class Renderer {
     this.createRenderBindGroup();
 
     // 启动渲染循环，尝试渲染第一帧并启动持续渲染
-    this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
+    this.renderFirstFrameAndStartLoop();
   }
 
   /**
@@ -426,7 +426,7 @@ export class Renderer {
     if (this.destroyed) return false;
 
     try {
-      if (this.video.paused || this.video.readyState < this.video.HAVE_CURRENT_DATA) {
+      if (this.video.readyState < this.video.HAVE_CURRENT_DATA) {
         return false; // 视频未准备好，跳过此帧
       }
 
