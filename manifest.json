@@ -14,13 +14,7 @@
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "@anime4k-web-extension.chenmozhijin"
-    }
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
