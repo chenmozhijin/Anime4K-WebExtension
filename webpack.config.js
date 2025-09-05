@@ -4,11 +4,25 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ExtensionManifestPlugin = require('webpack-extension-manifest-plugin');
-const packageJson = require('./package.json');
-const { clear } = require('console');
 
 module.exports = (env, argv) => {
   const isDevelopment = argv.mode === 'development';
+  const targetBrowser = process.env.TARGET_BROWSER || 'chrome';
+
+  const manifest = require('./manifest.json');
+  
+  // 据目标浏览器修改 manifest
+  if (targetBrowser === 'firefox') {
+      // Firefox 特定的转换
+      delete manifest.background.service_worker;
+      manifest.background.scripts = ['background.js'];
+      manifest.browser_specific_settings = {
+        gecko: {
+          id: '@anime4k-web-extension.chenmozhijin',
+        },
+      };
+    }
+
   
   return {
     entry: {
@@ -20,7 +34,7 @@ module.exports = (env, argv) => {
     },
     output: {
       filename: '[name].js',
-      path: path.resolve(__dirname, 'dist'),
+      path: path.resolve(__dirname, 'dist-' + targetBrowser),
       clean: true, // 清理输出目录
     },
     module: {
@@ -66,8 +80,7 @@ module.exports = (env, argv) => {
       }),
       new ExtensionManifestPlugin({
         config: {
-          base: './manifest.json',
-
+          base: manifest,
         },
         pkgJsonProps: [
           'version'
