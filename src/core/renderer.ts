@@ -384,41 +384,6 @@ export class Renderer {
   }
 
   /**
-   * 将 HTMLVideoElement 的一帧画面复制到 GPU 纹理
-   */
-  private copyFrameSnapshotToTexture(): void {
-    // --- 执行渲染 ---
-    this.device.queue.copyExternalImageToTexture(
-      { source: this.video },
-      { texture: this.videoFrameTexture },
-      [this.video.videoWidth, this.video.videoHeight]
-    );
-  }
-
-  /**
-   * 浏览器不支持 VideoFrame 复制纹理的回退方案
-   * 将视频帧位图复制到 GPU 纹理
-   */
-  private async copyFrameSnapshotToTextureWithImageBitmap(): Promise<void> {
-    // 此函数在 'processFrame' 中不会被等待（await），
-    // 因此我们应该直接在这里捕获任何错误
-    try {
-      const frameImageBitmap = await createImageBitmap(this.video);
-
-      // --- 执行渲染 ---
-      this.device.queue.copyExternalImageToTexture(
-        { source: frameImageBitmap },
-        { texture: this.videoFrameTexture },
-        [this.video.videoWidth, this.video.videoHeight]
-      );
-    } catch(error) {
-      console.error('[Anime4KWebExt] (Firefox-specific) Copying frame snapshot to texture failed:', error);
-      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
-      this.destroy();
-    }
-  }
-
-  /**
    * 处理单帧渲染的核心逻辑。
    * @returns {boolean} 如果成功渲染了一帧则返回 true，否则返回 false。
    */
@@ -437,12 +402,13 @@ export class Renderer {
         return false; // 分辨率已变，跳过此帧的渲染，等待下一帧
       }
 
-      // 根据特性检测结果，决定使用哪种方法复制帧
-      if (this.useImageBitmapFallback) {
-        await this.copyFrameSnapshotToTextureWithImageBitmap();
-      } else {
-        this.copyFrameSnapshotToTexture();
-      }
+      // 将视频帧复制到纹理
+      const source = this.useImageBitmapFallback ? await createImageBitmap(this.video) : this.video;
+      this.device.queue.copyExternalImageToTexture(
+        { source },
+        { texture: this.videoFrameTexture },
+        [this.video.videoWidth, this.video.videoHeight]
+      );
 
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
