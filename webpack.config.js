@@ -18,7 +18,7 @@ module.exports = (env, argv) => {
       manifest.background.scripts = ['background.js'];
       manifest.browser_specific_settings = {
         gecko: {
-          id: '@anime4k-web-extension.chenmozhijin',
+          id: 'anime4k-webextension@chenmozhijin',
         },
       };
     }
