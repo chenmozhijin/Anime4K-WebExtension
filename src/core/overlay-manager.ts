@@ -13,6 +13,10 @@ export class OverlayManager {
   private canvas?: HTMLCanvasElement;
   private hideButtonTimeout?: number;
 
+  private attachmentStrategy: 'sibling' | 'body' = 'sibling';
+  private boundUpdatePosition?: () => void;
+  private boundHandleFullscreenChange?: () => void;
+
   private resizeObserver: ResizeObserver;
   private mutationObserver: MutationObserver;
 
@@ -54,29 +58,61 @@ export class OverlayManager {
 
     // 立即执行一次以确定初始位置
     this.updatePosition();
+
+    // 延迟检测，确保初始渲染完成
+    setTimeout(() => this.detectAndSwitchStrategy(), 100);
   }
 
   /**
    * 统一更新 Host 和 Canvas 的位置
    */
   private updatePosition(): void {
+    // 当视频从 DOM 中移除或不可见时，隐藏覆盖层
+    if (!this.video.isConnected || (this.video.offsetWidth === 0 && this.video.offsetHeight === 0)) {
+      this.host.style.display = 'none';
+      return;
+    }
+    this.host.style.display = ''; // 确保可见
+
     const videoStyle = window.getComputedStyle(this.video);
-    const commonStyles = {
-      top: `${this.video.offsetTop}px`,
-      left: `${this.video.offsetLeft}px`,
-      width: `${this.video.offsetWidth}px`,
-      height: `${this.video.offsetHeight}px`,
-      transform: videoStyle.transform,
-      transformOrigin: videoStyle.transformOrigin,
-    };
+    let hostStyles: any;
+
+    if (this.attachmentStrategy === 'body') {
+      // Body 策略：使用 getBoundingClientRect 获取相对于视口的位置
+      const rect = this.video.getBoundingClientRect();
+      hostStyles = {
+        top: `${rect.top + window.scrollY}px`,
+        left: `${rect.left + window.scrollX}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        transform: videoStyle.transform,
+        transformOrigin: videoStyle.transformOrigin,
+      };
+    } else {
+      // Sibling 策略：使用 offsetTop/Left 获取相对于父元素的位置
+      hostStyles = {
+        top: `${this.video.offsetTop}px`,
+        left: `${this.video.offsetLeft}px`,
+        width: `${this.video.offsetWidth}px`,
+        height: `${this.video.offsetHeight}px`,
+        transform: videoStyle.transform,
+        transformOrigin: videoStyle.transformOrigin,
+      };
+    }
 
     // 更新 Host
-    Object.assign(this.host.style, commonStyles);
+    Object.assign(this.host.style, hostStyles);
 
     // 如果 Canvas 存在，同步更新
     if (this.canvas) {
+      // Canvas 总是视频的兄弟节点，所以其定位方式不变
       Object.assign(this.canvas.style, {
-        ...commonStyles,
+        top: `${this.video.offsetTop}px`,
+        left: `${this.video.offsetLeft}px`,
+        width: `${this.video.offsetWidth}px`,
+        height: `${this.video.offsetHeight}px`,
+        transform: videoStyle.transform,
+        transformOrigin: videoStyle.transformOrigin,
         position: 'absolute',
         objectFit: videoStyle.objectFit,
         objectPosition: videoStyle.objectPosition,
@@ -92,6 +128,59 @@ export class OverlayManager {
     this.hideButtonTimeout = window.setTimeout(() => {
       this.button.classList.remove('show-initially');
     }, 3000);
+  }
+
+  /**
+   * 检测按钮是否被遮挡，并根据结果决定是否切换到 'body' 附加策略。
+   */
+  private detectAndSwitchStrategy(): void {
+    // 确保按钮是可见的才能进行检测
+    const initialOpacity = this.button.style.opacity;
+    this.button.style.opacity = '1';
+
+    const rect = this.button.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const elementAtPoint = document.elementFromPoint(centerX, centerY);
+
+    // 恢复原始透明度
+    this.button.style.opacity = initialOpacity;
+
+    const isButtonOrChild = this.button.contains(elementAtPoint) || this.button === elementAtPoint;
+
+    if (!isButtonOrChild) {
+      console.log('Anime4K button is obscured. Switching to body attachment strategy.');
+      this.attachmentStrategy = 'body';
+
+      // 切换 Host 到 body
+      document.body.appendChild(this.host);
+
+      // 绑定上下文并添加全局事件监听器
+      this.boundUpdatePosition = this.updatePosition.bind(this);
+      this.boundHandleFullscreenChange = this.handleFullscreenChange.bind(this);
+      window.addEventListener('resize', this.boundUpdatePosition);
+      window.addEventListener('scroll', this.boundUpdatePosition, true);
+      document.addEventListener('fullscreenchange', this.boundHandleFullscreenChange);
+
+      // 立即重新计算位置
+      this.updatePosition();
+    }
+  }
+
+  private handleFullscreenChange(): void {
+    const fullscreenElement = document.fullscreenElement;
+    // 当视频进入全屏时，将 Host 移动到全屏元素内以确保其可见
+    if (fullscreenElement && fullscreenElement.contains(this.video)) {
+      fullscreenElement.appendChild(this.host);
+    } else {
+      // 退出全屏或视频不再全屏时，将 Host 移回 body
+      // 仅当策略为 'body' 时才移回 body
+      if (this.attachmentStrategy === 'body' && this.host.parentElement !== document.body) {
+        document.body.appendChild(this.host);
+      }
+    }
+    // DOM 结构变化后，立即更新位置
+    this.updatePosition();
   }
 
   /**
@@ -155,6 +244,14 @@ export class OverlayManager {
     this.mutationObserver.disconnect();
     this.host.remove();
     this.hideCanvas();
+
+    // 如果切换到了 body 策略，移除额外的监听器
+    if (this.attachmentStrategy === 'body') {
+      window.removeEventListener('resize', this.boundUpdatePosition!);
+      window.removeEventListener('scroll', this.boundUpdatePosition!, true);
+      document.removeEventListener('fullscreenchange', this.boundHandleFullscreenChange!);
+    }
+
     if (this.hideButtonTimeout) {
       clearTimeout(this.hideButtonTimeout);
     }
