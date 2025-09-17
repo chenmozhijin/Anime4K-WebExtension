@@ -2,8 +2,7 @@
 
 [中文](./README.md) | English | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
-[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=Edge%20Users)](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%20Users)](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek) ![Mozilla Add-on Users](https://img.shields.io/amo/users/anime4k-webextension?style=flat-square&label=Firefox%20Users)
- [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/Anime4K-WebExtension/total?style=flat-square&label=GitHub%20Downloads)](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
+[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=Edge%20Users)](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%20Users)](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek) [![Mozilla Add-on Users](https://img.shields.io/amo/users/anime4k-webextension?style=flat-square&label=Firefox%20Users)](https://addons.mozilla.org/firefox/addon/anime4k-webextension/) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/Anime4K-WebExtension/total?style=flat-square&label=GitHub%20Downloads)](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
 
 Significantly improve the image quality of anime videos with the Anime4K real-time super-resolution algorithm, delivering a clearer and sharper visual experience frame by frame!
 
@@ -29,7 +28,7 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 - [![GitHub Release](https://img.shields.io/github/v/release/chenmozhijin/Anime4K-WebExtension?style=flat-square&label=Latest%20Version)](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
 - [![Edge Store Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.version&style=flat-square&label=Edge%20Add-ons)](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
 - [![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek)
-- ![Mozilla Add-on Version](https://img.shields.io/amo/v/anime4k-webextension?style=flat-square&label=Firefox%20Add-on)
+- [![Mozilla Add-on Version](https://img.shields.io/amo/v/anime4k-webextension?style=flat-square&label=Firefox%20Add-on)](https://addons.mozilla.org/firefox/addon/anime4k-webextension/)
 
 > [!NOTE]
 >
