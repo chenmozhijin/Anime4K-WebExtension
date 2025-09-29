@@ -169,5 +169,23 @@
   },
   "extensionDescription": {
     "message": "Anime4K-WebGPUに基づくリアルタイムビデオ超解像ブラウザ拡張機能。"
+  },
+  "appearance": {
+    "message": "外観"
+  },
+  "themeMode": {
+    "message": "テーマモード"
+  },
+  "themeModeDesc": {
+    "message": "お好みのテーマを選択してください。自動モードはシステム設定に従います。"
+  },
+  "themeAuto": {
+    "message": "自動（システム）"
+  },
+  "themeLight": {
+    "message": "ライト"
+  },
+  "themeDark": {
+    "message": "ダーク"
   }
 }
