@@ -169,5 +169,23 @@
   },
   "extensionDescription": {
     "message": "基於Anime4K-WebGPU的即時影片超解析瀏覽器擴充功能。"
+  },
+  "appearance": {
+    "message": "外觀"
+  },
+  "themeMode": {
+    "message": "主題模式"
+  },
+  "themeModeDesc": {
+    "message": "選擇您偏好的主題。自動模式會跟隨系統偏好設定。"
+  },
+  "themeAuto": {
+    "message": "自動（跟隨系統）"
+  },
+  "themeLight": {
+    "message": "淺色"
+  },
+  "themeDark": {
+    "message": "深色"
   }
 }

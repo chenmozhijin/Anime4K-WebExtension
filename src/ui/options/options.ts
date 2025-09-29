@@ -4,6 +4,7 @@ import { getSettings, saveSettings, synchronizeEffectsForAllModes } from '../../
 import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
 import type { EnhancementMode, EnhancementEffect } from '../../types';
+import { themeManager } from '../theme-manager';
 
 import { Anime4KWebExtSettings } from '../../types';
 
@@ -20,6 +21,7 @@ const addRuleBtn = document.getElementById('add-rule') as HTMLButtonElement;
 const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
+const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
 const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
 const sidebar = document.querySelector('.sidebar') as HTMLElement;
 const sidebarToggle = document.querySelector('.sidebar-toggle') as HTMLButtonElement;
@@ -445,6 +447,7 @@ const setupInternationalization = () => {
 
 const renderGeneralSettingsUI = () => {
   crossOriginFixToggle.checked = settingsState.enableCrossOriginFix;
+  themeSelect.value = themeManager.getTheme();
 };
 
 const renderAboutSectionUI = () => {
@@ -461,6 +464,12 @@ const setupEventListeners = () => {
     settingsState.enableCrossOriginFix = enabled;
     await saveSettings({ enableCrossOriginFix: enabled });
     notifyUpdate();
+  });
+
+  // --- 主题切换监听器 ---
+  themeSelect.addEventListener('change', (e) => {
+    const selectedTheme = (e.target as HTMLSelectElement).value as 'light' | 'dark' | 'auto';
+    themeManager.setTheme(selectedTheme);
   });
 
   // --- 模式监听器 ---
@@ -596,6 +605,9 @@ const setupEventListeners = () => {
  * 主初始化函数。
  */
 document.addEventListener('DOMContentLoaded', async () => {
+  // 初始化主题
+  themeManager.getTheme(); // 这会自动应用保存的主题
+  
   setupInternationalization();
   setupNavigation();
   
