@@ -4,6 +4,9 @@ interface VideoEnhancer {
   toggleEnhancement: () => Promise<void>;
   getCurrentModeId: () => string | null;
   updateSettings: (settings: Anime4KWebExtSettings) => Promise<void>;
+  getVideoElement: () => HTMLVideoElement;
+  detach: () => void;
+  reattach: (newVideo: HTMLVideoElement) => Promise<void>;
 }
 
 // 扩展HTMLVideoElement接口
