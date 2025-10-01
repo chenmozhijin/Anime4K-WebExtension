@@ -1,63 +1,250 @@
-:root {
-  /* Light Theme (Default) */
-  --primary: #6A0DAD;
-  --primary-dark: #52088A;
-  --primary-light: #f3e5f5;
-  --secondary: #4361ee;
-  --success: #06d6a0;
-  --danger: #ef476f;
-  --text: #333;
-  --text-light: #6c757d;
-  --text-dark: #212529;
-  --border: #e0e0e0;
-  --card-bg: white;
-  --bg-light: #f8fafc;
-  --bg-dark: #e9ecef;
+/* Import Material Design themes */
+@import './themes/light.css';
+@import './themes/dark.css';
 
-  /* Dark Theme */
-  --primary-dark-theme: #a55eea;
-  --primary-dark-dark-theme: #8e44ad;
-  --primary-light-dark-theme: #3d2c4a;
-  --secondary-dark-theme: #6a89cc;
-  --text-dark-theme: #f1f2f6;
-  --text-light-dark-theme: #ced6e0;
-  --border-dark-theme: #4a4a4a;
-  --card-bg-dark-theme: #2c3e50;
-  --bg-light-dark-theme: #34495e;
-  --bg-dark-dark-theme: #2f3640;
+:root {
+  /* Material Design Light Theme Mapping */
+  --primary: var(--md-sys-color-primary);
+  --primary-dark: var(--md-sys-color-on-primary-fixed-variant);
+  --primary-light: var(--md-sys-color-primary-container);
+  --secondary: var(--md-sys-color-secondary);
+  --success: #4CAF50; /* Material Green */
+  --danger: var(--md-sys-color-error);
+  --text: var(--md-sys-color-on-surface);
+  --text-light: var(--md-sys-color-on-surface-variant);
+  --text-dark: var(--md-sys-color-on-background);
+  --border: var(--md-sys-color-outline-variant);
+  --card-bg: var(--md-sys-color-surface-container);
+  --bg-light: var(--md-sys-color-surface-container-low);
+  --bg-dark: var(--md-sys-color-surface-container-high);
+
+  /* Material Design specific colors */
+  --surface: var(--md-sys-color-surface);
+  --on-surface: var(--md-sys-color-on-surface);
+  --surface-variant: var(--md-sys-color-surface-variant);
+  --on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --outline: var(--md-sys-color-outline);
+  --outline-variant: var(--md-sys-color-outline-variant);
+  --primary-container: var(--md-sys-color-primary-container);
+  --on-primary-container: var(--md-sys-color-on-primary-container);
+  --secondary-container: var(--md-sys-color-secondary-container);
+  --on-secondary-container: var(--md-sys-color-on-secondary-container);
+  --error-container: var(--md-sys-color-error-container);
+  --on-error-container: var(--md-sys-color-on-error-container);
   
-  /* 尺寸变量 */
-  --border-radius: 8px;
-  --shadow: 0 2px 10px rgba(0,0,0,0.1);
-  --box-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  /* Material Design 3 尺寸和形状 */
+  --border-radius: 12px; /* Material Design 3 rounded corners */
+  --border-radius-sm: 8px;
+  --border-radius-lg: 16px;
+  --border-radius-xl: 24px;
   
-  /* 字体 */
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Material Design 3 阴影 */
+  --shadow-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --shadow-2: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --shadow-3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px 0px rgba(0, 0, 0, 0.3);
+  --shadow-4: 0px 6px 10px 4px rgba(0, 0, 0, 0.15), 0px 2px 3px 0px rgba(0, 0, 0, 0.3);
+  --shadow-5: 0px 8px 12px 6px rgba(0, 0, 0, 0.15), 0px 4px 4px 0px rgba(0, 0, 0, 0.3);
   
-  /* 间距 */
-  --padding-sm: 8px;
-  --padding-md: 12px;
-  --padding-lg: 16px;
-  --margin-sm: 8px;
-  --margin-md: 12px;
-  --margin-lg: 16px;
+  /* 使用 Material Design 阴影 */
+  --shadow: var(--shadow-2);
+  --box-shadow-sm: var(--shadow-1);
+  
+  /* Material Design 3 字体 */
+  --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-display: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  
+  /* Material Design 3 间距系统 (4px base unit) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  
+  /* 向后兼容的间距变量 */
+  --padding-sm: var(--spacing-2);
+  --padding-md: var(--spacing-3);
+  --padding-lg: var(--spacing-4);
+  --margin-sm: var(--spacing-2);
+  --margin-md: var(--spacing-3);
+  --margin-lg: var(--spacing-4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary: var(--primary-dark-theme);
-    --primary-dark: var(--primary-dark-dark-theme);
-    --primary-light: var(--primary-light-dark-theme);
-    --secondary: var(--secondary-dark-theme);
-    --text: var(--text-dark-theme);
-    --text-light: var(--text-light-dark-theme);
-    --border: var(--border-dark-theme);
-    --card-bg: var(--card-bg-dark-theme);
-    --bg-light: var(--bg-light-dark-theme);
-    --bg-dark: var(--bg-dark-dark-theme);
+/* Apply light theme by default */
+:root {
+  color-scheme: light;
+}
 
-    /* Specific overrides for dark mode */
-    --shadow: 0 2px 10px rgba(0,0,0,0.4);
-    --box-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.25);
+:root.light {
+  color-scheme: light;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    
+    /* Override with dark theme colors */
+    --primary: var(--md-sys-color-primary);
+    --primary-dark: var(--md-sys-color-on-primary-fixed-variant);
+    --primary-light: var(--md-sys-color-primary-container);
+    --secondary: var(--md-sys-color-secondary);
+    --danger: var(--md-sys-color-error);
+    --text: var(--md-sys-color-on-surface);
+    --text-light: var(--md-sys-color-on-surface-variant);
+    --text-dark: var(--md-sys-color-on-background);
+    --border: var(--md-sys-color-outline-variant);
+    --card-bg: var(--md-sys-color-surface-container);
+    --bg-light: var(--md-sys-color-surface-container-low);
+    --bg-dark: var(--md-sys-color-surface-container-high);
+    
+    /* Dark theme specific shadows */
+    --shadow-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+    --shadow-2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+    --shadow-3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px 0px rgba(0, 0, 0, 0.3);
+    --shadow-4: 0px 6px 10px 4px rgba(0, 0, 0, 0.15), 0px 2px 3px 0px rgba(0, 0, 0, 0.3);
+    --shadow-5: 0px 8px 12px 6px rgba(0, 0, 0, 0.15), 0px 4px 4px 0px rgba(0, 0, 0, 0.3);
   }
+}
+
+:root.dark {
+  color-scheme: dark;
+  
+  /* Force dark theme colors */
+  --primary: var(--md-sys-color-primary);
+  --primary-dark: var(--md-sys-color-on-primary-fixed-variant);
+  --primary-light: var(--md-sys-color-primary-container);
+  --secondary: var(--md-sys-color-secondary);
+  --danger: var(--md-sys-color-error);
+  --text: var(--md-sys-color-on-surface);
+  --text-light: var(--md-sys-color-on-surface-variant);
+  --text-dark: var(--md-sys-color-on-background);
+  --border: var(--md-sys-color-outline-variant);
+  --card-bg: var(--md-sys-color-surface-container);
+  --bg-light: var(--md-sys-color-surface-container-low);
+  --bg-dark: var(--md-sys-color-surface-container-high);
+}
+
+/* Material Design 3 Typography Scale */
+.md-typescale-display-large {
+  font-family: var(--font-family-display);
+  font-size: 57px;
+  font-weight: 400;
+  line-height: 64px;
+  letter-spacing: -0.25px;
+}
+
+.md-typescale-display-medium {
+  font-family: var(--font-family-display);
+  font-size: 45px;
+  font-weight: 400;
+  line-height: 52px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-display-small {
+  font-family: var(--font-family-display);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 44px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-headline-large {
+  font-family: var(--font-family-display);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 40px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-headline-medium {
+  font-family: var(--font-family-display);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 36px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-headline-small {
+  font-family: var(--font-family-display);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 32px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-title-large {
+  font-family: var(--font-family);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: 0px;
+}
+
+.md-typescale-title-medium {
+  font-family: var(--font-family);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0.15px;
+}
+
+.md-typescale-title-small {
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+}
+
+.md-typescale-body-large {
+  font-family: var(--font-family);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.5px;
+}
+
+.md-typescale-body-medium {
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+
+.md-typescale-body-small {
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+
+.md-typescale-label-large {
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+}
+
+.md-typescale-label-medium {
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+}
+
+.md-typescale-label-small {
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.5px;
 }

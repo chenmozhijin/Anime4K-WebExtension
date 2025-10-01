@@ -169,5 +169,23 @@
   },
   "extensionDescription": {
     "message": "Браузерное расширение для супер-разрешения видео в реальном времени на основе Anime4K."
+  },
+  "appearance": {
+    "message": "Внешний вид"
+  },
+  "themeMode": {
+    "message": "Режим темы"
+  },
+  "themeModeDesc": {
+    "message": "Выберите предпочитаемую тему. Автоматический режим следует системным настройкам."
+  },
+  "themeAuto": {
+    "message": "Авто (Системная)"
+  },
+  "themeLight": {
+    "message": "Светлая"
+  },
+  "themeDark": {
+    "message": "Тёмная"
   }
 }
