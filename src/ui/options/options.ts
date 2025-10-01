@@ -5,6 +5,7 @@ import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelis
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
 import type { EnhancementMode, EnhancementEffect } from '../../types';
 import { themeManager } from '../theme-manager';
+import { Sidebar } from './Sidebar';
 
 import { Anime4KWebExtSettings } from '../../types';
 
@@ -23,9 +24,6 @@ const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
 const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
 const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
-const sidebar = document.querySelector('.sidebar') as HTMLElement;
-const sidebarToggle = document.querySelector('.sidebar-toggle') as HTMLButtonElement;
-const overlay = document.querySelector('.main-content-overlay') as HTMLElement;
 
 // --- 拖放状态 ---
 let draggedElement: HTMLElement | null = null;
@@ -417,28 +415,6 @@ const notifyUpdate = (modifiedModeId?: string) => {
   chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED', modifiedModeId });
 };
 
-const setupNavigation = () => {
-  const menuItems = document.querySelectorAll('.menu-item');
-  const sections = document.querySelectorAll('.content-section');
-  menuItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.preventDefault();
-      menuItems.forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      const sectionName = item.getAttribute('data-section');
-      sections.forEach(section => section.classList.remove('active'));
-      const targetSection = document.getElementById(`${sectionName}-section`);
-      if (targetSection) targetSection.classList.add('active');
-
-      // 在小屏设备上，单击菜单项后关闭侧边栏
-      if (window.innerWidth <= 900) {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('active');
-      }
-    });
-  });
-};
-
 const setupInternationalization = () => {
   document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(element => {
     const key = element.getAttribute('data-i18n');
@@ -595,17 +571,6 @@ const setupEventListeners = () => {
       });
     }
   });
-
-  // --- 侧边栏切换监听器 ---
-  sidebarToggle.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('active');
-  });
-
-  overlay.addEventListener('click', () => {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('active');
-  });
 };
 
 /**
@@ -616,7 +581,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   themeManager.getTheme(); // 这会自动应用保存的主题
   
   setupInternationalization();
-  setupNavigation();
+  
+  // 初始化侧边栏
+  try {
+    const sidebar = new Sidebar();
+    sidebar.initialize();
+  } catch (error) {
+    console.error('Failed to initialize sidebar:', error);
+  }
   
   if (!modesContainer || !addModeBtn || !importModesBtn || !exportModesBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn) {
     console.error('Required UI elements not found. Aborting initialization.');
