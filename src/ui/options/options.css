@@ -334,9 +334,9 @@ h1 {
   background-position: right var(--spacing-2) center;
   background-size: 16px;
   padding-right: calc(var(--spacing-3) + 20px);
-  appearance: none;
-  -webkit-appearance: none;
   -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .add-effect-container select:focus {
@@ -401,9 +401,9 @@ select {
   background-position: right var(--spacing-3) center;
   background-size: 16px;
   padding-right: calc(var(--spacing-3) + 20px);
-  appearance: none;
-  -webkit-appearance: none;
   -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .pattern-input:focus, select:focus {
@@ -562,9 +562,9 @@ input:focus + .slider {
   background-position: right var(--spacing-2) center;
   background-size: 16px;
   padding-right: calc(var(--spacing-3) + 20px);
-  appearance: none;
-  -webkit-appearance: none;
   -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .theme-select:focus {
