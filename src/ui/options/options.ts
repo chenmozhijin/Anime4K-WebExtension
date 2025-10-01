@@ -378,6 +378,9 @@ const renderRulesUI = () => {
     patternCell.appendChild(patternInput);
     
     const enabledCell = document.createElement('td');
+    enabledCell.className = 'cell-center';
+    const switchLabel = document.createElement('label');
+    switchLabel.className = 'switch';
     const enabledCheckbox = document.createElement('input');
     enabledCheckbox.type = 'checkbox';
     enabledCheckbox.checked = rule.enabled;
@@ -386,7 +389,11 @@ const renderRulesUI = () => {
       await updateWhitelistRule(rule.pattern, enabled);
       rule.enabled = enabled; // 更新状态
     });
-    enabledCell.appendChild(enabledCheckbox);
+    const sliderSpan = document.createElement('span');
+    sliderSpan.className = 'slider round';
+    switchLabel.appendChild(enabledCheckbox);
+    switchLabel.appendChild(sliderSpan);
+    enabledCell.appendChild(switchLabel);
     
     const actionsCell = document.createElement('td');
     const deleteBtn = document.createElement('button');

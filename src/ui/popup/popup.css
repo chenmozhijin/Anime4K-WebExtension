@@ -28,7 +28,7 @@ body {
 }
 
 .card-body {
-  padding: var(--spacing-3);
+  padding: var(--spacing-2);
 }
 
 h3 {
@@ -39,7 +39,7 @@ h3 {
 }
 
 .setting-group {
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
 }
 
 .setting-group:last-child {
@@ -74,9 +74,9 @@ select {
   background-position: right var(--spacing-3) center;
   background-size: 16px;
   padding-right: calc(var(--spacing-4) + 20px);
-  appearance: none;
-  -webkit-appearance: none;
   -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 select:focus, button:focus {
@@ -154,8 +154,8 @@ button:active {
 }
 
 .whitelist-section {
-  margin-top: var(--spacing-3);
-  padding-top: var(--spacing-3);
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--outline-variant);
 }
 
@@ -163,7 +163,7 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
   padding: var(--spacing-2) 0;
 }
 
@@ -243,7 +243,7 @@ input:checked + .slider:before {
 }
 
 #open-settings {
-  margin-top: var(--spacing-3);
+  margin-top: var(--spacing-2);
   background-color: var(--primary-container);
   color: var(--on-primary-container);
 }
