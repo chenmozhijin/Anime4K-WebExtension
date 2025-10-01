@@ -119,7 +119,7 @@ h1 {
 }
 
 .card {
-  background: var(--surface-container);
+  background-color: var(--surface-container);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-1);
   border: 1px solid var(--outline-variant);
@@ -257,7 +257,7 @@ h1 {
 }
 
 .mode-card-header h2[contenteditable="true"]:focus {
-  background-color: var(--bg-light);
+  background-color: var(--surface-container-low);
   box-shadow: 0 0 0 2px var(--primary-light);
 }
 
@@ -271,13 +271,13 @@ h1 {
 }
 
 .effect-item {
-  background-color: var(--bg-light);
+  background-color: var(--surface-container-low);
   padding: 0.5rem 0.75rem;
   border-radius: var(--border-radius);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid var(--border);
+  border: 1px solid var(--outline-variant);
 }
 
 .effect-item span {
@@ -613,7 +613,7 @@ input:focus + .slider {
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: var(--text-dark);
+  color: var(--on-surface);
 }
 
 textarea {
@@ -675,7 +675,7 @@ textarea:hover {
 }
 
 .sidebar-toggle:hover {
-  background-color: var(--bg-light);
+  background-color: var(--surface-container-low);
   color: var(--primary);
 }
 
@@ -704,8 +704,8 @@ textarea:hover {
     z-index: 1000;
     transition: transform 0.3s ease;
     transform: translateX(-100%); /* Slide out to the left */
-    box-shadow: var(--shadow);
-    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow-2);
+    border-right: 1px solid var(--outline-variant);
     padding-top: 60px; /* Add padding to prevent overlap with toggle button */
   }
 
@@ -781,7 +781,7 @@ textarea:hover {
 .mode-summary {
   display: none;
   padding: 0.75rem 0 0.25rem;
-  color: var(--text);
+  color: var(--on-surface-variant);
   font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -795,7 +795,7 @@ textarea:hover {
 .mode-card-content {
   display: block;
   padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--outline-variant);
   margin-top: 1rem;
 }
 
@@ -821,12 +821,12 @@ textarea:hover {
 }
 
 .btn-move-effect:hover:not(:disabled) {
-  background-color: var(--bg-light);
+  background-color: var(--surface-container-low);
   color: var(--primary);
 }
 
 .btn-move-effect:disabled {
-  color: var(--border);
+  color: var(--outline-variant);
   cursor: not-allowed;
 }
 
@@ -857,7 +857,7 @@ textarea:hover {
 
 .version-info {
   font-size: 1rem;
-  color: var(--text);
+  color: var(--on-surface-variant);
   margin: 0.25rem 0 0;
 }
 
@@ -874,16 +874,16 @@ textarea:hover {
 }
 
 .info-item {
-  background-color: var(--bg-light);
+  background-color: var(--surface-container-low);
   padding: 1rem;
   border-radius: var(--border-radius);
-  border: 1px solid var(--border);
+  border: 1px solid var(--outline-variant);
 }
 
 .info-item strong {
   display: block;
   margin-bottom: 0.5rem;
-  color: var(--text-dark);
+  color: var(--on-surface);
 }
 
 .info-item a {

@@ -5,18 +5,22 @@
 :root {
   /* Material Design Light Theme Mapping */
   --primary: var(--md-sys-color-primary);
+  --on-primary: var(--md-sys-color-on-primary);
   --primary-dark: var(--md-sys-color-on-primary-fixed-variant);
   --primary-light: var(--md-sys-color-primary-container);
   --secondary: var(--md-sys-color-secondary);
+  --on-secondary: var(--md-sys-color-on-secondary);
   --success: #4CAF50; /* Material Green */
   --danger: var(--md-sys-color-error);
   --text: var(--md-sys-color-on-surface);
   --text-light: var(--md-sys-color-on-surface-variant);
   --text-dark: var(--md-sys-color-on-background);
   --border: var(--md-sys-color-outline-variant);
-  --card-bg: var(--md-sys-color-surface-container);
-  --bg-light: var(--md-sys-color-surface-container-low);
-  --bg-dark: var(--md-sys-color-surface-container-high);
+  --surface-container-lowest: var(--md-sys-color-surface-container-lowest);
+  --surface-container-low: var(--md-sys-color-surface-container-low);
+  --surface-container: var(--md-sys-color-surface-container);
+  --surface-container-high: var(--md-sys-color-surface-container-high);
+  --surface-container-highest: var(--md-sys-color-surface-container-highest);
 
   /* Material Design specific colors */
   --surface: var(--md-sys-color-surface);
