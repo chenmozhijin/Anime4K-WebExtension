@@ -13,7 +13,7 @@ body {
 }
 
 .card {
-  background: var(--surface-container);
+  background-color: var(--surface-container);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-2);
   overflow: hidden;
