@@ -518,6 +518,16 @@ export class Renderer {
   }
 
   /**
+   * 获取当前渲染器处理的源视频尺寸
+   */
+  public getSourceDimensions(): Dimensions {
+    return {
+      width: this.videoFrameTexture.width,
+      height: this.videoFrameTexture.height,
+    };
+  }
+
+  /**
    * 销毁渲染器并释放所有 WebGPU 资源。
    * 这是一个关键的清理方法，以防止内存和 GPU 资源泄漏。
    */

@@ -2,6 +2,7 @@ import { VideoEnhancer } from './video-enhancer';
 import { ANIME4K_APPLIED_ATTR } from '../constants';
 import { getSettings } from '../utils/settings';
 import { Anime4KWebExtSettings } from '../types';
+import { stashEnhancer, findAndunstashEnhancer } from './enhancer-stash';
 
 // 使用 WeakSet 跟踪已处理的文档或 ShadowRoot，避免重复绑定监听器
 const processedDocs = new WeakSet<Document | ShadowRoot>();
@@ -14,9 +15,13 @@ const mediaEventsToWatch: ReadonlyArray<string> = ['loadedmetadata', 'play', 'pl
  */
 function cleanupVideoEnhancer(video: HTMLVideoElement): void {
   if (video._anime4kEnhancer) {
-    video._anime4kEnhancer.destroy();
+    if (video.hasAttribute(ANIME4K_APPLIED_ATTR)) {
+      stashEnhancer(video._anime4kEnhancer as VideoEnhancer);
+    } else {
+      video._anime4kEnhancer.destroy();
+    }
     delete video._anime4kEnhancer;
-    console.log('[Anime4KWebExt] Cleaned up enhancer for video:', video);
+    console.log('[Anime4KWebExt] Cleaned up or stashed enhancer for video:', video);
   }
 }
 
@@ -27,11 +32,22 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
  */
 export function processVideoElement(videoEl: HTMLVideoElement): void {
   // 如果视频已经处理过，则直接返回，避免重复工作
-  if (videoEl._anime4kEnhancer || videoEl.hasAttribute(ANIME4K_APPLIED_ATTR)) {
+  if (videoEl._anime4kEnhancer) {
     return;
   }
 
-  // 视频需要加载完元数据后才能获取宽高信息，因此在此处等待
+  const stashedEnhancer = findAndunstashEnhancer(videoEl);
+  if (stashedEnhancer) {
+    videoEl._anime4kEnhancer = stashedEnhancer;
+    stashedEnhancer.reattach(videoEl).catch(err => {
+      console.error('[Anime4KWebExt] Failed to re-attach stashed enhancer:', err);
+      delete videoEl._anime4kEnhancer;
+      stashedEnhancer.destroy();
+    });
+    return;
+  }
+
+  // 如果没有找到暂存的 Enhancer，才走原始的创建流程
   if (videoEl.readyState >= 1) { // HAVE_METADATA
     addEnhancerToVideo(videoEl);
   } else {

@@ -308,6 +308,41 @@ export class VideoEnhancer {
     return this.currentModeId;
   }
 
+  public getVideoElement(): HTMLVideoElement {
+    return this.video;
+  }
+
+  /**
+   * 分离方法
+   */
+  public detach(): void {
+    console.log('[Anime4KWebExt] Detaching enhancer from video.');
+    this.overlay.detach();
+    // 移除属性，因为此刻它不再“应用”于任何DOM元素
+    this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
+  }
+
+  /**
+   * 重附加方法
+   */
+  public async reattach(newVideo: HTMLVideoElement): Promise<void> {
+    console.log('[Anime4KWebExt] Re-attaching enhancer to new video.');
+    this.video = newVideo;
+    this.overlay.reattach(newVideo);
+
+    // 重新应用属性
+    this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+
+    // 按需更新渲染器
+    if (this.renderer) {
+      const currentRendererDimensions = this.renderer.getSourceDimensions();
+      if (newVideo.videoWidth !== currentRendererDimensions.width || newVideo.videoHeight !== currentRendererDimensions.height) {
+        console.log('[Anime4KWebExt] Video dimensions changed on reattach. Updating renderer.');
+        this.renderer.handleSourceResize();
+      }
+    }
+  }
+
   /**
    * 销毁整个增强器实例（包括UI元素和内部资源）
    */

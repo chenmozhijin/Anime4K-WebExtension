@@ -237,6 +237,50 @@ export class OverlayManager {
   }
 
   /**
+   * 分离UI
+   * 隐藏所有UI元素，但保留其实例。
+   */
+  public detach(): void {
+    this.host.style.display = 'none';
+    if (this.canvas) {
+      this.canvas.style.visibility = 'hidden';
+    }
+  }
+
+  /**
+   * 重新附加到新的视频元素
+   * @param newVideo 新的视频元素
+   */
+  public reattach(newVideo: HTMLVideoElement): void {
+    this.resizeObserver.disconnect();
+    this.mutationObserver.disconnect();
+
+    this.video = newVideo;
+
+    if (this.attachmentStrategy === 'sibling') {
+      newVideo.parentElement?.insertBefore(this.host, newVideo);
+    }
+    if (this.canvas) {
+      newVideo.parentElement?.insertBefore(this.canvas, this.video);
+    }
+
+    this.resizeObserver.observe(newVideo);
+    this.mutationObserver.observe(newVideo, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    });
+
+    // 重新显示 host
+    this.host.style.display = '';
+    // 如果 canvas 存在，也恢复可见性
+    if (this.canvas && this.canvas.style.visibility === 'hidden') {
+      this.canvas.style.visibility = 'visible';
+    }
+
+    this.updatePosition();
+  }
+
+  /**
    * 销毁实例，清理所有资源。
    */
   public destroy(): void {
