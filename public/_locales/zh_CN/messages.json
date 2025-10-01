@@ -169,5 +169,23 @@
   },
   "extensionDescription": {
     "message": "基于Anime4K-WebGPU的实时视频超分辨率浏览器扩展。"
+  },
+  "appearance": {
+    "message": "外观"
+  },
+  "themeMode": {
+    "message": "主题模式"
+  },
+  "themeModeDesc": {
+    "message": "选择您偏好的主题。自动模式会跟随系统偏好设置。"
+  },
+  "themeAuto": {
+    "message": "自动（跟随系统）"
+  },
+  "themeLight": {
+    "message": "浅色"
+  },
+  "themeDark": {
+    "message": "深色"
   }
 }

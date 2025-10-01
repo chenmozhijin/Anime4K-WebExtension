@@ -169,5 +169,23 @@
   },
   "extensionDescription": {
     "message": "Real-time video super-resolution browser extension based on Anime4K."
+  },
+  "appearance": {
+    "message": "Appearance"
+  },
+  "themeMode": {
+    "message": "Theme Mode"
+  },
+  "themeModeDesc": {
+    "message": "Choose your preferred theme. Auto mode follows your system preference."
+  },
+  "themeAuto": {
+    "message": "Auto (System)"
+  },
+  "themeLight": {
+    "message": "Light"
+  },
+  "themeDark": {
+    "message": "Dark"
   }
 }

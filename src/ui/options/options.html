@@ -49,6 +49,27 @@
         </div>
         <div class="card">
           <div class="card-header">
+            <h2 class="card-title" data-i18n="appearance">Appearance</h2>
+          </div>
+          <div class="setting-item">
+            <div class="setting-label">
+              <label for="theme-select" data-i18n="themeMode">Theme Mode</label>
+              <p class="setting-description" data-i18n="themeModeDesc">
+                Choose your preferred theme. Auto mode follows your system preference.
+              </p>
+            </div>
+            <div class="setting-control">
+              <select id="theme-select" class="theme-select">
+                <option value="auto" data-i18n="themeAuto">Auto (System)</option>
+                <option value="light" data-i18n="themeLight">Light</option>
+                <option value="dark" data-i18n="themeDark">Dark</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <div class="card-header">
             <h2 class="card-title" data-i18n="compatibility">Compatibility</h2>
           </div>
           <div class="setting-item">
@@ -98,7 +119,7 @@
               <thead>
                 <tr>
                   <th data-i18n="pattern">Pattern</th>
-                  <th data-i18n="enabled">Enabled</th>
+                  <th data-i18n="enabled" class="cell-center">Enabled</th>
                   <th data-i18n="actions">Actions</th>
                 </tr>
               </thead>

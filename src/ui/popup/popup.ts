@@ -3,8 +3,12 @@ import './popup.css';
 import '../common-vars.css';
 import { getSettings, saveSettings } from '../../utils/settings';
 import { addWhitelistRule, setDefaultWhitelist } from '../../utils/whitelist';
+import { themeManager } from '../theme-manager';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 初始化主题
+  themeManager.getTheme(); // 这会自动应用保存的主题
+  
   // 设置文档语言
   document.documentElement.setAttribute('lang', chrome.i18n.getMessage('@@ui_locale') || 'en');
   

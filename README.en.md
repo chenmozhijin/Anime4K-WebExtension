@@ -14,6 +14,7 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 - ⚡ **One-Click Enhancement:** A purple "✨ Enhance" button automatically appears on the video player; click to enable the effect.
 - 🛡️ **Broad Compatibility:** Supports Shadow DOM, iframes, and cross-origin videos, aiming to be compatible with as many websites as possible.
 - 📋 **Precise Whitelist:** Works only on specified websites or pages to avoid interference and save resources.
+- 🌈 **Theme Toggle:** Supports light/dark/auto theme modes, providing a modern Material Design interface.
 - 🌐 **Multi-language Interface:** Supports Chinese, English, Japanese, Russian, etc.
 
 > [!WARNING]
@@ -100,6 +101,7 @@ Achieve fine-grained control over the extension's scope:
 
 #### 3. General Settings
 
+- **Theme Mode:** Choose the appearance theme for the interface. Supports light mode, dark mode, or auto mode that follows system settings.
 - **Cross-Origin Compatibility Mode**: When encountering videos that fail to enhance due to "cross-origin" restrictions (common on websites using third-party video sources), this mode will attempt to automatically fix the issue. If a security error appears during enhancement, be sure to enable this feature.
 
 ## Acknowledgments
