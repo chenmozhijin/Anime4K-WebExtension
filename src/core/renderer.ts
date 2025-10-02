@@ -92,6 +92,9 @@ export class Renderer {
   private animationFrameId: number | null = null;
   /** 是否使用 ImageBitmap 作为回退方案来复制视频帧 */
   private useImageBitmapFallback = false;
+  /** 在单次渲染循环中是否已尝试过自动修复 */
+  private fixAttempted = false;
+  private lastError: Error | null  = null; // 存储最近一次错误信息
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
@@ -430,6 +433,21 @@ export class Renderer {
 
     } catch (error) {
       console.error('[Anime4KWebExt] Frame processing failed:', error);
+
+      // 检查是否是可恢复的尺寸不匹配错误，并且之前未尝试过修复
+      if (
+        error instanceof Error &&
+        error.name === 'OperationError' &&
+        error.message.includes('out of bounds') &&
+        !this.fixAttempted
+      ) {
+        console.warn('[Anime4KWebExt] Caught out-of-bounds error. Attempting to recover by resizing resources...');
+        this.handleSourceResize();
+        this.lastError = error
+        return false; // 跳过此帧，让下一帧使用新资源重试
+      }
+
+      // 对于其他错误或重复的尺寸错误，执行标准错误处理
       if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
       this.destroy();
       return false;
@@ -446,12 +464,21 @@ export class Renderer {
     if (await this.processFrame()) {
       // 第一帧成功渲染
       this.onFirstFrameRendered?.();
+      this.fixAttempted = false; // 成功渲染后重置标志
       // 切换到常规渲染循环
       this.animationFrameId = this.video.requestVideoFrameCallback(this.renderLoop);
     } else {
-      // 第一帧未成功渲染（例如暂停、分辨率变更），在下一帧重试
-      if (!this.destroyed) {
-        this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
+      // 第一帧未成功渲染
+      if (this.fixAttempted) {
+        // 如果已经尝试过修复但仍然失败
+        if (this.onError) this.onError(this.lastError instanceof Error ? this.lastError : new Error(String(this.lastError)));
+        this.destroy(); // 销毁渲染器
+      } else {
+        // 如果是第一次失败，标记并重试
+        this.fixAttempted = true;
+        if (!this.destroyed) {
+          this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
+        }
       }
     }
   };
@@ -462,7 +489,20 @@ export class Renderer {
   private renderLoop = async (): Promise<void> => {
     if (this.destroyed) return;
 
-    await this.processFrame();
+    if (await this.processFrame()) {
+      this.fixAttempted = false; // 成功渲染后重置标志
+    } else {
+      // 渲染失败
+      if (this.fixAttempted) {
+        // 如果已经尝试过修复但仍然失败
+        if (this.onError) this.onError(this.lastError instanceof Error ? this.lastError : new Error(String(this.lastError)));
+        this.destroy(); // 销毁渲染器
+        return; // 停止循环
+      } else {
+        // 如果是第一次失败，标记以供下次检查
+        this.fixAttempted = true;
+      }
+    }
 
     // 持续调度自身
     if (!this.destroyed) {
@@ -518,13 +558,16 @@ export class Renderer {
   }
 
   /**
-   * 获取当前渲染器处理的源视频尺寸
+   * 更新渲染器使用的视频源。
+   * @param newVideo - 新的 HTMLVideoElement
    */
-  public getSourceDimensions(): Dimensions {
-    return {
-      width: this.videoFrameTexture.width,
-      height: this.videoFrameTexture.height,
-    };
+  public updateVideoSource(newVideo: HTMLVideoElement): void {
+    console.log('[Anime4KWebExt] Renderer video source updated.');
+    if (newVideo.videoWidth !== this.videoFrameTexture.width || newVideo.videoHeight !== this.videoFrameTexture.height) {
+      console.log('[Anime4KWebExt] Video dimensions changed on reattach. Updating renderer.');
+      this.handleSourceResize();
+    }
+    this.video = newVideo;
   }
 
   /**
