@@ -330,16 +330,15 @@ export class VideoEnhancer {
     this.video = newVideo;
     this.overlay.reattach(newVideo);
 
-    // 重新应用属性
-    this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
 
-    // 按需更新渲染器
+
+    // 更新渲染器
     if (this.renderer) {
-      const currentRendererDimensions = this.renderer.getSourceDimensions();
-      if (newVideo.videoWidth !== currentRendererDimensions.width || newVideo.videoHeight !== currentRendererDimensions.height) {
-        console.log('[Anime4KWebExt] Video dimensions changed on reattach. Updating renderer.');
-        this.renderer.handleSourceResize();
-      }
+      this.renderer.updateVideoSource(newVideo);
+      // 重新应用属性
+      this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+    } else {
+      this.disableEnhancement();
     }
   }
 
