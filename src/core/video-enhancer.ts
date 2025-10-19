@@ -16,10 +16,18 @@ export class VideoEnhancer {
   private overlay: OverlayManager;
   private button: HTMLButtonElement;
 
-  constructor(private video: HTMLVideoElement) {
+  private constructor(private video: HTMLVideoElement) {
     this.overlay = OverlayManager.create(this.video);
     this.button = this.overlay.getButton();
     this.initUI();
+  }
+
+  /**
+   * 创建并初始化一个新的 VideoEnhancer 实例。
+   * 这是推荐的实例化方法。
+   */
+  public static create(video: HTMLVideoElement): VideoEnhancer {
+    return new VideoEnhancer(video);
   }
 
   /**
@@ -196,6 +204,13 @@ export class VideoEnhancer {
    * 初始化渲染器，包括获取设置、加载模块和创建Renderer实例
    */
   private async initRenderer(): Promise<void> {
+    // 在初始化渲染器之前，确保元数据已加载
+    if (this.video.readyState < 1) { // HAVE_METADATA
+      await new Promise(resolve => {
+        this.video.addEventListener('loadedmetadata', resolve, { once: true });
+      });
+    }
+    
     if (!navigator.gpu) {
       throw new Error('WebGPU is not supported on this browser.');
     }

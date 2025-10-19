@@ -3,24 +3,28 @@ import { ANIME4K_APPLIED_ATTR } from '../constants';
 import { getSettings } from '../utils/settings';
 import { Anime4KWebExtSettings } from '../types';
 import { stashEnhancer, findAndunstashEnhancer } from './enhancer-stash';
+import * as EnhancerMap from './enhancer-map';
 
-// 使用 WeakSet 跟踪已处理的文档或 ShadowRoot，避免重复绑定监听器
-const processedDocs = new WeakSet<Document | ShadowRoot>();
+// 使用 Set 跟踪已处理的文档或 ShadowRoot，以便能够移除监听器
+const processedDocs = new Set<Document | ShadowRoot>();
 // 定义需要监听的核心媒体事件，以最优化性能
 const mediaEventsToWatch: ReadonlyArray<string> = ['loadedmetadata', 'play', 'playing'];
+
+let domObserver: MutationObserver | null = null;
 
 /**
  * 清理视频元素的增强器资源
  * @param video 视频元素
  */
 function cleanupVideoEnhancer(video: HTMLVideoElement): void {
-  if (video._anime4kEnhancer) {
+  const enhancer = EnhancerMap.getEnhancer(video);
+  if (enhancer) {
     if (video.hasAttribute(ANIME4K_APPLIED_ATTR)) {
-      stashEnhancer(video._anime4kEnhancer as VideoEnhancer);
+      stashEnhancer(enhancer);
     } else {
-      video._anime4kEnhancer.destroy();
+      enhancer.destroy();
     }
-    delete video._anime4kEnhancer;
+    EnhancerMap.dissociateEnhancer(video);
     console.log('[Anime4KWebExt] Cleaned up or stashed enhancer for video:', video);
   }
 }
@@ -31,46 +35,39 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
  * @param videoEl 要处理的视频元素
  */
 export function processVideoElement(videoEl: HTMLVideoElement): void {
-  // 如果视频已经处理过，则直接返回，避免重复工作
-  if (videoEl._anime4kEnhancer) {
+  // 1. 状态检查 (防竞争条件的关键)
+  if (EnhancerMap.hasEnhancer(videoEl)) {
     return;
   }
 
+  // 2. 检查视频是否在 DOM 中 (UI 附加的前提)
+  if (!videoEl.parentElement) {
+    console.log('[Anime4KWebExt] Video is not in the DOM, skipping enhancer creation for now.', videoEl);
+    return;
+  }
+
+  // 3. 优先从 Stash 中恢复
   const stashedEnhancer = findAndunstashEnhancer(videoEl);
   if (stashedEnhancer) {
-    videoEl._anime4kEnhancer = stashedEnhancer;
+    console.log('[Anime4KWebExt] Re-attaching stashed enhancer.');
+    EnhancerMap.associateEnhancer(videoEl, stashedEnhancer);
     stashedEnhancer.reattach(videoEl).catch(err => {
       console.error('[Anime4KWebExt] Failed to re-attach stashed enhancer:', err);
-      delete videoEl._anime4kEnhancer;
+      EnhancerMap.dissociateEnhancer(videoEl);
       stashedEnhancer.destroy();
     });
     return;
   }
 
-  // 如果没有找到暂存的 Enhancer，才走原始的创建流程
-  if (videoEl.readyState >= 1) { // HAVE_METADATA
-    addEnhancerToVideo(videoEl);
-  } else {
-    // 如果元数据未加载，则添加一次性监听器
-    videoEl.addEventListener('loadedmetadata', () => addEnhancerToVideo(videoEl), { once: true });
-  }
-}
-
-/**
- * 核心实现：为视频元素创建并附加增强器实例
- * @param video 视频元素
- */
-function addEnhancerToVideo(video: HTMLVideoElement): void {
-  if (video._anime4kEnhancer) return;
-  // 视频必须在DOM中才能附加UI
-  if (!video.parentElement) return;
-  
+  // 4. 创建新的 Enhancer 实例 (同步)
+  console.log('[Anime4KWebExt] Creating new enhancer for video:', videoEl);
   try {
-    const enhancer = new VideoEnhancer(video);
-    video._anime4kEnhancer = enhancer;
-    console.log('[Anime4KWebExt] Attached enhancer to video:', video);
+    const enhancer = VideoEnhancer.create(videoEl);
+    // 立即在 Map 中注册，建立“锁”
+    EnhancerMap.associateEnhancer(videoEl, enhancer);
+    console.log('[Anime4KWebExt] Associated new enhancer to video:', videoEl);
   } catch (error) {
-    console.error('Failed to create enhancer for video:', video, error);
+    console.error('Failed to create enhancer for video:', videoEl, error);
   }
 }
 
@@ -109,6 +106,10 @@ function processDoc(doc: Document | ShadowRoot): void {
  * 初始化页面，设置事件监听和 DOM 观察器
  */
 export function initializeOnPage(): void {
+  if (domObserver) {
+    console.warn('[Anime4KWebExt] initializeOnPage called while already initialized. Ignoring.');
+    return;
+  }
   // 1. 处理主文档
   processDoc(document);
   
@@ -116,7 +117,7 @@ export function initializeOnPage(): void {
   document.querySelectorAll('video').forEach(processVideoElement);
 
   // 3. 设置DOM观察器以处理动态加载的视频和Shadow DOM
-  setupDOMObserver();
+  domObserver = setupDOMObserver();
 }
 
 /**
@@ -182,10 +183,10 @@ export async function handleSettingsUpdate(
 
   const newSettings = await getSettings();
   let updatedCount = 0;
-  const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
+  const videos = EnhancerMap.getAllManagedVideos();
 
   for (const videoElement of videos) {
-    const enhancer = videoElement._anime4kEnhancer;
+    const enhancer = EnhancerMap.getEnhancer(videoElement);
     if (enhancer && videoElement.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
       const shouldUpdate = !message.modifiedModeId || enhancer.getCurrentModeId() === message.modifiedModeId;
 
@@ -205,4 +206,36 @@ export async function handleSettingsUpdate(
   } else {
     sendResponse({ status: 'NO_ACTION', message: 'No active instances needed an update.' });
   }
+}
+
+/**
+ * 反初始化页面，彻底清理所有资源
+ */
+export function deinitializeOnPage(): void {
+  // 1. 断开并清除 DOM 观察器
+  if (domObserver) {
+    domObserver.disconnect();
+    domObserver = null;
+    console.log('[Anime4KWebExt] DOM Observer disconnected.');
+  }
+
+  // 2. 移除所有媒体事件监听器
+  processedDocs.forEach(doc => {
+    for (const eventName of mediaEventsToWatch) {
+      doc.removeEventListener(eventName, handleMediaEvent, { capture: true });
+    }
+  });
+  processedDocs.clear();
+  console.log('[Anime4KWebExt] All media event listeners removed.');
+
+  // 3. 销毁所有增强器实例
+  const videos = EnhancerMap.getAllManagedVideos();
+  console.log(`[Anime4KWebExt] De-initializing and cleaning up ${videos.length} videos.`);
+  videos.forEach(video => {
+    const enhancer = EnhancerMap.getEnhancer(video);
+    if (enhancer) {
+      enhancer.destroy();
+      EnhancerMap.dissociateEnhancer(video);
+    }
+  });
 }
