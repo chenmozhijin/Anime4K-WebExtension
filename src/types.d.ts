@@ -9,13 +9,6 @@ interface VideoEnhancer {
   reattach: (newVideo: HTMLVideoElement) => Promise<void>;
 }
 
-// 扩展HTMLVideoElement接口
-declare global {
-  interface HTMLVideoElement {
-    _anime4kEnhancer?: VideoEnhancer;
-  }
-}
-
 // 白名单规则接口
 interface WhitelistRule {
   pattern: string;

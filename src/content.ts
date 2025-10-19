@@ -2,8 +2,10 @@
  * 内容脚本主入口
  * 负责在页面视频元素上添加增强按钮并管理增强器实例
  */
-import { initializeOnPage, handleSettingsUpdate } from './core/video-manager';
+import { initializeOnPage, deinitializeOnPage, handleSettingsUpdate } from './core/video-manager';
 import { isUrlWhitelisted, getWhitelistRules } from './utils/whitelist';
+
+let isCurrentlyActive = false; // 跟踪当前页面的增强状态
 
 // 检查当前页面是否在白名单中
 async function shouldInitialize(): Promise<boolean> {
@@ -14,18 +16,28 @@ async function shouldInitialize(): Promise<boolean> {
   return isUrlWhitelisted(window.location.href, rules);
 }
 
-// 根据白名单状态初始化页面
-async function initializeBasedOnWhitelist() {
-  if (await shouldInitialize()) {
-    console.log('[Anime4KWebExt] 初始化增强功能...');
+// 根据白名单状态评估并应用更改
+async function evaluateAndApplyWhitelistState() {
+  const shouldBeActive = await shouldInitialize();
+
+  if (shouldBeActive && !isCurrentlyActive) {
+    // Case: 需要激活 (例如从非白名单页导航到白名单页)
+    console.log('[Anime4KWebExt] Whitelist match found. Initializing features...');
     initializeOnPage();
+    isCurrentlyActive = true;
+  } else if (!shouldBeActive && isCurrentlyActive) {
+    // Case: 需要反激活 (例如从白名单页导航到非白名单页)
+    console.log('[Anime4KWebExt] No longer on a whitelisted page. De-initializing features...');
+    deinitializeOnPage();
+    isCurrentlyActive = false;
   } else {
-    console.log('[Anime4KWebExt] 当前页面不在白名单中，跳过增强功能。');
+    // Case: 状态无需改变
+    console.log(`[Anime4KWebExt] Whitelist state unchanged (shouldBeActive: ${shouldBeActive}, isCurrentlyActive: ${isCurrentlyActive}). No action needed.`);
   }
 }
 
 // 初始化页面
-initializeBasedOnWhitelist();
+evaluateAndApplyWhitelistState();
 
 // 监听来自后台的设置更新消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -35,7 +47,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.type === 'URL_UPDATED') {
     // URL 变化时重新检查白名单
     console.log('[Anime4KWebExt] URL changed, re-evaluating whitelist...');
-    initializeBasedOnWhitelist();
+    evaluateAndApplyWhitelistState();
   }
   return false;
 });

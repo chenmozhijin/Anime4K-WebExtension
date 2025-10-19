@@ -1,5 +1,6 @@
 import type { Anime4KPipeline } from 'anime4k-webgpu';
 import type { Anime4KClass, Dimensions, EnhancementEffect, ModeClasses } from '../types';
+import { RendererInitializationError, RendererRuntimeError } from './errors';
 
 /**
  * 全屏纹理四边形顶点着色器
@@ -145,50 +146,60 @@ export class Renderer {
    * 初始化 WebGPU 设备、上下文和所有必要的渲染资源。
    */
   private async initialize(): Promise<void> {
-    // 等待视频数据加载完成
-    if (this.video.readyState < this.video.HAVE_FUTURE_DATA) {
-      await new Promise((resolve) => {
-        this.video.onloadeddata = resolve;
+    try {
+      // 等待视频数据加载完成
+      if (this.video.readyState < this.video.HAVE_FUTURE_DATA) {
+        await new Promise((resolve) => {
+          this.video.onloadeddata = resolve;
+        });
+      }
+
+      // 请求 GPU 适配器，并根据平台设置能效偏好
+      const adapterOptions: GPURequestAdapterOptions = {};
+      // 在 Windows 上设置 powerPreference 会产生警告，因此仅在非 Windows 平台使用
+      if (!navigator.platform.startsWith('Win')) {
+        adapterOptions.powerPreference = 'high-performance';
+      }
+      const adapter = await navigator.gpu.requestAdapter(adapterOptions);
+      if (!adapter) {
+        throw new RendererInitializationError('WebGPU not supported: No adapter found.');
+      }
+
+      // 请求 GPU 设备并配置 Canvas 上下文
+      this.device = await adapter.requestDevice();
+
+      // 检查是否需要使用 ImageBitmap 回退方案
+      const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
+      this.useImageBitmapFallback = !supportsVideoTexture;
+      if (this.useImageBitmapFallback) {
+        console.log('[Anime4KWebExt] Renderer: Using ImageBitmap fallback for copying video frames.');
+      }
+
+      this.context = this.canvas.getContext('webgpu')!;
+      if (!this.context) {
+        throw new RendererInitializationError('Failed to get WebGPU context from canvas.');
+      }
+      this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+      this.context.configure({
+        device: this.device,
+        format: this.presentationFormat,
+        alphaMode: 'premultiplied',
       });
+
+      // 创建初始资源
+      this.createResources();
+      this.buildPipelines();
+      await this.createRenderPipeline();
+      this.createRenderBindGroup();
+
+      // 启动渲染循环，尝试渲染第一帧并启动持续渲染
+      this.renderFirstFrameAndStartLoop();
+    } catch (error) {
+      if (error instanceof RendererInitializationError) {
+        throw error;
+      }
+      throw new RendererInitializationError('An unexpected error occurred during renderer initialization.', { cause: error as Error });
     }
-
-    // 请求 GPU 适配器，并根据平台设置能效偏好
-    const adapterOptions: GPURequestAdapterOptions = {};
-    // 在 Windows 上设置 powerPreference 会产生警告，因此仅在非 Windows 平台使用
-    if (!navigator.platform.startsWith('Win')) {
-      adapterOptions.powerPreference = 'high-performance';
-    }
-    const adapter = await navigator.gpu.requestAdapter(adapterOptions);
-    if (!adapter) {
-      throw new Error('WebGPU not supported');
-    }
-
-    // 请求 GPU 设备并配置 Canvas 上下文
-    this.device = await adapter.requestDevice();
-
-    // 检查是否需要使用 ImageBitmap 回退方案
-    const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
-    this.useImageBitmapFallback = !supportsVideoTexture;
-    if (this.useImageBitmapFallback) {
-      console.log('[Anime4KWebExt] Renderer: Using ImageBitmap fallback for copying video frames.');
-    }
-
-    this.context = this.canvas.getContext('webgpu')!;
-    this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-    this.context.configure({
-      device: this.device,
-      format: this.presentationFormat,
-      alphaMode: 'premultiplied',
-    });
-
-    // 创建初始资源
-    this.createResources();
-    this.buildPipelines();
-    await this.createRenderPipeline();
-    this.createRenderBindGroup();
-
-    // 启动渲染循环，尝试渲染第一帧并启动持续渲染
-    this.renderFirstFrameAndStartLoop();
   }
 
   /**
@@ -434,22 +445,21 @@ export class Renderer {
     } catch (error) {
       console.error('[Anime4KWebExt] Frame processing failed:', error);
 
-      // 检查是否是可恢复的尺寸不匹配错误，并且之前未尝试过修复
-      if (
-        error instanceof Error &&
-        error.name === 'OperationError' &&
-        error.message.includes('out of bounds') &&
-        !this.fixAttempted
-      ) {
-        console.warn('[Anime4KWebExt] Caught out-of-bounds error. Attempting to recover by resizing resources...');
-        this.handleSourceResize();
-        this.lastError = error
-        return false; // 跳过此帧，让下一帧使用新资源重试
+      // 检查是否是可恢复的尺寸不匹配错误
+      if (error instanceof Error && error.name === 'OperationError' && error.message.includes('out of bounds')) {
+        // 这是一个潜在可恢复的错误
+        this.lastError = new RendererRuntimeError('Texture copy failed due to size mismatch.', { cause: error, recoverable: true });
+        // 仅在第一次尝试时进行修复
+        if (!this.fixAttempted) {
+          console.warn('[Anime4KWebExt] Caught out-of-bounds error. Attempting to recover by resizing resources...');
+          this.handleSourceResize();
+        }
+      } else {
+        // 对于所有其他错误，视为不可恢复，并包含原始错误信息
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.lastError = new RendererRuntimeError(`Frame processing failed: ${errorMessage}`, { cause: error as Error });
       }
-
-      // 对于其他错误或重复的尺寸错误，执行标准错误处理
-      if (this.onError) this.onError(error instanceof Error ? error : new Error(String(error)));
-      this.destroy();
+      // 返回 false，让渲染循环决定下一步操作
       return false;
     }
   }
@@ -464,21 +474,31 @@ export class Renderer {
     if (await this.processFrame()) {
       // 第一帧成功渲染
       this.onFirstFrameRendered?.();
-      this.fixAttempted = false; // 成功渲染后重置标志
+      this.fixAttempted = false;
+      this.lastError = null;
       // 切换到常规渲染循环
       this.animationFrameId = this.video.requestVideoFrameCallback(this.renderLoop);
     } else {
-      // 第一帧未成功渲染
-      if (this.fixAttempted) {
-        // 如果已经尝试过修复但仍然失败
-        if (this.onError) this.onError(this.lastError instanceof Error ? this.lastError : new Error(String(this.lastError)));
-        this.destroy(); // 销毁渲染器
-      } else {
-        // 如果是第一次失败，标记并重试
-        this.fixAttempted = true;
-        if (!this.destroyed) {
-          this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
+      // 第一帧渲染失败或被跳过
+      const error = this.lastError;
+      if (error) {
+        // 这是一个真正的错误
+        if (error instanceof RendererRuntimeError && error.recoverable && !this.fixAttempted) {
+          this.fixAttempted = true; // 标记已尝试修复
+          console.log('[Anime4KWebExt] Retrying first frame render after recovery attempt...');
+        } else {
+          console.error('[Anime4KWebExt] Unrecoverable error on first frame. Destroying renderer.');
+          if (this.onError) this.onError(error);
+          this.destroy();
+          return; // 停止
         }
+      } else {
+        // 如果没有错误，说明是良性跳帧（如分辨率调整），直接重试
+        console.log('[Anime4KWebExt] First frame skipped (e.g. resolution change), retrying...');
+      }
+
+      if (!this.destroyed) {
+        this.animationFrameId = this.video.requestVideoFrameCallback(this.renderFirstFrameAndStartLoop);
       }
     }
   };
@@ -490,18 +510,25 @@ export class Renderer {
     if (this.destroyed) return;
 
     if (await this.processFrame()) {
-      this.fixAttempted = false; // 成功渲染后重置标志
+      // 帧渲染成功
+      this.fixAttempted = false;
+      this.lastError = null;
     } else {
-      // 渲染失败
-      if (this.fixAttempted) {
-        // 如果已经尝试过修复但仍然失败
-        if (this.onError) this.onError(this.lastError instanceof Error ? this.lastError : new Error(String(this.lastError)));
-        this.destroy(); // 销毁渲染器
-        return; // 停止循环
-      } else {
-        // 如果是第一次失败，标记以供下次检查
-        this.fixAttempted = true;
+      // 帧渲染失败或被跳过
+      const error = this.lastError;
+      if (error) {
+        // 这是一个真正的错误
+        if (error instanceof RendererRuntimeError && error.recoverable && !this.fixAttempted) {
+          this.fixAttempted = true; // 标记已尝试修复，下一帧将是第二次尝试
+          console.log('[Anime4KWebExt] Retrying frame render after recovery attempt...');
+        } else {
+          console.error(`[Anime4KWebExt] Unrecoverable error in render loop. Destroying renderer. Error: ${error.message}`);
+          if (this.onError) this.onError(error);
+          this.destroy();
+          return; // 停止循环
+        }
       }
+      // 如果没有错误，说明是良性跳帧（如分辨率调整），则什么都不做，等待下一帧
     }
 
     // 持续调度自身
