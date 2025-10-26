@@ -3,7 +3,6 @@
  * 定义可用的Anime4K增强模式及其标识符
  */
 export const MODES = {
-  DEFAULT: 'ModeA',
   ModeA: 'ModeA',
   ModeB: 'ModeB',
   ModeC: 'ModeC',

@@ -50,7 +50,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["anime4k-module.js"],
+      "resources": ["*.js"],
       "matches": ["<all_urls>"]
     }
   ]

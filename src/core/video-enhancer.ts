@@ -1,7 +1,7 @@
 import { getSettings } from '../utils/settings';
 import { Renderer } from './renderer';
 import { ANIME4K_APPLIED_ATTR } from '../constants';
-import { Dimensions, EnhancementEffect, ModeClasses, Anime4KWebExtSettings, EnhancementMode } from '../types';
+import { Dimensions, Anime4KWebExtSettings, EnhancementMode } from '../types';
 import { OverlayManager } from './overlay-manager';
 
 /**
@@ -9,8 +9,6 @@ import { OverlayManager } from './overlay-manager';
  * 负责管理单个视频元素的增强状态、渲染实例和资源清理
  */
 export class VideoEnhancer {
-  private static modeClassesPromise: Promise<ModeClasses> | null = null;
-
   private renderer: Renderer | null = null;
   private currentModeId: string | null = null;
   private overlay: OverlayManager;
@@ -155,50 +153,6 @@ export class VideoEnhancer {
     }
   }
 
-  /**
-   * 动态加载 Anime4K 模块并缓存结果
-   */
-  private static loadAnime4KModule(): Promise<ModeClasses> {
-    if (this.modeClassesPromise) {
-      return this.modeClassesPromise;
-    }
-    this.modeClassesPromise = new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-        this.modeClassesPromise = null;
-        reject(new Error('Anime4K module loading timed out.'));
-      }, 5000);
-
-      const handleModuleLoaded = (event: Event) => {
-        clearTimeout(timeoutId);
-        const customEvent = event as CustomEvent<ModeClasses>;
-        if (customEvent.detail) {
-          resolve(customEvent.detail);
-        } else {
-          this.modeClassesPromise = null;
-          reject(new Error('Module loaded successfully but no content was provided.'));
-        }
-      };
-      document.addEventListener('anime4k-module-loaded', handleModuleLoaded, { once: true });
-
-      chrome.runtime.sendMessage({ type: 'LOAD_DYNAMIC_MODULE', chunk: 'anime4k-module' })
-        .then(response => {
-          if (!response?.success) {
-            clearTimeout(timeoutId);
-            document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-            const errorMsg = `Background script failed to load module: ${response?.error || 'Unknown error'}`;
-            this.modeClassesPromise = null;
-            reject(new Error(errorMsg));
-          }
-        }).catch(error => {
-          clearTimeout(timeoutId);
-          document.removeEventListener('anime4k-module-loaded', handleModuleLoaded);
-          this.modeClassesPromise = null;
-          reject(error);
-        });
-    });
-    return this.modeClassesPromise;
-  }
 
   /**
    * 初始化渲染器，包括获取设置、加载模块和创建Renderer实例
@@ -215,10 +169,7 @@ export class VideoEnhancer {
       throw new Error('WebGPU is not supported on this browser.');
     }
 
-    const [settings, modeClasses] = await Promise.all([
-      getSettings(),
-      VideoEnhancer.loadAnime4KModule()
-    ]);
+    const settings = await getSettings();
 
     const { selectedModeId, enhancementModes, targetResolutionSetting } = settings;
     const selectedMode = enhancementModes.find((m: EnhancementMode) => m.id === selectedModeId) || enhancementModes.find((m: EnhancementMode) => m.isBuiltIn)!;
@@ -238,7 +189,6 @@ export class VideoEnhancer {
       video: this.video,
       canvas: canvas,
       effects: selectedMode.effects,
-      modeClasses,
       targetDimensions,
       onError: async (error: Error) => {
         console.error('[Anime4KWebExt] Renderer runtime error:', error);

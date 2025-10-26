@@ -1,5 +1,5 @@
 import type { Anime4KPipeline } from 'anime4k-webgpu';
-import type { Anime4KClass, Dimensions, EnhancementEffect, ModeClasses } from '../types';
+import type { Dimensions, EnhancementEffect } from '../types';
 import { RendererInitializationError, RendererRuntimeError } from './errors';
 
 /**
@@ -64,8 +64,6 @@ export interface RendererOptions {
   canvas: HTMLCanvasElement;
   /** 要应用的增强效果数组 */
   effects: EnhancementEffect[];
-  /** 动态加载的 Anime4K 效果类模块 */
-  modeClasses: ModeClasses;
   /** 渲染的目标分辨率 */
   targetDimensions: Dimensions;
   /** 发生运行时错误时的回调函数 */
@@ -83,7 +81,6 @@ export class Renderer {
   private video: HTMLVideoElement;
   private canvas: HTMLCanvasElement;
   private effects: EnhancementEffect[];
-  private modeClasses: ModeClasses;
   private targetDimensions: Dimensions;
   private onError?: (error: Error) => void;
   private onFirstFrameRendered?: () => void;
@@ -124,7 +121,6 @@ export class Renderer {
     this.video = options.video;
     this.canvas = options.canvas;
     this.effects = options.effects;
-    this.modeClasses = options.modeClasses;
     this.targetDimensions = options.targetDimensions;
     this.onError = options.onError;
     this.onFirstFrameRendered = options.onFirstFrameRendered;
@@ -188,7 +184,7 @@ export class Renderer {
 
       // 创建初始资源
       this.createResources();
-      this.buildPipelines();
+      await this.buildPipelines();
       await this.createRenderPipeline();
       this.createRenderBindGroup();
 
@@ -222,25 +218,34 @@ export class Renderer {
    * 根据当前的效果链（this.effects）构建 Anime4K 处理管线。
    * 此方法会销毁旧管线并创建新管线。
    */
-  private buildPipelines(): void {
+  private async buildPipelines(): Promise<void> {
     this.pipelines.forEach(p => (p as any).destroy?.());
-
+  
     const pipelines: Anime4KPipeline[] = [];
     let currentTexture = this.videoFrameTexture;
     let curWidth = this.video.videoWidth;
     let curHeight = this.video.videoHeight;
-    const DownscaleClass = this.modeClasses['Downscale' as keyof typeof this.modeClasses] as Anime4KClass;
-
+  
+    // 如果需要，动态导入 Downscale 类
+    const needsDownscaling = this.effects.some((effect, i) => {
+      const remainingFactor = this.effects.slice(i + 1).reduce((acc, val) => acc * (val.upscaleFactor ?? 1), 1);
+      return (effect.upscaleFactor ?? 1) > 1 && remainingFactor > 1;
+    });
+  
+    const DownscaleClass = needsDownscaling ? (await import('anime4k-webgpu')).Downscale : null;
+  
     const upscaleFactors = this.effects.map(e => e.upscaleFactor ?? 1);
     const remainingUpscaleFactors = upscaleFactors.map((_, i) =>
       upscaleFactors.slice(i + 1).reduce((acc, val) => acc * val, 1)
     );
-
+  
     for (let i = 0; i < this.effects.length; i++) {
       const effect = this.effects[i];
-      const EffectClass = this.modeClasses[effect.className as keyof typeof this.modeClasses] as Anime4KClass;
+      // 动态导入需要的类
+      const EffectClass = (await import('anime4k-webgpu'))[effect.className as keyof typeof import('anime4k-webgpu')];
+  
       if (EffectClass) {
-        const pipeline = new EffectClass({
+        const pipeline = new (EffectClass as any)({
           device: this.device,
           inputTexture: currentTexture,
           nativeDimensions: { width: curWidth, height: curHeight },
@@ -248,21 +253,20 @@ export class Renderer {
         });
         pipelines.push(pipeline);
         currentTexture = pipeline.getOutputTexture();
-
+  
         if (effect.upscaleFactor) {
           curWidth *= effect.upscaleFactor;
           curHeight *= effect.upscaleFactor;
-
+  
           const remainingFactor = remainingUpscaleFactors[i];
           if (DownscaleClass && remainingFactor > 1) {
             const idealIntermediateWidth = this.targetDimensions.width / remainingFactor;
             const idealIntermediateHeight = this.targetDimensions.height / remainingFactor;
-
+  
             if (curWidth > idealIntermediateWidth * 1.1) {
               const intermediateDownscale = new DownscaleClass({
                 device: this.device,
                 inputTexture: currentTexture,
-                nativeDimensions: { width: curWidth, height: curHeight },
                 targetDimensions: {
                   width: Math.ceil(idealIntermediateWidth),
                   height: Math.ceil(idealIntermediateHeight),
@@ -275,15 +279,18 @@ export class Renderer {
             }
           }
         }
+      } else {
+        console.warn(`[Anime4KWebExt] Effect class "${effect.className}" not found in anime4k-webgpu module.`);
       }
     }
-
+  
     if (pipelines.length === 0) {
+      // 如果没有应用任何效果，则创建一个虚拟管道
       pipelines.push({
         pass: () => {},
         getOutputTexture: () => this.videoFrameTexture,
         updateParam: () => {},
-      });
+      } as unknown as Anime4KPipeline);
     }
     this.pipelines = pipelines;
   }
@@ -541,11 +548,11 @@ export class Renderer {
    * 当视频源本身的分辨率发生变化时调用（例如，用户在视频播放器中切换了清晰度）
    * 这将重新创建基于视频原始尺寸的资源
    */
-  public handleSourceResize(): void {
+  public async handleSourceResize(): Promise<void> {
     if (this.destroyed) return;
     console.log('[Anime4KWebExt] Resizing renderer due to video source dimension change...');
     this.createResources();
-    this.buildPipelines();
+    await this.buildPipelines();
     this.createRenderBindGroup();
     console.log('[Anime4KWebExt] Renderer resized for source.');
   }
@@ -554,7 +561,7 @@ export class Renderer {
    * 根据用户设置（效果或目标分辨率）更新渲染器配置
    * @param options 包含新效果和目标尺寸的对象
    */
-  public updateConfiguration(options: { effects: EnhancementEffect[], targetDimensions: Dimensions }): void {
+  public async updateConfiguration(options: { effects: EnhancementEffect[], targetDimensions: Dimensions }): Promise<void> {
     if (this.destroyed) return;
 
     const { effects, targetDimensions } = options;
@@ -579,7 +586,7 @@ export class Renderer {
     }
 
     console.log('[Anime4KWebExt] Rebuilding pipeline due to configuration update.');
-    this.buildPipelines();
+    await this.buildPipelines();
     this.createRenderBindGroup();
     console.log('[Anime4KWebExt] Renderer configuration updated.');
   }
@@ -588,11 +595,11 @@ export class Renderer {
    * 更新渲染器使用的视频源。
    * @param newVideo - 新的 HTMLVideoElement
    */
-  public updateVideoSource(newVideo: HTMLVideoElement): void {
+  public async updateVideoSource(newVideo: HTMLVideoElement): Promise<void> {
     console.log('[Anime4KWebExt] Renderer video source updated.');
     if (newVideo.videoWidth !== this.videoFrameTexture.width || newVideo.videoHeight !== this.videoFrameTexture.height) {
       console.log('[Anime4KWebExt] Video dimensions changed on reattach. Updating renderer.');
-      this.handleSourceResize();
+      await this.handleSourceResize();
     }
     this.video = newVideo;
   }
