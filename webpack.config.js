@@ -4,6 +4,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ExtensionManifestPlugin = require('webpack-extension-manifest-plugin');
+const WebExtensionPlugin = require('webpack-target-webextension');
 
 module.exports = (env, argv) => {
   const isDevelopment = argv.mode === 'development';
@@ -29,8 +30,7 @@ module.exports = (env, argv) => {
       popup: './src/ui/popup/popup.ts',
       options: './src/ui/options/options.ts',
       content: './src/content.ts',
-      background: './src/background.ts',
-      'anime4k-module': './src/anime4k-module.ts'
+      background: './src/background.ts'
     },
     output: {
       filename: '[name].js',
@@ -85,6 +85,12 @@ module.exports = (env, argv) => {
         pkgJsonProps: [
           'version'
         ]
+      }),
+      new WebExtensionPlugin({
+        background: {
+          classicLoader: false,
+        },
+        weakRuntimeCheck: true,
       }),
     ].filter(Boolean),
     devtool: isDevelopment ? 'inline-source-map' : false,
