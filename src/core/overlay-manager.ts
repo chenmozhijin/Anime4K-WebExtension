@@ -20,11 +20,30 @@ export class OverlayManager {
   private resizeObserver: ResizeObserver;
   private mutationObserver: MutationObserver;
 
+  // 用于标识 overlay host 元素的属性名
+  private static readonly HOST_MARKER_ATTR = 'data-anime4k-overlay-host';
+
   /**
    * 创建并返回一个 OverlayManager 实例。
+   * 包含防御性检查，防止同一视频出现重复的 overlay。
    * @param video 目标视频元素
    */
   public static create(video: HTMLVideoElement): OverlayManager {
+    // 防御性检查：清理可能存在的旧 overlay host
+    const parent = video.parentElement;
+    if (parent) {
+      const existingHosts = parent.querySelectorAll(`[${OverlayManager.HOST_MARKER_ATTR}]`);
+      existingHosts.forEach(host => {
+        console.warn('[Anime4KWebExt] Detected orphaned overlay host, removing:', host);
+        host.remove();
+      });
+    }
+    // 同时检查 body 上可能残留的使用 'body' 策略的 host
+    document.querySelectorAll(`body > [${OverlayManager.HOST_MARKER_ATTR}]`).forEach(host => {
+      console.warn('[Anime4KWebExt] Detected orphaned overlay host on body, removing:', host);
+      host.remove();
+    });
+
     return new OverlayManager(video);
   }
 
@@ -33,6 +52,7 @@ export class OverlayManager {
 
     // 1. 创建 Host 元素并插入为视频的兄弟节点
     this.host = document.createElement('div');
+    this.host.setAttribute(OverlayManager.HOST_MARKER_ATTR, ''); // 添加标记属性用于防御性检查
     this.host.style.position = 'absolute';
     this.host.style.pointerEvents = 'none'; // 默认不拦截事件
     this.host.style.zIndex = '2147483646'; // 略低于按钮
@@ -221,7 +241,7 @@ export class OverlayManager {
     if (!this.canvas!.parentElement) {
       this.video.parentElement?.insertBefore(this.canvas!, this.video);
     }
-    
+
     this.updatePosition(); // 更新位置和尺寸
     this.canvas!.style.visibility = 'visible'; // 设为可见
     this.video.style.opacity = '0'; // 隐藏原视频
