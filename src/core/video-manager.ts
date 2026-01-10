@@ -34,9 +34,11 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
  * 这是所有视频发现途径（事件、DOM变动）的最终处理入口。
  * @param videoEl 要处理的视频元素
  */
-export function processVideoElement(videoEl: HTMLVideoElement): void {
+export function processVideoElement(videoEl: HTMLVideoElement, source: string): void {
+  console.log(`[Anime4KWebExt] processVideoElement called from: ${source}`);
   // 1. 状态检查 (防竞争条件的关键)
   if (EnhancerMap.hasEnhancer(videoEl)) {
+    console.log(`[Anime4KWebExt] Enhancer already exists for this video. Skipping. Source: ${source}`);
     return;
   }
 
@@ -80,7 +82,7 @@ function handleMediaEvent(event: Event): void {
   const target = event.target;
   // 确认事件源是视频元素
   if (target instanceof HTMLVideoElement) {
-    processVideoElement(target);
+    processVideoElement(target, `handleMediaEvent:${event.type}`);
   }
 }
 
@@ -114,7 +116,7 @@ export function initializeOnPage(): void {
   processDoc(document);
   
   // 2. 初始扫描页面上已存在的视频，以处理静态加载的视频
-  document.querySelectorAll('video').forEach(processVideoElement);
+  document.querySelectorAll('video').forEach(video => processVideoElement(video, 'initial-scan'));
 
   // 3. 设置DOM观察器以处理动态加载的视频和Shadow DOM
   domObserver = setupDOMObserver();
@@ -134,16 +136,16 @@ export function setupDOMObserver(): MutationObserver {
 
         // Case 1: 新增节点本身就是 video
         if (element.tagName === 'VIDEO') {
-          processVideoElement(element as HTMLVideoElement);
+          processVideoElement(element as HTMLVideoElement, 'mutation-observer:added-video-node');
         }
         // Case 2: 新增节点包含 Shadow DOM
         if (element.shadowRoot) {
           processDoc(element.shadowRoot);
           // 立即扫描这个新的 Shadow DOM 内部可能已存在的 video
-          element.shadowRoot.querySelectorAll('video').forEach(processVideoElement);
+          element.shadowRoot.querySelectorAll('video').forEach(video => processVideoElement(video, 'mutation-observer:added-shadow-dom-scan'));
         }
         // Case 3: 扫描新增节点内部的常规 video 元素
-        element.querySelectorAll('video').forEach(processVideoElement);
+        element.querySelectorAll('video').forEach(video => processVideoElement(video, 'mutation-observer:added-node-subtree-scan'));
       });
       
       // B. 处理被移除的节点，进行资源清理

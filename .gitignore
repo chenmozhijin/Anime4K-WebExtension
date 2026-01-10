@@ -142,3 +142,4 @@ dist
 *.pem
 /img
 /dist*
+/experiment

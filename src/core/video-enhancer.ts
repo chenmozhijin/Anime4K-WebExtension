@@ -311,9 +311,10 @@ export class VideoEnhancer {
    * 销毁整个增强器实例（包括UI元素和内部资源）
    */
   public destroy(): void {
-    console.log('[Anime4KWebExt] Destroying enhancer instance.');
+    console.log('[Anime4KWebExt] Destroying enhancer instance:', this);
     this.disableEnhancement();
     this.overlay.destroy();
+    console.log('[Anime4KWebExt] Enhancer destroyed')
   }
 
   /**
