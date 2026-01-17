@@ -258,12 +258,13 @@ export class OverlayManager {
 
   /**
    * 分离UI
-   * 隐藏所有UI元素，但保留其实例。
+   * 从 DOM 中移除所有UI元素，但保留其实例以便后续 reattach。
+   * 这样可以防止 body 策略下 host 残留导致多个 overlay 的问题。
    */
   public detach(): void {
-    this.host.style.display = 'none';
+    this.host.remove();
     if (this.canvas) {
-      this.canvas.style.visibility = 'hidden';
+      this.canvas.remove();
     }
   }
 
@@ -277,9 +278,14 @@ export class OverlayManager {
 
     this.video = newVideo;
 
+    // 根据附加策略重新插入 host（detach 时已从 DOM 移除）
     if (this.attachmentStrategy === 'sibling') {
       newVideo.parentElement?.insertBefore(this.host, newVideo);
+    } else {
+      // body 策略：重新附加到 body
+      document.body.appendChild(this.host);
     }
+
     if (this.canvas) {
       newVideo.parentElement?.insertBefore(this.canvas, this.video);
     }
@@ -289,13 +295,6 @@ export class OverlayManager {
       attributes: true,
       attributeFilter: ['style', 'class'],
     });
-
-    // 重新显示 host
-    this.host.style.display = '';
-    // 如果 canvas 存在，也恢复可见性
-    if (this.canvas && this.canvas.style.visibility === 'hidden') {
-      this.canvas.style.visibility = 'visible';
-    }
 
     this.updatePosition();
   }
