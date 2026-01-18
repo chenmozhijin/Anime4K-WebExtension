@@ -209,8 +209,8 @@ export async function runGPUBenchmark(
             console.log(`[GPUBenchmark] ${tier}: avg=${avgTime.toFixed(2)}ms, max=${maxTime.toFixed(2)}ms per frame`);
 
             // 如果能在 24fps 内稳定完成，这个档位可用
-            // 要求：最大帧时间 < 目标帧时间，平均帧时间 < 目标帧时间 * 0.85
-            if (maxTime < TARGET_FRAME_TIME_24FPS && avgTime < TARGET_FRAME_TIME_24FPS * 0.85) {
+            // 要求：最大帧时间 < 目标帧时间，平均帧时间 < 目标帧时间 * 0.9
+            if (maxTime < TARGET_FRAME_TIME_24FPS && avgTime < TARGET_FRAME_TIME_24FPS * 0.9) {
                 recommendedTier = tier;
             }
 
@@ -389,16 +389,33 @@ async function runEffectChainTest(
     const testFrames = 120;
     const frameTimes: number[] = [];
 
-    for (let frame = 0; frame < testFrames; frame++) {
-        const frameStart = performance.now();
-        const commandEncoder = device.createCommandEncoder();
-        for (const pipeline of pipelines) {
-            pipeline.pass(commandEncoder);
+    // 为避免 Firefox 下单帧同步 (onSubmittedWorkDone) 带来的巨大开销，
+    // 同时避免一次性提交过多帧导致 TDR (超时检测) 崩溃，
+    // 我们使用小批量提交 (Micro-batching) 的策略。
+    const BATCH_SIZE = 6;
+
+    for (let frame = 0; frame < testFrames; frame += BATCH_SIZE) {
+        const batchStart = performance.now();
+        const framesInBatch = Math.min(BATCH_SIZE, testFrames - frame);
+
+        for (let i = 0; i < framesInBatch; i++) {
+            const commandEncoder = device.createCommandEncoder();
+            for (const pipeline of pipelines) {
+                pipeline.pass(commandEncoder);
+            }
+            device.queue.submit([commandEncoder.finish()]);
         }
-        device.queue.submit([commandEncoder.finish()]);
-        // 每帧之间等待完成，避免命令堆积导致内存压力
+
+        // 等待当前批次完成
         await device.queue.onSubmittedWorkDone();
-        frameTimes.push(performance.now() - frameStart);
+
+        const batchDuration = performance.now() - batchStart;
+        const avgFrameTime = batchDuration / framesInBatch;
+
+        // 将平均帧时作为该批次每一帧的成绩
+        for (let i = 0; i < framesInBatch; i++) {
+            frameTimes.push(avgFrameTime);
+        }
     }
 
     // 丢弃前 24 帧以消除预热偏差（着色器编译延迟、GPU 频率提升等）
