@@ -14,6 +14,9 @@
   "extensionName": {
     "message": "Anime4K Enhancement Settings"
   },
+  "performanceTierLabel": {
+    "message": "Performance Tier:"
+  },
   "enhancementModeLabel": {
     "message": "Default Enhancement Mode:"
   },

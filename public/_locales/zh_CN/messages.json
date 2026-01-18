@@ -14,6 +14,9 @@
   "extensionName": {
     "message": "Anime4K超分辨率设置"
   },
+  "performanceTierLabel": {
+    "message": "性能档位："
+  },
   "enhancementModeLabel": {
     "message": "默认增强模式："
   },
