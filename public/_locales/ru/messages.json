@@ -197,6 +197,9 @@
   "gpuPerformance": {
     "message": "Производительность GPU"
   },
+  "runTest": {
+    "message": "Запустить тест"
+  },
   "currentTier": {
     "message": "Текущий уровень:"
   },

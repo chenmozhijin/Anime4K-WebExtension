@@ -197,6 +197,9 @@
   "gpuPerformance": {
     "message": "GPU效能"
   },
+  "runTest": {
+    "message": "執行測試"
+  },
   "currentTier": {
     "message": "目前檔位："
   },
