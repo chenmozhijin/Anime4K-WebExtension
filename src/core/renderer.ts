@@ -70,6 +70,8 @@ export interface RendererOptions {
   onError?: (error: Error) => void;
   /** 成功渲染第一帧时的回调函数 */
   onFirstFrameRendered?: () => void;
+  /** 初始化进度回调函数 */
+  onProgress?: (stage: string, current?: number, total?: number) => void;
 }
 
 /**
@@ -84,6 +86,7 @@ export class Renderer {
   private targetDimensions: Dimensions;
   private onError?: (error: Error) => void;
   private onFirstFrameRendered?: () => void;
+  private onProgress?: (stage: string, current?: number, total?: number) => void;
 
   // --- 状态标志 ---
   private destroyed = false;
@@ -92,7 +95,9 @@ export class Renderer {
   private useImageBitmapFallback = false;
   /** 在单次渲染循环中是否已尝试过自动修复 */
   private fixAttempted = false;
-  private lastError: Error | null = null; // 存储最近一次错误信息
+  private lastError: Error | null = null;
+  /** 是否正在恢复设备（设备丢失后的自动恢复） */
+  private isRecovering = false;
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
@@ -112,6 +117,8 @@ export class Renderer {
   // --- 静态属性，用于确保只检测一次 ---
   private static hasCheckedWebGPUFeatures = false;
   private static webgpuFeatureCheckPromise: Promise<boolean> | null = null;
+  /** 缓存的 anime4k-webgpu 模块（避免重复动态导入） */
+  private static cachedAnime4KModule: typeof import('anime4k-webgpu') | null = null;
 
   /**
    * Renderer 的构造函数是私有的，请使用 `Renderer.create()` 静态方法来创建实例。
@@ -124,6 +131,7 @@ export class Renderer {
     this.targetDimensions = options.targetDimensions;
     this.onError = options.onError;
     this.onFirstFrameRendered = options.onFirstFrameRendered;
+    this.onProgress = options.onProgress;
   }
 
   /**
@@ -151,6 +159,7 @@ export class Renderer {
       }
 
       // 请求 GPU 适配器，并根据平台设置能效偏好
+      this.onProgress?.(chrome.i18n.getMessage('initGpu') || '⏳ Initializing GPU...');
       const adapterOptions: GPURequestAdapterOptions = {};
       // 在 Windows 上设置 powerPreference 会产生警告，因此仅在非 Windows 平台使用
       if (!navigator.platform.startsWith('Win')) {
@@ -169,6 +178,20 @@ export class Renderer {
           maxBufferSize: adapterLimits.maxBufferSize,
           maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
         },
+      });
+
+      // 监听设备丢失事件并尝试自动恢复
+      this.device.lost.then((info) => {
+        // 如果渲染器已销毁，不需要处理
+        if (this.destroyed) return;
+
+        console.warn(`[Anime4KWebExt] GPU device lost: ${info.reason} - ${info.message}`);
+
+        // 尝试自动恢复（仅在非主动销毁的情况下）
+        if (info.reason !== 'destroyed' && !this.isRecovering) {
+          console.log('[Anime4KWebExt] Attempting to recover from device loss...');
+          this.recoverFromDeviceLoss();
+        }
       });
 
       // 检查是否需要使用 ImageBitmap 回退方案
@@ -226,20 +249,39 @@ export class Renderer {
    * 此方法会销毁旧管线并创建新管线。
    */
   private async buildPipelines(): Promise<void> {
-    this.pipelines.forEach(p => (p as any).destroy?.());
+    // 等待 GPU 队列完成后再销毁旧管道，避免资源竞争
+    try {
+      await this.device.queue.onSubmittedWorkDone();
+    } catch {
+      // 忽略错误，设备可能已丢失
+    }
+
+    // 安全销毁旧管道
+    for (const p of this.pipelines) {
+      try {
+        (p as any).destroy?.();
+      } catch {
+        // 忽略单个管道销毁错误
+      }
+    }
 
     const pipelines: Anime4KPipeline[] = [];
     let currentTexture = this.videoFrameTexture;
     let curWidth = this.video.videoWidth;
     let curHeight = this.video.videoHeight;
 
-    // 如果需要，动态导入 Downscale 类
+    // 使用缓存的模块，避免重复动态导入
+    if (!Renderer.cachedAnime4KModule) {
+      Renderer.cachedAnime4KModule = await import('anime4k-webgpu');
+    }
+    const anime4kModule = Renderer.cachedAnime4KModule;
+
+    // 如果需要，获取 Downscale 类
     const needsDownscaling = this.effects.some((effect, i) => {
       const remainingFactor = this.effects.slice(i + 1).reduce((acc, val) => acc * (val.upscaleFactor ?? 1), 1);
       return (effect.upscaleFactor ?? 1) > 1 && remainingFactor > 1;
     });
-
-    const DownscaleClass = needsDownscaling ? (await import('anime4k-webgpu')).Downscale : null;
+    const DownscaleClass = needsDownscaling ? anime4kModule.Downscale : null;
 
     const upscaleFactors = this.effects.map(e => e.upscaleFactor ?? 1);
     const remainingUpscaleFactors = upscaleFactors.map((_, i) =>
@@ -247,18 +289,37 @@ export class Renderer {
     );
 
     for (let i = 0; i < this.effects.length; i++) {
+      // 报告预热进度
+      const loadingMsg = chrome.i18n.getMessage('loadingEffect', [String(i + 1), String(this.effects.length)])
+        || `⏳ Loading effect ${i + 1}/${this.effects.length}...`;
+      this.onProgress?.(loadingMsg, i + 1, this.effects.length);
+
+      // 让出主线程，避免界面冻结
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       const effect = this.effects[i];
-      // 动态导入需要的类
-      const EffectClass = (await import('anime4k-webgpu'))[effect.className as keyof typeof import('anime4k-webgpu')];
+      // 从缓存的模块获取效果类
+      const EffectClass = (anime4kModule as Record<string, any>)[effect.className];
 
       if (EffectClass) {
-        const pipeline = new (EffectClass as any)({
+        const pipeline = new EffectClass({
           device: this.device,
           inputTexture: currentTexture,
           nativeDimensions: { width: curWidth, height: curHeight },
           targetDimensions: this.targetDimensions,
         });
         pipelines.push(pipeline);
+
+        // === 逐个效果预热：编译着色器并运行一帧 ===
+        try {
+          const commandEncoder = this.device.createCommandEncoder();
+          pipeline.pass(commandEncoder);
+          this.device.queue.submit([commandEncoder.finish()]);
+          await this.device.queue.onSubmittedWorkDone();
+        } catch (e) {
+          console.warn(`[Anime4KWebExt] Failed to warmup effect ${effect.className}:`, e);
+        }
+
         currentTexture = pipeline.getOutputTexture();
 
         if (effect.upscaleFactor) {
@@ -271,6 +332,9 @@ export class Renderer {
             const idealIntermediateHeight = this.targetDimensions.height / remainingFactor;
 
             if (curWidth > idealIntermediateWidth * 1.1) {
+              // 再次让出主线程
+              await new Promise(resolve => setTimeout(resolve, 0));
+
               const intermediateDownscale = new DownscaleClass({
                 device: this.device,
                 inputTexture: currentTexture,
@@ -280,6 +344,17 @@ export class Renderer {
                 },
               });
               pipelines.push(intermediateDownscale);
+
+              // 预热 Downscale 效果
+              try {
+                const commandEncoder = this.device.createCommandEncoder();
+                intermediateDownscale.pass(commandEncoder);
+                this.device.queue.submit([commandEncoder.finish()]);
+                await this.device.queue.onSubmittedWorkDone();
+              } catch (e) {
+                console.warn('[Anime4KWebExt] Failed to warmup Downscale:', e);
+              }
+
               currentTexture = intermediateDownscale.getOutputTexture();
               curWidth = Math.ceil(idealIntermediateWidth);
               curHeight = Math.ceil(idealIntermediateHeight);
@@ -300,6 +375,11 @@ export class Renderer {
       } as unknown as Anime4KPipeline);
     }
     this.pipelines = pipelines;
+
+    // 通知预热完成
+    this.onProgress?.(null as unknown as string);
+
+    console.log(`[Anime4KWebExt] Built ${pipelines.length} pipelines with warmup complete.`);
   }
 
   /**
@@ -341,7 +421,7 @@ export class Renderer {
         const texture = device.createTexture({
           size: [1, 1],
           format: 'rgba8unorm',
-          usage: GPUTextureUsage.COPY_DST,
+          usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
         });
 
         // 核心测试：此操作如果不支持会抛出异常
@@ -431,12 +511,24 @@ export class Renderer {
       }
 
       // 将视频帧复制到纹理
-      const source = this.useImageBitmapFallback ? await createImageBitmap(this.video) : this.video;
-      this.device.queue.copyExternalImageToTexture(
-        { source },
-        { texture: this.videoFrameTexture },
-        [this.video.videoWidth, this.video.videoHeight]
-      );
+      if (this.useImageBitmapFallback) {
+        // 使用 ImageBitmap 回退方案（用于兼容 Firefox 等不支持直接从 video 复制的浏览器）
+        const bitmap = await createImageBitmap(this.video);
+        this.device.queue.copyExternalImageToTexture(
+          { source: bitmap },
+          { texture: this.videoFrameTexture },
+          [this.video.videoWidth, this.video.videoHeight]
+        );
+        bitmap.close(); // 复制完成后立即关闭，无需缓存
+      } else {
+        this.device.queue.copyExternalImageToTexture(
+          { source: this.video },
+          { texture: this.videoFrameTexture },
+          [this.video.videoWidth, this.video.videoHeight]
+        );
+      }
+
+
 
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
@@ -609,6 +701,73 @@ export class Renderer {
       await this.handleSourceResize();
     }
     this.video = newVideo;
+  }
+
+  /**
+   * 从设备丢失中恢复
+   * 尝试重新初始化 GPU 资源并恢复渲染
+   */
+  private async recoverFromDeviceLoss(): Promise<void> {
+    if (this.destroyed || this.isRecovering) return;
+
+    this.isRecovering = true;
+    console.log('[Anime4KWebExt] Starting device recovery...');
+
+    try {
+      // 停止当前渲染循环
+      if (this.animationFrameId) {
+        this.video.cancelVideoFrameCallback(this.animationFrameId);
+        this.animationFrameId = null;
+      }
+
+      // 重新请求 GPU 适配器和设备
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        throw new Error('Failed to get GPU adapter during recovery');
+      }
+
+      const adapterLimits = adapter.limits;
+      this.device = await adapter.requestDevice({
+        requiredLimits: {
+          maxBufferSize: adapterLimits.maxBufferSize,
+          maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
+        },
+      });
+
+      // 设置新设备的丢失监听
+      this.device.lost.then((info) => {
+        if (this.destroyed) return;
+        console.warn(`[Anime4KWebExt] GPU device lost: ${info.reason} - ${info.message}`);
+        if (info.reason !== 'destroyed' && !this.isRecovering) {
+          this.recoverFromDeviceLoss();
+        }
+      });
+
+      // 重新配置上下文
+      this.context.configure({
+        device: this.device,
+        format: this.presentationFormat,
+        alphaMode: 'premultiplied',
+      });
+
+      // 重建资源和管道
+      this.createResources();
+      await this.buildPipelines();
+      await this.createRenderPipeline();
+      this.createRenderBindGroup();
+
+      // 重启渲染循环
+      this.isRecovering = false;
+      this.renderFirstFrameAndStartLoop();
+
+      console.log('[Anime4KWebExt] Device recovery successful!');
+    } catch (error) {
+      this.isRecovering = false;
+      console.error('[Anime4KWebExt] Device recovery failed:', error);
+      if (this.onError) {
+        this.onError(new RendererRuntimeError('Failed to recover from device loss', { cause: error as Error }));
+      }
+    }
   }
 
   /**
