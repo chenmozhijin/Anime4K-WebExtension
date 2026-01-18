@@ -187,5 +187,164 @@
   },
   "themeDark": {
     "message": "ダーク"
+  },
+  "performanceSettings": {
+    "message": "パフォーマンス設定"
+  },
+  "gpuPerformance": {
+    "message": "GPUパフォーマンス"
+  },
+  "currentTier": {
+    "message": "現在のティア："
+  },
+  "rules": {
+    "message": "ルール"
+  },
+  "testing": {
+    "message": "テスト中..."
+  },
+  "testComplete": {
+    "message": "テスト完了！"
+  },
+  "testingTier": {
+    "message": "$tier$ をテスト中...",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "testFailedDefault": {
+    "message": "テスト失敗。デフォルト設定を使用します。"
+  },
+  "initGpu": {
+    "message": "⏳ GPUを初期化中..."
+  },
+  "loadingEffect": {
+    "message": "⏳ エフェクト読み込み中 $current$/$total$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "waitingVideoLoad": {
+    "message": "⏳ 動画読み込み待ち..."
+  },
+  "builtInModes": {
+    "message": "組み込みモード"
+  },
+  "customModes": {
+    "message": "カスタムモード"
+  },
+  "settingsSaved": {
+    "message": "設定が保存されました！"
+  },
+  "tierPerformance": {
+    "message": "速い"
+  },
+  "tierBalanced": {
+    "message": "バランス"
+  },
+  "tierQuality": {
+    "message": "品質"
+  },
+  "tierUltra": {
+    "message": "ウルトラ"
+  },
+  "confirmApplyTier": {
+    "message": "テスト完了！推奨ティア：$tier$。このティアを適用しますか？",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandCollapse": {
+    "message": "展開/折りたたみ"
+  },
+  "builtInModeCannotRename": {
+    "message": "組み込みモードは名前を変更できません。"
+  },
+  "clickToRename": {
+    "message": "クリックして名前を変更"
+  },
+  "noEffects": {
+    "message": "エフェクトなし"
+  },
+  "moveUp": {
+    "message": "上へ移動"
+  },
+  "moveDown": {
+    "message": "下へ移動"
+  },
+  "removeEffect": {
+    "message": "エフェクトを削除"
+  },
+  "ruleAlreadyExists": {
+    "message": "このルールは既に存在します。"
+  },
+  "testFailed": {
+    "message": "テスト失敗"
+  },
+  "onboardingTitle": {
+    "message": "Anime4K WebExtension - セットアップ"
+  },
+  "welcomeTitle": {
+    "message": "Anime4K WebExtension へようこそ"
+  },
+  "welcomeDesc": {
+    "message": "最高の体験のために設定を最適化しましょう。"
+  },
+  "gpuTestTitle": {
+    "message": "GPU パフォーマンステスト"
+  },
+  "gpuTestDesc": {
+    "message": "ハードウェアに最適な設定を決定するために簡単なテストを実行します。"
+  },
+  "testReady": {
+    "message": "テスト準備完了"
+  },
+  "startTest": {
+    "message": "テスト開始"
+  },
+  "skipTest": {
+    "message": "スキップ"
+  },
+  "resultTitle": {
+    "message": "テスト結果"
+  },
+  "resultDesc": {
+    "message": "ハードウェアに基づいてこのティアが推奨されます。"
+  },
+  "changeTier": {
+    "message": "別のティアを選択することもできます："
+  },
+  "continue": {
+    "message": "続ける"
+  },
+  "setupComplete": {
+    "message": "セットアップ完了！"
+  },
+  "setupCompleteDesc": {
+    "message": "すべて完了しました！任意の動画ページで拡張機能アイコンをクリックして超解像を有効にしてください。"
+  },
+  "quickTips": {
+    "message": "クイックヒント"
+  },
+  "tip1": {
+    "message": "動画上の Anime4K ボタンをクリックして超解像を切り替え"
+  },
+  "tip2": {
+    "message": "ポップアップを使用してモードと解像度を変更"
+  },
+  "tip3": {
+    "message": "高度なオプションは設定を参照"
+  },
+  "tipPin": {
+    "message": "📌 素早くアクセスするために拡張機能アイコンをツールバーにピン留め"
   }
 }

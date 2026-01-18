@@ -1,5 +1,5 @@
 {
- "enhanceButton": {
+  "enhanceButton": {
     "message": "✨ 超分"
   },
   "enhancing": {
@@ -187,5 +187,164 @@
   },
   "themeDark": {
     "message": "深色"
+  },
+  "performanceSettings": {
+    "message": "性能设置"
+  },
+  "gpuPerformance": {
+    "message": "GPU性能"
+  },
+  "currentTier": {
+    "message": "当前档位:"
+  },
+  "rules": {
+    "message": "规则"
+  },
+  "testing": {
+    "message": "测试中..."
+  },
+  "testComplete": {
+    "message": "测试完成！"
+  },
+  "testingTier": {
+    "message": "正在测试 $tier$...",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "testFailedDefault": {
+    "message": "测试失败，使用默认设置。"
+  },
+  "initGpu": {
+    "message": "⏳ 初始化GPU..."
+  },
+  "loadingEffect": {
+    "message": "⏳ 加载效果 $current$/$total$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "waitingVideoLoad": {
+    "message": "⏳ 等待视频加载..."
+  },
+  "builtInModes": {
+    "message": "内置模式"
+  },
+  "customModes": {
+    "message": "自定义模式"
+  },
+  "settingsSaved": {
+    "message": "设置已保存！"
+  },
+  "tierPerformance": {
+    "message": "快速"
+  },
+  "tierBalanced": {
+    "message": "均衡"
+  },
+  "tierQuality": {
+    "message": "质量"
+  },
+  "tierUltra": {
+    "message": "极致"
+  },
+  "confirmApplyTier": {
+    "message": "测试完成！推荐档位：$tier$。是否应用此档位？",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandCollapse": {
+    "message": "展开/折叠"
+  },
+  "builtInModeCannotRename": {
+    "message": "内置模式无法重命名。"
+  },
+  "clickToRename": {
+    "message": "点击重命名"
+  },
+  "noEffects": {
+    "message": "无效果"
+  },
+  "moveUp": {
+    "message": "上移"
+  },
+  "moveDown": {
+    "message": "下移"
+  },
+  "removeEffect": {
+    "message": "移除效果"
+  },
+  "ruleAlreadyExists": {
+    "message": "规则已存在。"
+  },
+  "testFailed": {
+    "message": "测试失败"
+  },
+  "onboardingTitle": {
+    "message": "Anime4K WebExtension - 设置"
+  },
+  "welcomeTitle": {
+    "message": "欢迎使用 Anime4K WebExtension"
+  },
+  "welcomeDesc": {
+    "message": "让我们优化您的设置以获得最佳体验。"
+  },
+  "gpuTestTitle": {
+    "message": "GPU 性能测试"
+  },
+  "gpuTestDesc": {
+    "message": "我们将运行快速测试以确定适合您硬件的最佳设置。"
+  },
+  "testReady": {
+    "message": "准备测试"
+  },
+  "startTest": {
+    "message": "开始测试"
+  },
+  "skipTest": {
+    "message": "跳过"
+  },
+  "resultTitle": {
+    "message": "测试结果"
+  },
+  "resultDesc": {
+    "message": "根据您的硬件推荐此档位。"
+  },
+  "changeTier": {
+    "message": "您也可以选择不同的档位："
+  },
+  "continue": {
+    "message": "继续"
+  },
+  "setupComplete": {
+    "message": "设置完成！"
+  },
+  "setupCompleteDesc": {
+    "message": "一切就绪！在任何视频页面上点击扩展图标即可启用超分辨率。"
+  },
+  "quickTips": {
+    "message": "快速提示"
+  },
+  "tip1": {
+    "message": "点击视频上的 Anime4K 按钮以切换增强"
+  },
+  "tip2": {
+    "message": "使用弹出窗口更改模式和分辨率"
+  },
+  "tip3": {
+    "message": "访问设置以获取高级选项"
+  },
+  "tipPin": {
+    "message": "📌 将扩展图标固定到工具栏以快速访问"
   }
 }
