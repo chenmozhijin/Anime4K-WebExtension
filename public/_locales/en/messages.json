@@ -197,6 +197,9 @@
   "gpuPerformance": {
     "message": "GPU Performance"
   },
+  "runTest": {
+    "message": "Run Test"
+  },
   "currentTier": {
     "message": "Current tier:"
   },

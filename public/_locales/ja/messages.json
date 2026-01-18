@@ -197,6 +197,9 @@
   "gpuPerformance": {
     "message": "GPUパフォーマンス"
   },
+  "runTest": {
+    "message": "テストを実行"
+  },
   "currentTier": {
     "message": "現在のティア："
   },
