@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anime4K WebExtension",
   "description": "__MSG_description__",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -18,8 +18,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
@@ -31,7 +35,9 @@
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -50,8 +56,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["*.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
