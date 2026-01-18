@@ -160,6 +160,7 @@ export class VideoEnhancer {
   private async initRenderer(): Promise<void> {
     // 在初始化渲染器之前，确保元数据已加载
     if (this.video.readyState < 1) { // HAVE_METADATA
+      this.button.innerText = chrome.i18n.getMessage('waitingVideoLoad') || '⏳ Waiting for video...';
       await new Promise(resolve => {
         this.video.addEventListener('loadedmetadata', resolve, { once: true });
       });
@@ -207,6 +208,14 @@ export class VideoEnhancer {
       },
       onFirstFrameRendered: () => {
         this.overlay.showCanvas();
+      },
+      onProgress: (stage: string | null) => {
+        if (stage === null) {
+          // 预热完成，恢复按钮文字
+          this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
+        } else {
+          this.button.innerText = stage;
+        }
       },
     });
 
@@ -327,11 +336,15 @@ export class VideoEnhancer {
    * 禁用视频增强效果（释放资源并重置视频状态）
    */
   private disableEnhancement(): void {
+    console.log('[Anime4KWebExt] disableEnhancement called. Current renderer:', this.renderer);
+    console.log('[Anime4KWebExt] Video opacity before:', this.video.style.opacity);
     this.releaseWebGPUResources();
     this.overlay.hideCanvas();
+    console.log('[Anime4KWebExt] Video opacity after hideCanvas:', this.video.style.opacity);
     this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
     this.button.innerText = chrome.i18n.getMessage('enhanceButton');
     this.currentModeId = null;
+    console.log('[Anime4KWebExt] disableEnhancement completed.');
   }
 
   /**
