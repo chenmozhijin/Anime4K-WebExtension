@@ -14,6 +14,9 @@
   "extensionName": {
     "message": "Настройки улучшения Anime4K"
   },
+  "performanceTierLabel": {
+    "message": "Уровень производительности:"
+  },
   "enhancementModeLabel": {
     "message": "Режим улучшения по умолчанию:"
   },
