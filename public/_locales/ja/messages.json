@@ -326,6 +326,12 @@
   "resultDesc": {
     "message": "ハードウェアに基づいてこのティアが推奨されます。"
   },
+  "manuallySelected": {
+    "message": "別のティアを選択しました。"
+  },
+  "defaultTier": {
+    "message": "デフォルトのティアが選択されました。"
+  },
   "changeTier": {
     "message": "別のティアを選択することもできます："
   },
