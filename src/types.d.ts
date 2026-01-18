@@ -1,3 +1,9 @@
+// ===== 性能档位类型 =====
+type PerformanceTier = 'performance' | 'balanced' | 'quality' | 'ultra';
+
+// ===== 基础模式类型 =====
+type BaseMode = 'A' | 'B' | 'C' | 'A+A' | 'B+B' | 'C+A';
+
 // 定义视频增强器接口
 interface VideoEnhancer {
   destroy: () => void;
@@ -24,22 +30,57 @@ interface EnhancementEffect {
   upscaleFactor?: number; // 效果的放大倍数，例如 2 表示 2x 放大
 }
 
-// 增强模式接口
-interface EnhancementMode {
-  id: string; // 唯一ID, e.g., "builtin-mode-a" or "custom-1687300000"
+// ===== 内置模式接口（效果链由档位决定）=====
+interface BuiltInMode {
+  id: string;          // 'builtin-mode-a'
+  baseMode: BaseMode;  // 'A'
+  name: string;        // 'Mode A'
+  isBuiltIn: true;
+}
+
+// ===== 自定义模式接口（效果链完全用户控制）=====
+interface CustomMode {
+  id: string;
   name: string;
-  isBuiltIn: boolean;
+  isBuiltIn: false;
   effects: EnhancementEffect[];
 }
 
-// 定义设置接口
-interface Anime4KWebExtSettings {
+// 统一的增强模式类型
+type EnhancementMode = BuiltInMode | CustomMode;
+
+// ===== GPU 测试结果接口 =====
+interface GPUBenchmarkResult {
+  tier: PerformanceTier;
+  scores: Record<PerformanceTier, number>;       // 各档位平均帧时间 (ms)
+  maxScores: Record<PerformanceTier, number>;    // 各档位最大帧时间 (ms)
+  timestamp: number;
+  adapterInfo: string;
+}
+
+// ===== 跨设备同步的设置 (storage.sync) =====
+interface SyncedSettings {
   selectedModeId: string;
   targetResolutionSetting: string;
   whitelistEnabled: boolean;
   whitelist: WhitelistRule[];
-  enhancementModes: EnhancementMode[];
+  customModes: CustomMode[];
   enableCrossOriginFix: boolean;
+}
+
+// ===== 仅本地存储的设置 (storage.local) =====
+interface LocalSettings {
+  performanceTier: PerformanceTier;
+  gpuBenchmarkResult: GPUBenchmarkResult | null;
+
+  hasCompletedOnboarding: boolean;
+}
+
+// ===== 运行时合并的完整设置 =====
+interface Anime4KWebExtSettings extends SyncedSettings {
+  performanceTier: PerformanceTier;
+  // 内置模式会在运行时动态生成并与 customModes 合并
+  enhancementModes: EnhancementMode[];
 }
 
 // 定义尺寸接口
@@ -49,4 +90,18 @@ interface Dimensions {
 }
 
 // 导出接口供其他模块使用
-export { VideoEnhancer, Anime4KWebExtSettings, Dimensions, WhitelistRule, EnhancementEffect, EnhancementMode };
+export {
+  PerformanceTier,
+  BaseMode,
+  VideoEnhancer,
+  Anime4KWebExtSettings,
+  SyncedSettings,
+  LocalSettings,
+  Dimensions,
+  WhitelistRule,
+  EnhancementEffect,
+  EnhancementMode,
+  BuiltInMode,
+  CustomMode,
+  GPUBenchmarkResult,
+};

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="__MSG_@@ui_locale__">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="onboardingTitle">Anime4K WebExtension - Setup</title>
+</head>
+
+<body>
+    <div class="onboarding-container">
+        <div class="onboarding-header">
+            <img src="/icons/icon128.png" alt="Anime4K" class="logo">
+            <h1 data-i18n="welcomeTitle">Welcome to Anime4K WebExtension</h1>
+            <p data-i18n="welcomeDesc">Let's optimize your settings for the best experience.</p>
+        </div>
+
+        <!-- 步骤指示器 -->
+        <div class="step-indicator">
+            <div class="step active" data-step="1">1</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="2">2</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="3">3</div>
+        </div>
+
+        <!-- 步骤 1: GPU 测试 -->
+        <div class="step-content active" id="step-1">
+            <h2 data-i18n="gpuTestTitle">GPU Performance Test</h2>
+            <p data-i18n="gpuTestDesc">We'll run a quick test to determine the best settings for your hardware.</p>
+
+            <div class="test-status" id="test-status">
+                <div class="status-icon">🔍</div>
+                <p data-i18n="testReady">Ready to test</p>
+            </div>
+
+            <div class="progress-container" id="progress-container" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p class="progress-text" id="progress-text" data-i18n="testing">Testing...</p>
+            </div>
+
+            <div class="button-group">
+                <button id="start-test" class="btn-primary" data-i18n="startTest">Start Test</button>
+                <button id="skip-test" class="btn-secondary" data-i18n="skipTest">Skip</button>
+            </div>
+        </div>
+
+        <!-- 步骤 2: 结果 -->
+        <div class="step-content" id="step-2">
+            <h2 data-i18n="resultTitle">Test Results</h2>
+
+            <div class="result-card" id="result-card">
+                <div class="result-tier" id="result-tier">⚖️ Balanced</div>
+                <p class="result-desc" id="result-desc" data-i18n="resultDesc">This tier is recommended based on your
+                    hardware.</p>
+            </div>
+
+            <div class="tier-options">
+                <p data-i18n="changeTier">You can also choose a different tier:</p>
+                <div class="tier-buttons">
+                    <button class="tier-btn" data-tier="performance">🚀 <span
+                            data-i18n="tierPerformance">Fast</span></button>
+                    <button class="tier-btn" data-tier="balanced">⚖️ <span
+                            data-i18n="tierBalanced">Balanced</span></button>
+                    <button class="tier-btn" data-tier="quality">🎨 <span
+                            data-i18n="tierQuality">Quality</span></button>
+                    <button class="tier-btn" data-tier="ultra">🔬 <span data-i18n="tierUltra">Ultra</span></button>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="confirm-tier" class="btn-primary" data-i18n="continue">Continue</button>
+            </div>
+        </div>
+
+        <!-- 步骤 3: 完成 -->
+        <div class="step-content" id="step-3">
+            <h2 data-i18n="setupComplete">Setup Complete!</h2>
+
+            <div class="complete-icon">✅</div>
+
+            <p data-i18n="setupCompleteDesc">You're all set! Click the extension icon on any video page to enable
+                super-resolution.</p>
+
+            <div class="quick-tips">
+                <h3 data-i18n="quickTips">Quick Tips</h3>
+                <ul>
+                    <li data-i18n="tip1">Click the Anime4K button on videos to toggle enhancement</li>
+                    <li data-i18n="tip2">Use the popup to change modes and resolution</li>
+                    <li data-i18n="tip3">Visit Settings for advanced options</li>
+                    <li data-i18n="tipPin">📌 Pin the extension icon to your toolbar for quick access</li>
+                </ul>
+            </div>
+
+            <div class="button-group">
+                <button id="finish" class="btn-primary" data-i18n="getStarted">Get Started</button>
+                <button id="open-options" class="btn-secondary" data-i18n="openSettings">Open Settings</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

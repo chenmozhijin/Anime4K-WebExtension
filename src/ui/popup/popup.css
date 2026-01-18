@@ -4,7 +4,7 @@ body {
   font-family: var(--font-family);
   background-color: var(--surface);
   margin: 0;
-  padding: var(--spacing-2) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);
   color: var(--on-surface);
   min-width: 320px;
   max-width: 320px;
@@ -22,18 +22,18 @@ body {
 }
 
 .card-header {
-  padding: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
   background: var(--primary-container);
   color: var(--on-primary-container);
 }
 
 .card-body {
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
 }
 
 h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.15px;
 }
@@ -46,23 +46,44 @@ h3 {
   margin-bottom: 0;
 }
 
-label {
+.setting-group>label {
   display: block;
-  margin-bottom: var(--spacing-2);
+  margin-bottom: 4px;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--on-surface);
   letter-spacing: 0.1px;
 }
 
-select, button {
+/* 并排布局 */
+.setting-row {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.setting-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-item label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
+select,
+button {
   width: 100%;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--border-radius);
   border: 1px solid var(--outline);
   background: var(--surface-container-low);
   color: var(--on-surface);
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-family);
   transition: all 0.2s cubic-bezier(0.2, 0.0, 0, 1.0);
   box-sizing: border-box;
@@ -71,15 +92,16 @@ select, button {
 select {
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right var(--spacing-3) center;
-  background-size: 16px;
-  padding-right: calc(var(--spacing-4) + 20px);
+  background-position: right var(--spacing-2) center;
+  background-size: 14px;
+  padding-right: calc(var(--spacing-3) + 16px);
   -moz-appearance: none;
   -webkit-appearance: none;
   appearance: none;
 }
 
-select:focus, button:focus {
+select:focus,
+button:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-container);
@@ -90,24 +112,22 @@ select:hover {
   border-color: var(--on-surface-variant);
 }
 
-/* 让浏览器自动处理下拉选项的颜色方案 */
+/* 下拉选项颜色方案 */
 select {
   color-scheme: light dark;
 }
 
-/* 在暗色模式下强制使用暗色方案并改善对比度 */
 @media (prefers-color-scheme: dark) {
   select {
     color-scheme: dark;
   }
-  
+
   select option {
     background-color: #2d2d2d !important;
     color: #ffffff !important;
   }
 }
 
-/* 强制暗色主题时 */
 :root.dark select {
   color-scheme: dark;
 }
@@ -117,7 +137,6 @@ select {
   color: #ffffff !important;
 }
 
-/* 强制浅色主题时 */
 :root.light select {
   color-scheme: light;
 }
@@ -139,6 +158,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 
 button:hover {
@@ -153,6 +173,85 @@ button:active {
   box-shadow: none;
 }
 
+/* ===== 档位选择器 ===== */
+.tier-selector {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-container-low);
+  border-radius: 12px;
+}
+
+.tier-btn {
+  flex: 1;
+  padding: 6px 2px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 42px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.tier-btn .tier-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tier-btn .tier-label {
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.tier-btn:hover:not(.disabled) {
+  background: var(--surface-container);
+  transform: none;
+  box-shadow: none;
+}
+
+.tier-btn.active {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.tier-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 主按钮样式 ===== */
+.btn-primary {
+  width: 100%;
+  margin-top: var(--spacing-2);
+  margin-bottom: 0;
+  background-color: var(--primary);
+  color: var(--on-primary);
+  transition: all 0.2s cubic-bezier(0.2, 0.0, 0, 1.0);
+}
+
+.btn-primary:hover {
+  /* 必须显式设置背景色以覆盖通用的 button:hover 样式 */
+  background-color: var(--primary);
+  /* 使用半透明白色叠加层来提亮背景，避免使用 filter 导致文字也变色 */
+  background-image: linear-gradient(rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.15));
+  color: var(--on-primary) !important;
+  box-shadow: var(--shadow-1);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  /* 使用半透明黑色叠加层来压暗 */
+  background-image: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));
+  box-shadow: none;
+}
+
+/* ===== 白名单区域 ===== */
 .whitelist-section {
   margin-top: var(--spacing-2);
   padding-top: var(--spacing-2);
@@ -164,14 +263,20 @@ button:active {
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--spacing-2);
-  padding: var(--spacing-2) 0;
+  padding: 4px 0;
+}
+
+.whitelist-toggle>label {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
 }
 
 .switch {
   position: relative;
   display: inline-block;
-  width: 52px;
-  height: 32px;
+  width: 44px;
+  height: 24px;
 }
 
 .switch input {
@@ -189,15 +294,15 @@ button:active {
   bottom: 0;
   background-color: var(--surface-variant);
   transition: all 0.3s cubic-bezier(0.2, 0.0, 0, 1.0);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 2px solid var(--outline);
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 24px;
-  width: 24px;
+  height: 16px;
+  width: 16px;
   left: 2px;
   bottom: 2px;
   background-color: var(--outline);
@@ -205,54 +310,71 @@ button:active {
   border-radius: 50%;
 }
 
-input:checked + .slider {
+input:checked+.slider {
   background-color: var(--primary);
   border-color: var(--primary);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   background-color: var(--surface);
   transform: translateX(20px);
 }
 
 .slider:hover {
-  box-shadow: 0 0 0 8px rgba(var(--primary), 0.08);
+  box-shadow: 0 0 0 6px rgba(103, 80, 164, 0.08);
 }
 
+/* ===== 白名单按钮 ===== */
 .whitelist-buttons {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 6px;
 }
 
 .whitelist-buttons button {
+  flex: 1;
   margin-bottom: 0;
-  font-size: 13px;
-  padding: var(--spacing-2) var(--spacing-3);
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
+  font-size: 11px;
+  padding: 6px 8px;
+  background-color: var(--surface-container);
+  color: var(--on-surface);
+  border: 1px solid var(--outline);
+  /* 增加边框对比度 */
   border-radius: var(--border-radius);
-  min-height: 36px;
+  min-height: 32px;
 }
 
 .whitelist-buttons button:hover {
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
-  box-shadow: var(--shadow-1);
-  transform: translateY(-1px);
+  background-color: var(--surface-container-high);
+  border-color: var(--primary);
+  /* Hover 时边框变色 */
+  color: var(--primary);
+  box-shadow: none;
+  transform: none;
 }
 
+.whitelist-buttons .btn-icon {
+  font-size: 13px;
+  /* 稍微调大图表 */
+}
+
+/* ===== 设置按钮 ===== */
 #open-settings {
   margin-top: var(--spacing-2);
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
+  width: 100%;
+  background-color: transparent;
+  color: var(--primary);
+  border: 1px solid var(--outline);
+  border-radius: var(--border-radius);
+  /* 与其他按钮统一圆角 */
+  font-size: 13px;
 }
 
 #open-settings:hover {
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
-  box-shadow: var(--shadow-1);
-  transform: translateY(-1px);
+  background-color: var(--surface-container);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: none;
+  transform: none;
 }
 
 #extension-footer {
@@ -271,4 +393,25 @@ input:checked + .slider:before {
 
 #extension-footer a:hover {
   text-decoration: underline;
+}
+
+/* ===== 保存状态消息 ===== */
+.save-status {
+  color: var(--primary);
+  text-align: center;
+  margin-top: 6px;
+  font-size: 12px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
