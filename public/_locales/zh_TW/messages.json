@@ -187,5 +187,164 @@
   },
   "themeDark": {
     "message": "深色"
+  },
+  "performanceSettings": {
+    "message": "效能設定"
+  },
+  "gpuPerformance": {
+    "message": "GPU效能"
+  },
+  "currentTier": {
+    "message": "目前檔位："
+  },
+  "rules": {
+    "message": "規則"
+  },
+  "testing": {
+    "message": "測試中..."
+  },
+  "testComplete": {
+    "message": "測試完成！"
+  },
+  "testingTier": {
+    "message": "正在測試 $tier$...",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "testFailedDefault": {
+    "message": "測試失敗，使用預設設定。"
+  },
+  "initGpu": {
+    "message": "⏳ 初始化GPU..."
+  },
+  "loadingEffect": {
+    "message": "⏳ 載入效果 $current$/$total$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "waitingVideoLoad": {
+    "message": "⏳ 等待影片載入..."
+  },
+  "builtInModes": {
+    "message": "內建模式"
+  },
+  "customModes": {
+    "message": "自訂模式"
+  },
+  "settingsSaved": {
+    "message": "設定已儲存！"
+  },
+  "tierPerformance": {
+    "message": "快速"
+  },
+  "tierBalanced": {
+    "message": "均衡"
+  },
+  "tierQuality": {
+    "message": "畫質"
+  },
+  "tierUltra": {
+    "message": "極致"
+  },
+  "confirmApplyTier": {
+    "message": "測試完成！推薦檔位：$tier$。是否套用此檔位？",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandCollapse": {
+    "message": "展開/摺疊"
+  },
+  "builtInModeCannotRename": {
+    "message": "內建模式無法重新命名。"
+  },
+  "clickToRename": {
+    "message": "點擊重新命名"
+  },
+  "noEffects": {
+    "message": "無效果"
+  },
+  "moveUp": {
+    "message": "上移"
+  },
+  "moveDown": {
+    "message": "下移"
+  },
+  "removeEffect": {
+    "message": "移除效果"
+  },
+  "ruleAlreadyExists": {
+    "message": "規則已存在。"
+  },
+  "testFailed": {
+    "message": "測試失敗"
+  },
+  "onboardingTitle": {
+    "message": "Anime4K WebExtension - 設定"
+  },
+  "welcomeTitle": {
+    "message": "歡迎使用 Anime4K WebExtension"
+  },
+  "welcomeDesc": {
+    "message": "讓我們最佳化您的設定以獲得最佳體驗。"
+  },
+  "gpuTestTitle": {
+    "message": "GPU 效能測試"
+  },
+  "gpuTestDesc": {
+    "message": "我們將執行快速測試以確定適合您硬體的最佳設定。"
+  },
+  "testReady": {
+    "message": "準備測試"
+  },
+  "startTest": {
+    "message": "開始測試"
+  },
+  "skipTest": {
+    "message": "跳過"
+  },
+  "resultTitle": {
+    "message": "測試結果"
+  },
+  "resultDesc": {
+    "message": "根據您的硬體推薦此檔位。"
+  },
+  "changeTier": {
+    "message": "您也可以選擇不同的檔位："
+  },
+  "continue": {
+    "message": "繼續"
+  },
+  "setupComplete": {
+    "message": "設定完成！"
+  },
+  "setupCompleteDesc": {
+    "message": "一切就緒！在任何影片頁面上點擊擴充功能圖示即可啟用超解析。"
+  },
+  "quickTips": {
+    "message": "快速提示"
+  },
+  "tip1": {
+    "message": "點擊影片上的 Anime4K 按鈕以切換增強"
+  },
+  "tip2": {
+    "message": "使用彈出視窗變更模式和解析度"
+  },
+  "tip3": {
+    "message": "造訪設定以取得進階選項"
+  },
+  "tipPin": {
+    "message": "📌 將擴充功能圖示釘選到工具列以快速存取"
   }
 }

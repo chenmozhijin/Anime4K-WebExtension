@@ -187,5 +187,164 @@
   },
   "themeDark": {
     "message": "Dark"
+  },
+  "performanceSettings": {
+    "message": "Performance Settings"
+  },
+  "gpuPerformance": {
+    "message": "GPU Performance"
+  },
+  "currentTier": {
+    "message": "Current tier:"
+  },
+  "rules": {
+    "message": "Rules"
+  },
+  "testing": {
+    "message": "Testing..."
+  },
+  "testComplete": {
+    "message": "Test complete!"
+  },
+  "testingTier": {
+    "message": "Testing $tier$...",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "testFailedDefault": {
+    "message": "Test failed. Using default settings."
+  },
+  "initGpu": {
+    "message": "⏳ Initializing GPU..."
+  },
+  "loadingEffect": {
+    "message": "⏳ Loading effect $current$/$total$...",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "waitingVideoLoad": {
+    "message": "⏳ Waiting for video..."
+  },
+  "builtInModes": {
+    "message": "Built-in Modes"
+  },
+  "customModes": {
+    "message": "Custom Modes"
+  },
+  "settingsSaved": {
+    "message": "Settings saved!"
+  },
+  "tierPerformance": {
+    "message": "Fast"
+  },
+  "tierBalanced": {
+    "message": "Balanced"
+  },
+  "tierQuality": {
+    "message": "Quality"
+  },
+  "tierUltra": {
+    "message": "Ultra"
+  },
+  "confirmApplyTier": {
+    "message": "Test complete! Recommended tier: $tier$. Apply this tier?",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandCollapse": {
+    "message": "Expand/Collapse"
+  },
+  "builtInModeCannotRename": {
+    "message": "Built-in modes cannot be renamed."
+  },
+  "clickToRename": {
+    "message": "Click to rename"
+  },
+  "noEffects": {
+    "message": "No effects"
+  },
+  "moveUp": {
+    "message": "Move Up"
+  },
+  "moveDown": {
+    "message": "Move Down"
+  },
+  "removeEffect": {
+    "message": "Remove effect"
+  },
+  "ruleAlreadyExists": {
+    "message": "This rule already exists."
+  },
+  "testFailed": {
+    "message": "Test failed"
+  },
+  "onboardingTitle": {
+    "message": "Anime4K WebExtension - Setup"
+  },
+  "welcomeTitle": {
+    "message": "Welcome to Anime4K WebExtension"
+  },
+  "welcomeDesc": {
+    "message": "Let's optimize your settings for the best experience."
+  },
+  "gpuTestTitle": {
+    "message": "GPU Performance Test"
+  },
+  "gpuTestDesc": {
+    "message": "We'll run a quick test to determine the best settings for your hardware."
+  },
+  "testReady": {
+    "message": "Ready to test"
+  },
+  "startTest": {
+    "message": "Start Test"
+  },
+  "skipTest": {
+    "message": "Skip"
+  },
+  "resultTitle": {
+    "message": "Test Results"
+  },
+  "resultDesc": {
+    "message": "This tier is recommended based on your hardware."
+  },
+  "changeTier": {
+    "message": "You can also choose a different tier:"
+  },
+  "continue": {
+    "message": "Continue"
+  },
+  "setupComplete": {
+    "message": "Setup Complete!"
+  },
+  "setupCompleteDesc": {
+    "message": "You're all set! Click the extension icon on any video page to enable super-resolution."
+  },
+  "quickTips": {
+    "message": "Quick Tips"
+  },
+  "tip1": {
+    "message": "Click the Anime4K button on videos to toggle enhancement"
+  },
+  "tip2": {
+    "message": "Use the popup to change modes and resolution"
+  },
+  "tip3": {
+    "message": "Visit Settings for advanced options"
+  },
+  "tipPin": {
+    "message": "📌 Pin the extension icon to your toolbar for quick access"
   }
 }
