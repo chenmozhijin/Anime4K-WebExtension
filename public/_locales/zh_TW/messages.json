@@ -326,6 +326,12 @@
   "resultDesc": {
     "message": "根據您的硬體推薦此檔位。"
   },
+  "manuallySelected": {
+    "message": "您選擇了不同的檔位。"
+  },
+  "defaultTier": {
+    "message": "已選擇預設檔位。"
+  },
   "changeTier": {
     "message": "您也可以選擇不同的檔位："
   },

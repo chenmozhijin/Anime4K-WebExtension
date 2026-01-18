@@ -326,6 +326,12 @@
   "resultDesc": {
     "message": "根据您的硬件推荐此档位。"
   },
+  "manuallySelected": {
+    "message": "您选择了不同的档位。"
+  },
+  "defaultTier": {
+    "message": "已选择默认档位。"
+  },
   "changeTier": {
     "message": "您也可以选择不同的档位："
   },

@@ -326,6 +326,12 @@
   "resultDesc": {
     "message": "This tier is recommended based on your hardware."
   },
+  "manuallySelected": {
+    "message": "You have selected a different tier."
+  },
+  "defaultTier": {
+    "message": "Default tier selected."
+  },
   "changeTier": {
     "message": "You can also choose a different tier:"
   },
