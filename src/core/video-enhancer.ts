@@ -1,4 +1,4 @@
-import { getSettings } from '../utils/settings';
+import { getSettings, getEffectsForMode } from '../utils/settings';
 import { Renderer } from './renderer';
 import { ANIME4K_APPLIED_ATTR } from '../constants';
 import { Dimensions, Anime4KWebExtSettings, EnhancementMode } from '../types';
@@ -164,7 +164,7 @@ export class VideoEnhancer {
         this.video.addEventListener('loadedmetadata', resolve, { once: true });
       });
     }
-    
+
     if (!navigator.gpu) {
       throw new Error('WebGPU is not supported on this browser.');
     }
@@ -185,10 +185,13 @@ export class VideoEnhancer {
     canvas.width = targetDimensions.width;
     canvas.height = targetDimensions.height;
 
+    // 根据模式和档位获取实际效果链
+    const effects = getEffectsForMode(selectedMode, settings.performanceTier);
+
     this.renderer = await Renderer.create({
       video: this.video,
       canvas: canvas,
-      effects: selectedMode.effects,
+      effects: effects,
       targetDimensions,
       onError: async (error: Error) => {
         console.error('[Anime4KWebExt] Renderer runtime error:', error);
@@ -236,9 +239,12 @@ export class VideoEnhancer {
       canvas.height = newTargetDimensions.height;
     }
 
+    // 根据模式和档位获取实际效果链
+    const effects = getEffectsForMode(selectedMode, newSettings.performanceTier);
+
     // 调用渲染器统一的配置更新方法，它会智能地处理变更
     this.renderer.updateConfiguration({
-      effects: selectedMode.effects,
+      effects: effects,
       targetDimensions: newTargetDimensions
     });
 

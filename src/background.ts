@@ -1,4 +1,5 @@
-import { syncModes, getSettings } from './utils/settings';
+import { getSettings, getLocalSettings } from './utils/settings';
+import { ensureLatestConfig } from './utils/migration';
 
 const RULESET_ID = 'ruleset_1';
 
@@ -20,30 +21,72 @@ async function updateDNRuleset() {
   }
 }
 
+/**
+ * 检查是否需要打开引导页面
+ */
+async function checkOnboarding(): Promise<boolean> {
+  const local = await getLocalSettings();
+
+  // 如果未完成引导，打开引导页
+  if (!local.hasCompletedOnboarding) {
+    console.log('[Background] Opening onboarding page...');
+    chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 检查上次测试是否崩溃
+ */
+async function checkBenchmarkCrash(): Promise<void> {
+  const local = await chrome.storage.local.get(['_benchmarkInProgress']);
+
+  if (local._benchmarkInProgress) {
+    console.warn('[Background] Previous benchmark may have crashed, using safe defaults');
+
+    await chrome.storage.local.set({
+      performanceTier: 'performance',
+      hasCompletedOnboarding: true,
+    });
+    await chrome.storage.local.remove('_benchmarkInProgress');
+  }
+}
+
 // 后台服务脚本
 
-// 在启动时同步内置模式和DNR规则
-chrome.runtime.onStartup.addListener(() => {
-  console.log('Browser startup, syncing modes and DNR rules.');
-  syncModes();
-  updateDNRuleset();
+// 在启动时检查 DNR 规则
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('[Background] Browser startup');
+
+  await checkBenchmarkCrash();
+  await updateDNRuleset();
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Anime4K WebExtension installed or updated.');
-  syncModes();
-  updateDNRuleset();
+// 安装或更新时初始化
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log('[Background] Extension installed/updated:', details.reason);
+
+  // 确保配置是最新版本（处理迁移）
+  await ensureLatestConfig();
+
+  await checkBenchmarkCrash();
+  await updateDNRuleset();
+
+  // 新安装或更新时，如果未完成引导则打开引导页
+  if (details.reason === 'install' || details.reason === 'update') {
+    await checkOnboarding();
+  }
 });
 
 // 监听标签页更新
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // 当页面加载完成且URL存在时，通知内容脚本
   if (changeInfo.status === 'complete' && tab.url) {
     chrome.tabs.sendMessage(tabId, {
       type: 'URL_UPDATED',
       url: tab.url
     }).catch(error => {
-      // 如果内容脚本不存在（例如在chrome://页面），这个错误是正常的，可以忽略
       if (!error.message.includes('Receiving end does not exist')) {
         console.error(`[Background] Error sending URL_UPDATED message: ${error.message}`);
       }
@@ -51,13 +94,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// 监听来自内容脚本的请求
+// 监听来自内容脚本/popup/options 的请求
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'SETTINGS_UPDATED') {
-    // 当设置更新时，检查是否需要更新DNR规则
     console.log('[Background] Settings updated, checking DNR rules...');
     updateDNRuleset();
   } else if (request.type === 'OPEN_OPTIONS_PAGE') {
     chrome.runtime.openOptionsPage();
+  } else if (request.type === 'OPEN_ONBOARDING') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
   }
 });

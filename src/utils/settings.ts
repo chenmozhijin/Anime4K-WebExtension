@@ -1,94 +1,59 @@
-import { Anime4KWebExtSettings, EnhancementMode, EnhancementEffect } from '../types';
-import { AVAILABLE_EFFECTS } from './effects-map';
+/**
+ * 设置管理模块
+ * 处理 storage.sync（跨设备同步）和 storage.local（本地存储）的读写
+ */
 
-// 定义内置模式，用于迁移和默认设置
-const BUILTIN_MODES: EnhancementMode[] = [
-  {
-    id: 'builtin-mode-a',
-    name: 'Mode A',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  },
-  {
-    id: 'builtin-mode-b',
-    name: 'Mode B',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNSoftVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  },
-  {
-    id: 'builtin-mode-c',
-    name: 'Mode C',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/DenoiseCNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  },
-  {
-    id: 'builtin-mode-aa',
-    name: 'Mode A+A',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  },
-  {
-    id: 'builtin-mode-bb',
-    name: 'Mode B+B',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNSoftVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNSoftVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  },
-  {
-    id: 'builtin-mode-ca',
-    name: 'Mode C+A',
-    isBuiltIn: true,
-    effects: [
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Helper/ClampHighlights')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/DenoiseCNNx2VL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Restore/CNNVL')!,
-      AVAILABLE_EFFECTS.find(e => e.id === 'anime4k/Upscale/CNNx2M')!,
-    ].filter(Boolean)
-  }
+import type {
+  Anime4KWebExtSettings,
+  SyncedSettings,
+  LocalSettings,
+  EnhancementMode,
+  BuiltInMode,
+  CustomMode,
+  EnhancementEffect,
+  PerformanceTier,
+  BaseMode,
+} from '../types';
+import { AVAILABLE_EFFECTS } from './effects-map';
+import { resolveEffectChain } from './effect-chain-templates';
+
+// ===== 内置模式定义 =====
+export const BUILTIN_MODES: BuiltInMode[] = [
+  { id: 'builtin-mode-a', baseMode: 'A', name: 'Mode A', isBuiltIn: true },
+  { id: 'builtin-mode-b', baseMode: 'B', name: 'Mode B', isBuiltIn: true },
+  { id: 'builtin-mode-c', baseMode: 'C', name: 'Mode C', isBuiltIn: true },
+  { id: 'builtin-mode-aa', baseMode: 'A+A', name: 'Mode A+A', isBuiltIn: true },
+  { id: 'builtin-mode-bb', baseMode: 'B+B', name: 'Mode B+B', isBuiltIn: true },
+  { id: 'builtin-mode-ca', baseMode: 'C+A', name: 'Mode C+A', isBuiltIn: true },
 ];
 
+// ===== 默认设置 =====
+const DEFAULT_SYNCED_SETTINGS: SyncedSettings = {
+  selectedModeId: 'builtin-mode-a',
+  targetResolutionSetting: 'x2',
+  whitelistEnabled: false,
+  whitelist: [],
+  customModes: [],
+  enableCrossOriginFix: false,
+};
+
+const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
+  performanceTier: 'balanced',
+  gpuBenchmarkResult: null,
+  hasCompletedOnboarding: false,
+};
 
 /**
- * 确保所有模式中的效果与 AVAILABLE_EFFECTS 保持一致。
- * 它会移除不再存在的效果，并更新现有效果的属性。
- * @param modes 要同步的增强模式数组。
- * @returns 同步后的新增强模式数组。
+ * 确保自定义模式中的效果与 AVAILABLE_EFFECTS 保持一致
  */
-export function synchronizeEffectsForAllModes(modes: EnhancementMode[]): EnhancementMode[] {
+export function synchronizeEffectsForCustomModes(modes: CustomMode[]): CustomMode[] {
   const availableEffectsMap = new Map(
     AVAILABLE_EFFECTS.map(e => [e.id, e])
   );
 
   return modes.map(mode => {
     const synchronizedEffects = mode.effects
-      // 映射到我们信任的数据源中完整、最新的效果对象
       .map(effectInMode => availableEffectsMap.get(effectInMode.id))
-      // 过滤掉任何未找到的效果（即已从 AVAILABLE_EFFECTS 中移除的效果）
       .filter((effect): effect is EnhancementEffect => !!effect);
 
     return { ...mode, effects: synchronizedEffects };
@@ -96,93 +61,81 @@ export function synchronizeEffectsForAllModes(modes: EnhancementMode[]): Enhance
 }
 
 /**
- * 将存储的增强模式与最新的内置模式定义同步，
- * 并确保每个模式中的所有效果都与 AVAILABLE_EFFECTS 一致。
- * 此函数应在扩展启动时调用一次。
+ * 获取同步设置（storage.sync）
  */
-export async function syncModes(): Promise<void> {
-  const data = await chrome.storage.sync.get('enhancementModes');
-  const storedModes = (data.enhancementModes) as EnhancementMode[] | undefined;
-
-  const builtInModes = JSON.parse(JSON.stringify(BUILTIN_MODES)) as EnhancementMode[];
-  const builtInModesMap = new Map(builtInModes.map(m => [m.id, m]));
-
-  let finalModes: EnhancementMode[];
-
-  if (storedModes) {
-    // 设置已存在，使用它们作为基础并刷新内置模式
-    finalModes = storedModes;
-
-    // 从常量刷新内置模式，以确保它们是最新版本
-    finalModes.forEach(mode => {
-      if (mode.isBuiltIn && builtInModesMap.has(mode.id)) {
-        const freshBuiltInMode = builtInModesMap.get(mode.id)!;
-        // 从常量定义更新属性
-        mode.name = freshBuiltInMode.name;
-        mode.effects = freshBuiltInMode.effects;
-      }
-    });
-
-    // 添加代码中新增但尚未存储的任何内置模式
-    for (const builtInMode of builtInModes) {
-      if (!finalModes.some(m => m.id === builtInMode.id)) {
-        finalModes.push(builtInMode);
-      }
-    }
-
-    // 从存储中移除代码中不再存在的任何内置模式
-    finalModes = finalModes.filter(mode => {
-      return !mode.isBuiltIn || builtInModesMap.has(mode.id);
-    });
-
-  } else {
-    // 首次运行或设置为空，使用默认内置模式进行初始化
-    finalModes = builtInModes;
-  }
-
-  // 根据 AVAILABLE_EFFECTS 同步所有模式（自定义和内置）的效果。
-  // 这会清理自定义模式，并作为内置模式的最终一致性检查。
-  const fullySynchronizedModes = synchronizeEffectsForAllModes(finalModes);
-
-  await new Promise<void>((resolve) => {
-    chrome.storage.sync.set({ enhancementModes: fullySynchronizedModes }, () => resolve());
-  });
-  console.log('[Anime4KWebExt] All enhancement modes synchronized.');
-}
-
-/**
- * 获取Anime4K设置
- * @returns 设置对象
- */
-export async function getSettings(): Promise<Anime4KWebExtSettings> {
+export async function getSyncedSettings(): Promise<SyncedSettings> {
   return new Promise(resolve => {
     chrome.storage.sync.get([
       'selectedModeId',
-      'enhancementModes',
       'targetResolutionSetting',
       'whitelistEnabled',
       'whitelist',
-      'enableCrossOriginFix', 
+      'customModes',
+      'enableCrossOriginFix',
     ], (data) => {
-      // 此函数现在假定 `syncBuiltInModes` 已在启动时运行。
-      // 它主要只检索数据并应用默认值。
       resolve({
-        selectedModeId: data.selectedModeId || 'builtin-mode-a',
-        enhancementModes: data.enhancementModes || [], // 应该已经被同步
-        targetResolutionSetting: data.targetResolutionSetting || 'x2',
-        whitelistEnabled: data.whitelistEnabled !== undefined ? data.whitelistEnabled : false,
-        whitelist: data.whitelist || [],
-        enableCrossOriginFix: data.enableCrossOriginFix !== undefined ? data.enableCrossOriginFix : false, 
+        selectedModeId: data.selectedModeId ?? DEFAULT_SYNCED_SETTINGS.selectedModeId,
+        targetResolutionSetting: data.targetResolutionSetting ?? DEFAULT_SYNCED_SETTINGS.targetResolutionSetting,
+        whitelistEnabled: data.whitelistEnabled ?? DEFAULT_SYNCED_SETTINGS.whitelistEnabled,
+        whitelist: data.whitelist ?? DEFAULT_SYNCED_SETTINGS.whitelist,
+        customModes: data.customModes ?? DEFAULT_SYNCED_SETTINGS.customModes,
+        enableCrossOriginFix: data.enableCrossOriginFix ?? DEFAULT_SYNCED_SETTINGS.enableCrossOriginFix,
       });
     });
   });
 }
 
 /**
- * 保存Anime4K设置
- * @param settings 要保存的设置
+ * 获取本地设置（storage.local）
  */
-export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Promise<void> {
+export async function getLocalSettings(): Promise<LocalSettings> {
+  return new Promise(resolve => {
+    chrome.storage.local.get([
+      'performanceTier',
+      'gpuBenchmarkResult',
+      'gpuAdapterInfo',
+      'hasCompletedOnboarding',
+    ], (data) => {
+      resolve({
+        performanceTier: data.performanceTier ?? DEFAULT_LOCAL_SETTINGS.performanceTier,
+        gpuBenchmarkResult: data.gpuBenchmarkResult ?? DEFAULT_LOCAL_SETTINGS.gpuBenchmarkResult,
+        hasCompletedOnboarding: data.hasCompletedOnboarding ?? DEFAULT_LOCAL_SETTINGS.hasCompletedOnboarding,
+      });
+    });
+  });
+}
+
+/**
+ * 获取完整设置（合并 sync 和 local）
+ * 内置模式会根据当前档位动态解析效果链
+ */
+export async function getSettings(): Promise<Anime4KWebExtSettings> {
+  const [synced, local] = await Promise.all([
+    getSyncedSettings(),
+    getLocalSettings(),
+  ]);
+
+  // 同步自定义模式的效果
+  const syncedCustomModes = synchronizeEffectsForCustomModes(synced.customModes);
+
+  // 合并内置模式和自定义模式
+  const enhancementModes: EnhancementMode[] = [
+    ...BUILTIN_MODES,
+    ...syncedCustomModes,
+  ];
+
+  return {
+    ...synced,
+    customModes: syncedCustomModes,
+    performanceTier: local.performanceTier,
+    enhancementModes,
+  };
+}
+
+/**
+ * 保存同步设置
+ */
+export async function saveSyncedSettings(settings: Partial<SyncedSettings>): Promise<void> {
   return new Promise((resolve, reject) => {
     chrome.storage.sync.set(settings, () => {
       if (chrome.runtime.lastError) {
@@ -192,4 +145,90 @@ export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Pr
       }
     });
   });
+}
+
+/**
+ * 保存本地设置
+ */
+export async function saveLocalSettings(settings: Partial<LocalSettings>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(settings, () => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * 保存设置（兼容旧 API，自动分离 sync 和 local）
+ */
+export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Promise<void> {
+  const syncKeys: (keyof SyncedSettings)[] = [
+    'selectedModeId',
+    'targetResolutionSetting',
+    'whitelistEnabled',
+    'whitelist',
+    'customModes',
+    'enableCrossOriginFix',
+  ];
+
+  const localKeys: (keyof LocalSettings)[] = [
+    'performanceTier',
+    'gpuBenchmarkResult',
+    'hasCompletedOnboarding',
+  ];
+
+  const syncSettings: Partial<SyncedSettings> = {};
+  const localSettings: Partial<LocalSettings> = {};
+
+  for (const key of syncKeys) {
+    if (key in settings) {
+      (syncSettings as any)[key] = (settings as any)[key];
+    }
+  }
+
+  for (const key of localKeys) {
+    if (key in settings) {
+      (localSettings as any)[key] = (settings as any)[key];
+    }
+  }
+
+  const promises: Promise<void>[] = [];
+  if (Object.keys(syncSettings).length > 0) {
+    promises.push(saveSyncedSettings(syncSettings));
+  }
+  if (Object.keys(localSettings).length > 0) {
+    promises.push(saveLocalSettings(localSettings));
+  }
+
+  await Promise.all(promises);
+}
+
+/**
+ * 根据模式和档位获取实际效果链
+ */
+export function getEffectsForMode(
+  mode: EnhancementMode,
+  tier: PerformanceTier
+): EnhancementEffect[] {
+  if (mode.isBuiltIn) {
+    // 内置模式：根据档位动态解析
+    return resolveEffectChain((mode as BuiltInMode).baseMode, tier);
+  } else {
+    // 自定义模式：使用用户定义的效果链
+    return (mode as CustomMode).effects;
+  }
+}
+
+/**
+ * 根据 ID 查找模式
+ */
+export function findModeById(
+  modes: EnhancementMode[],
+  modeId: string
+): EnhancementMode | undefined {
+  return modes.find(m => m.id === modeId);
 }

@@ -1,0 +1,302 @@
+@import '../common-vars.css';
+
+body {
+    font-family: var(--font-family);
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-container) 100%);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--on-surface);
+}
+
+.onboarding-container {
+    max-width: 600px;
+    width: 90%;
+    background: var(--surface-container);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-3);
+    padding: 32px;
+    margin: 24px;
+}
+
+.onboarding-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 16px;
+}
+
+.onboarding-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.onboarding-header p {
+    margin: 0;
+    color: var(--on-surface-variant);
+}
+
+/* 步骤指示器 */
+.step-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 32px;
+}
+
+.step {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.step.active {
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.step.completed {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+}
+
+.step-line {
+    width: 60px;
+    height: 2px;
+    background: var(--outline-variant);
+    margin: 0 8px;
+}
+
+/* 步骤内容 */
+.step-content {
+    display: none;
+}
+
+.step-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.step-content h2 {
+    text-align: center;
+    margin: 0 0 16px 0;
+    font-size: 20px;
+}
+
+.step-content>p {
+    text-align: center;
+    color: var(--on-surface-variant);
+    margin-bottom: 24px;
+}
+
+/* 测试状态 */
+.test-status {
+    text-align: center;
+    padding: 32px;
+    background: var(--surface-container-low);
+    border-radius: var(--border-radius-md);
+    margin-bottom: 24px;
+}
+
+.status-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+/* 进度条 */
+.progress-container {
+    margin-bottom: 24px;
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--surface-container-high);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    text-align: center;
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--on-surface-variant);
+}
+
+/* 结果卡片 */
+.result-card {
+    text-align: center;
+    padding: 24px;
+    background: var(--primary-container);
+    border-radius: var(--border-radius-md);
+    margin-bottom: 24px;
+}
+
+.result-tier {
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--on-primary-container);
+    margin-bottom: 8px;
+}
+
+.result-gpu {
+    font-size: 14px;
+    color: var(--on-primary-container);
+    opacity: 0.8;
+    margin: 0 0 8px 0;
+}
+
+.result-desc {
+    margin: 0;
+    color: var(--on-primary-container);
+}
+
+/* 档位选项 */
+.tier-options {
+    margin-bottom: 24px;
+}
+
+.tier-options>p {
+    text-align: center;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: var(--on-surface-variant);
+}
+
+.tier-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.tier-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--outline-variant);
+    background: transparent;
+    border-radius: var(--border-radius-xl);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.tier-btn:hover {
+    border-color: var(--primary);
+    background: var(--surface-container-low);
+}
+
+.tier-btn.active {
+    border-color: var(--primary);
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+}
+
+/* 完成图标 */
+.complete-icon {
+    text-align: center;
+    font-size: 64px;
+    margin-bottom: 24px;
+}
+
+/* 快速提示 */
+.quick-tips {
+    background: var(--surface-container-low);
+    border-radius: var(--border-radius-md);
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.quick-tips h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+}
+
+.quick-tips ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.quick-tips li {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--on-surface-variant);
+}
+
+.quick-tips li:last-child {
+    margin-bottom: 0;
+}
+
+/* 按钮组 */
+.button-group {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--border-radius-xl);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.btn-primary:hover {
+    box-shadow: var(--shadow-2);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: var(--surface-container-high);
+    color: var(--on-surface);
+}
+
+.btn-secondary:hover {
+    background: var(--surface-container-highest);
+}

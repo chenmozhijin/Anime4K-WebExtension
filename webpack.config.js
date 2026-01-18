@@ -11,24 +11,25 @@ module.exports = (env, argv) => {
   const targetBrowser = process.env.TARGET_BROWSER || 'chrome';
 
   const manifest = require('./manifest.json');
-  
+
   // 据目标浏览器修改 manifest
   if (targetBrowser === 'firefox') {
-      // Firefox 特定的转换
-      delete manifest.background.service_worker;
-      manifest.background.scripts = ['background.js'];
-      manifest.browser_specific_settings = {
-        gecko: {
-          id: 'anime4k-webextension@chenmozhijin',
-        },
-      };
-    }
+    // Firefox 特定的转换
+    delete manifest.background.service_worker;
+    manifest.background.scripts = ['background.js'];
+    manifest.browser_specific_settings = {
+      gecko: {
+        id: 'anime4k-webextension@chenmozhijin',
+      },
+    };
+  }
 
-  
+
   return {
     entry: {
       popup: './src/ui/popup/popup.ts',
       options: './src/ui/options/options.ts',
+      onboarding: './src/ui/onboarding/onboarding.ts',
       content: './src/content.ts',
       background: './src/background.ts'
     },
@@ -74,6 +75,11 @@ module.exports = (env, argv) => {
         filename: 'options.html',
         template: './src/ui/options/options.html',
         chunks: ['options'],
+      }),
+      new HtmlWebpackPlugin({
+        filename: 'onboarding.html',
+        template: './src/ui/onboarding/onboarding.html',
+        chunks: ['onboarding'],
       }),
       new MiniCssExtractPlugin({
         filename: '[name].css',

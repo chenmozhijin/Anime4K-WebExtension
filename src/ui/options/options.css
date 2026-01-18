@@ -282,7 +282,8 @@ h1 {
 
 .effect-item span {
   flex-grow: 1;
-  word-break: break-all; /* Allow long strings to wrap */
+  word-break: break-all;
+  /* Allow long strings to wrap */
 }
 
 .effect-item[draggable="true"] {
@@ -294,11 +295,11 @@ h1 {
 }
 
 .effect-item.dragging {
-    opacity: 0.5;
+  opacity: 0.5;
 }
 
 .effect-item.drag-over {
-    border-top: 2px solid var(--secondary);
+  border-top: 2px solid var(--secondary);
 }
 
 .btn-remove-effect {
@@ -383,7 +384,8 @@ h1 {
   background-color: var(--surface-container-low);
 }
 
-.pattern-input, select {
+.pattern-input,
+select {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--outline);
@@ -406,14 +408,16 @@ select {
   appearance: none;
 }
 
-.pattern-input:focus, select:focus {
+.pattern-input:focus,
+select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-container);
   background-color: var(--surface-container);
 }
 
-.pattern-input:hover, select:hover {
+.pattern-input:hover,
+select:hover {
   border-color: var(--on-surface-variant);
 }
 
@@ -427,7 +431,7 @@ select {
   select {
     color-scheme: dark;
   }
-  
+
   select option {
     background-color: #2d2d2d !important;
     color: #ffffff !important;
@@ -493,12 +497,12 @@ select {
   box-shadow: var(--shadow-1);
 }
 
-input:checked + .slider {
+input:checked+.slider {
   background-color: var(--primary);
   border-color: var(--primary);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   background-color: var(--surface);
   transform: translateX(20px);
 }
@@ -507,7 +511,7 @@ input:checked + .slider:before {
   box-shadow: 0 0 0 8px rgba(var(--primary), 0.08);
 }
 
-input:focus + .slider {
+input:focus+.slider {
   box-shadow: 0 0 0 8px rgba(var(--primary), 0.12);
 }
 
@@ -658,14 +662,19 @@ textarea:hover {
 
 .sidebar-toggle {
   display: none;
-  position: absolute; /* Changed from fixed */
-  top: 1.25rem;      /* Align with logo/menu items */
+  position: absolute;
+  /* Changed from fixed */
+  top: 1.25rem;
+  /* Align with logo/menu items */
   left: 1.5rem;
   z-index: 1001;
-  background-color: transparent; /* Remove background */
-  border: none;                  /* Remove border */
+  background-color: transparent;
+  /* Remove background */
+  border: none;
+  /* Remove border */
   border-radius: var(--border-radius);
-  width: 44px; /* Increase size for easier clicking */
+  width: 44px;
+  /* Increase size for easier clicking */
   height: 44px;
   justify-content: center;
   align-items: center;
@@ -692,7 +701,8 @@ textarea:hover {
 
 @media (max-width: 900px) {
   .container {
-    flex-direction: row; /* Keep as row */
+    flex-direction: row;
+    /* Keep as row */
   }
 
   .sidebar {
@@ -703,10 +713,12 @@ textarea:hover {
     height: 100vh;
     z-index: 1000;
     transition: transform 0.3s ease;
-    transform: translateX(-100%); /* Slide out to the left */
+    transform: translateX(-100%);
+    /* Slide out to the left */
     box-shadow: var(--shadow-2);
     border-right: 1px solid var(--outline-variant);
-    padding-top: 60px; /* Add padding to prevent overlap with toggle button */
+    padding-top: 60px;
+    /* Add padding to prevent overlap with toggle button */
   }
 
   .sidebar.open {
@@ -715,9 +727,10 @@ textarea:hover {
 
   .main-content {
     width: 100%;
-    padding: 1.5rem; /* Adjust padding for mobile */
+    padding: 1.5rem;
+    /* Adjust padding for mobile */
   }
-  
+
   .sidebar-toggle {
     display: flex;
   }
@@ -731,17 +744,17 @@ textarea:hover {
   body {
     padding: 1rem;
   }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
   }
-  
+
   .btn-group {
     width: 100%;
   }
-  
+
   .btn {
     flex: 1;
   }
@@ -754,7 +767,8 @@ textarea:hover {
   border: none;
   cursor: pointer;
   padding: 0.5rem;
-  margin-left: -0.5rem; /* Align with card padding */
+  margin-left: -0.5rem;
+  /* Align with card padding */
   color: var(--secondary);
   transition: transform 0.3s ease, color 0.2s;
   display: flex;
@@ -894,4 +908,31 @@ textarea:hover {
 
 .info-item a:hover {
   text-decoration: underline;
+}
+
+/* --- Benchmark Progress --- */
+.benchmark-progress {
+  margin-top: var(--spacing-3);
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background-color: var(--surface-variant);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-2);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: var(--primary);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.benchmark-progress .progress-text {
+  font-size: 12px;
+  color: var(--on-surface-variant);
 }

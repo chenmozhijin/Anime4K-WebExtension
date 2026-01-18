@@ -1,16 +1,19 @@
 import './options.css';
 import '../common-vars.css';
-import { getSettings, saveSettings, synchronizeEffectsForAllModes } from '../../utils/settings';
+import { getSettings, saveSettings, synchronizeEffectsForCustomModes, getEffectsForMode, getLocalSettings, saveLocalSettings } from '../../utils/settings';
 import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
-import type { EnhancementMode, EnhancementEffect } from '../../types';
+import type { EnhancementMode, EnhancementEffect, CustomMode, BuiltInMode, PerformanceTier } from '../../types';
 import { themeManager } from '../theme-manager';
 import { Sidebar } from './Sidebar';
+import { runGPUBenchmark } from '../../core/gpu-benchmark';
+
 
 import { Anime4KWebExtSettings } from '../../types';
 
 // --- 全局状态 ---
 let settingsState: Anime4KWebExtSettings;
+let currentTier: PerformanceTier = 'balanced'; // 当前性能档位
 
 // --- UI 元素 ---
 const modesContainer = document.getElementById('modes-container') as HTMLElement;
@@ -24,6 +27,10 @@ const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const crossOriginFixToggle = document.getElementById('cross-origin-fix-toggle') as HTMLInputElement;
 const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
 const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement;
+
+// --- 智能功能 UI 元素 ---
+const runBenchmarkBtn = document.getElementById('run-benchmark-btn') as HTMLButtonElement;
+const gpuTierDisplay = document.getElementById('gpu-tier-display') as HTMLSpanElement;
 
 // --- 拖放状态 ---
 let draggedElement: HTMLElement | null = null;
@@ -126,7 +133,7 @@ const renderModesUI = () => {
       if (fromIndex > -1 && toIndex > -1) {
         const [movedMode] = settingsState.enhancementModes.splice(fromIndex, 1);
         settingsState.enhancementModes.splice(toIndex, 0, movedMode);
-        
+
         renderModesUI(); // 从状态重新渲染
         await saveSettings({ enhancementModes: settingsState.enhancementModes }); // 持久化更改
         notifyUpdate();
@@ -191,7 +198,9 @@ const renderModesUI = () => {
     // --- 摘要（折叠时显示）---
     const summary = document.createElement('div');
     summary.className = 'mode-summary';
-    summary.textContent = mode.effects.map(e => e.name.split('/').pop()).join(' > ') || (chrome.i18n.getMessage('noEffects') || 'No effects');
+    // 根据模式类型获取效果链
+    const modeEffects = getEffectsForMode(mode, currentTier);
+    summary.textContent = modeEffects.map((e: EnhancementEffect) => e.name.split('/').pop()).join(' > ') || (chrome.i18n.getMessage('noEffects') || 'No effects');
     card.appendChild(summary);
 
     // --- 卡片内容（展开时显示）---
@@ -200,7 +209,7 @@ const renderModesUI = () => {
     const effectsList = document.createElement('ul');
     effectsList.className = 'effects-list';
 
-    mode.effects.forEach((effect, index) => {
+    modeEffects.forEach((effect: EnhancementEffect, index: number) => {
       const effectItem = document.createElement('li');
       effectItem.className = 'effect-item';
       const effectName = document.createElement('span');
@@ -338,7 +347,7 @@ const renderModesUI = () => {
       addEffectContainer.appendChild(effectSelect);
       cardContent.appendChild(addEffectContainer);
     }
-    
+
     card.appendChild(cardContent);
 
     // 2. 渲染后恢复展开状态
@@ -357,7 +366,7 @@ const renderRulesUI = () => {
   rulesContainer.innerHTML = ''; // 清除现有规则
   settingsState.whitelist.forEach((rule) => {
     const row = document.createElement('tr');
-    
+
     const patternCell = document.createElement('td');
     const patternInput = document.createElement('input');
     patternInput.type = 'text';
@@ -374,7 +383,7 @@ const renderRulesUI = () => {
       }
     });
     patternCell.appendChild(patternInput);
-    
+
     const enabledCell = document.createElement('td');
     enabledCell.className = 'cell-center';
     const switchLabel = document.createElement('label');
@@ -392,7 +401,7 @@ const renderRulesUI = () => {
     switchLabel.appendChild(enabledCheckbox);
     switchLabel.appendChild(sliderSpan);
     enabledCell.appendChild(switchLabel);
-    
+
     const actionsCell = document.createElement('td');
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
@@ -403,7 +412,7 @@ const renderRulesUI = () => {
       renderRulesUI();
     });
     actionsCell.appendChild(deleteBtn);
-    
+
     row.appendChild(patternCell);
     row.appendChild(enabledCell);
     row.appendChild(actionsCell);
@@ -428,9 +437,24 @@ const setupInternationalization = () => {
   });
 };
 
-const renderGeneralSettingsUI = () => {
+const renderGeneralSettingsUI = async () => {
   crossOriginFixToggle.checked = settingsState.enableCrossOriginFix;
   themeSelect.value = themeManager.getTheme();
+
+
+  // 智能功能 UI
+  const localSettings = await getLocalSettings();
+
+  // 档位显示
+  const tierIcons: Record<PerformanceTier, string> = {
+    performance: chrome.i18n.getMessage('tierPerformance') ? `🚀 ${chrome.i18n.getMessage('tierPerformance')}` : '🚀 Fast',
+    balanced: chrome.i18n.getMessage('tierBalanced') ? `⚖️ ${chrome.i18n.getMessage('tierBalanced')}` : '⚖️ Balanced',
+    quality: chrome.i18n.getMessage('tierQuality') ? `🎨 ${chrome.i18n.getMessage('tierQuality')}` : '🎨 Quality',
+    ultra: chrome.i18n.getMessage('tierUltra') ? `🔬 ${chrome.i18n.getMessage('tierUltra')}` : '🔬 Ultra'
+  };
+  if (gpuTierDisplay) {
+    gpuTierDisplay.textContent = tierIcons[localSettings.performanceTier];
+  }
 };
 
 const renderAboutSectionUI = () => {
@@ -455,6 +479,67 @@ const setupEventListeners = () => {
     themeManager.setTheme(selectedTheme);
   });
 
+  // --- 智能功能监听器 ---
+  if (runBenchmarkBtn) {
+    runBenchmarkBtn.addEventListener('click', async () => {
+      runBenchmarkBtn.disabled = true;
+      runBenchmarkBtn.textContent = chrome.i18n.getMessage('testing') || 'Testing...';
+
+      // 显示进度条
+      const progressContainer = document.getElementById('benchmark-progress');
+      const progressFill = document.getElementById('benchmark-progress-fill');
+      const progressText = document.getElementById('benchmark-progress-text');
+      if (progressContainer) progressContainer.style.display = 'block';
+
+      try {
+        const result = await runGPUBenchmark((progress) => {
+          // 更新进度条
+          if (progressFill) progressFill.style.width = `${progress.progress * 100}%`;
+          if (progressText) {
+            if (progress.completed) {
+              progressText.textContent = chrome.i18n.getMessage('testComplete') || 'Test complete!';
+            } else {
+              // 将 tier 键名转换为国际化文本
+              const tierKey = `tier${progress.tier.charAt(0).toUpperCase()}${progress.tier.slice(1)}` as const;
+              const tierName = chrome.i18n.getMessage(tierKey) || progress.tier;
+              progressText.textContent = chrome.i18n.getMessage('testingTier', [tierName]) || `Testing ${tierName}...`;
+            }
+          }
+        });
+
+        // 询问用户是否应用推荐档位
+        const tierNames: Record<PerformanceTier, string> = {
+          performance: chrome.i18n.getMessage('tierPerformance') ? `🚀 ${chrome.i18n.getMessage('tierPerformance')}` : '🚀 Fast',
+          balanced: chrome.i18n.getMessage('tierBalanced') ? `⚖️ ${chrome.i18n.getMessage('tierBalanced')}` : '⚖️ Balanced',
+          quality: chrome.i18n.getMessage('tierQuality') ? `🎨 ${chrome.i18n.getMessage('tierQuality')}` : '🎨 Quality',
+          ultra: chrome.i18n.getMessage('tierUltra') ? `🔬 ${chrome.i18n.getMessage('tierUltra')}` : '🔬 Ultra'
+        };
+        const confirmMessage = chrome.i18n.getMessage('confirmApplyTier', [tierNames[result.tier]])
+          || `Test complete! Recommended tier: ${tierNames[result.tier]}\n\nApply this tier?`;
+
+        if (confirm(confirmMessage)) {
+          await saveLocalSettings({
+            performanceTier: result.tier,
+            gpuBenchmarkResult: result,
+          });
+          currentTier = result.tier;
+          renderGeneralSettingsUI();
+          renderModesUI();
+          notifyUpdate(); // 通知所有渲染器更新
+        }
+      } catch (error) {
+        console.error('Benchmark failed:', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        alert((chrome.i18n.getMessage('testFailed') || 'Test failed') + ': ' + errorMsg);
+      }
+
+      // 隐藏进度条
+      if (progressContainer) progressContainer.style.display = 'none';
+      runBenchmarkBtn.disabled = false;
+      runBenchmarkBtn.textContent = chrome.i18n.getMessage('runTest') || 'Run Test';
+    });
+  }
+
   // --- 模式监听器 ---
   addModeBtn.addEventListener('click', async () => {
     const newMode: EnhancementMode = {
@@ -470,16 +555,16 @@ const setupEventListeners = () => {
 
   // --- 白名单监听器 ---
   addRuleBtn.addEventListener('click', async () => {
-   const newPattern = '*.example.com/*';
-   // 从 UI 端防止重复添加
-   if (settingsState.whitelist.some(r => r.pattern === newPattern)) {
-     alert(chrome.i18n.getMessage('ruleAlreadyExists') || 'This rule already exists.');
-     return;
-   }
-   await addWhitelistRule(newPattern, true);
-   // 重新获取状态以反映更改
-   settingsState.whitelist = (await getSettings()).whitelist;
-   renderRulesUI();
+    const newPattern = '*.example.com/*';
+    // 从 UI 端防止重复添加
+    if (settingsState.whitelist.some(r => r.pattern === newPattern)) {
+      alert(chrome.i18n.getMessage('ruleAlreadyExists') || 'This rule already exists.');
+      return;
+    }
+    await addWhitelistRule(newPattern, true);
+    // 重新获取状态以反映更改
+    settingsState.whitelist = (await getSettings()).whitelist;
+    renderRulesUI();
   });
 
   // --- 模式导入/导出监听器 ---
@@ -492,29 +577,32 @@ const setupEventListeners = () => {
     try {
       const json = await openFile();
       const importedModes = JSON.parse(json) as EnhancementMode[];
-      
+
       if (!Array.isArray(importedModes)) throw new Error('Invalid format: not an array');
 
-      const newModes: EnhancementMode[] = [];
+      const newModes: CustomMode[] = [];
       for (const mode of importedModes) {
-        if (typeof mode !== 'object' || typeof mode.name !== 'string' || !Array.isArray(mode.effects)) {
+        if (typeof mode !== 'object' || typeof mode.name !== 'string' || !Array.isArray((mode as any).effects)) {
           console.warn('Skipping invalid mode object on import:', mode);
           continue;
         }
-        
-        const newMode: EnhancementMode = {
-          ...mode,
+
+        const newMode: CustomMode = {
           id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          name: mode.name,
           isBuiltIn: false,
+          effects: (mode as any).effects,
         };
         newModes.push(newMode);
       }
 
-      const allModes = [...settingsState.enhancementModes, ...newModes];
-      settingsState.enhancementModes = synchronizeEffectsForAllModes(allModes);
-      
+      // 同步自定义模式的效果
+      const syncedNewModes = synchronizeEffectsForCustomModes(newModes);
+      const allCustomModes = [...settingsState.customModes, ...syncedNewModes];
+      settingsState.customModes = allCustomModes;
+
       renderModesUI();
-      await saveSettings({ enhancementModes: settingsState.enhancementModes });
+      await saveSettings({ customModes: settingsState.customModes });
       notifyUpdate();
       alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
     } catch (error) {
@@ -537,7 +625,7 @@ const setupEventListeners = () => {
       const json = await openFile();
       const rules = JSON.parse(json);
       if (!Array.isArray(rules)) throw new Error('Invalid format: not an array');
-      
+
       const validRules: WhitelistRule[] = [];
       for (const rule of rules) {
         if (typeof rule === 'object' && rule.pattern && typeof rule.pattern === 'string' && typeof rule.enabled === 'boolean' && validateRulePattern(rule.pattern)) {
@@ -546,7 +634,7 @@ const setupEventListeners = () => {
           console.warn('Skipping invalid whitelist rule on import:', rule);
         }
       }
-      
+
       settingsState.whitelist = validRules;
       await saveSettings({ whitelist: settingsState.whitelist });
       renderRulesUI();
@@ -562,13 +650,18 @@ const setupEventListeners = () => {
   });
 
   // --- 消息监听器 ---
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener(async (message) => {
     if (message.type === 'WHITELIST_UPDATED') {
       // 重新获取设置以从扩展的其他部分获取最新的白名单
-      getSettings().then(newSettings => {
-        settingsState = newSettings;
-        renderRulesUI();
-      });
+      settingsState = await getSettings();
+      renderRulesUI();
+    } else if (message.type === 'SETTINGS_UPDATED') {
+      // 重新获取设置和本地设置以更新档位和效果链显示
+      settingsState = await getSettings();
+      const localSettings = await getLocalSettings();
+      currentTier = localSettings.performanceTier;
+      renderModesUI();
+      console.log('[Options] Settings updated, tier:', currentTier);
     }
   });
 };
@@ -579,9 +672,9 @@ const setupEventListeners = () => {
 document.addEventListener('DOMContentLoaded', async () => {
   // 初始化主题
   themeManager.getTheme(); // 这会自动应用保存的主题
-  
+
   setupInternationalization();
-  
+
   // 初始化侧边栏
   try {
     const sidebar = new Sidebar();
@@ -589,7 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (error) {
     console.error('Failed to initialize sidebar:', error);
   }
-  
+
   if (!modesContainer || !addModeBtn || !importModesBtn || !exportModesBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn) {
     console.error('Required UI elements not found. Aborting initialization.');
     return;
@@ -597,6 +690,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 从存储加载初始状态
   settingsState = await getSettings();
+
+  // 读取本地设置获取当前档位
+  const localSettings = await getLocalSettings();
+  currentTier = localSettings.performanceTier;
 
   // 从状态进行初始 UI 渲染
   renderModesUI();

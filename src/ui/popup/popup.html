@@ -1,24 +1,51 @@
 <!DOCTYPE html>
 <html lang="__MSG_@@ui_locale__">
+
 <head>
   <title data-i18n="extensionName"></title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
+
 <body>
   <div class="card">
     <div class="card-header">
       <h3 data-i18n="extensionName"></h3>
     </div>
-    
+
     <div class="card-body">
+      <!-- 档位选择器 -->
+      <div class="setting-group">
+        <label data-i18n="performanceTierLabel">Performance Tier</label>
+        <div class="tier-selector">
+          <button class="tier-btn" data-tier="performance">
+            <span class="tier-icon">🚀</span>
+            <span class="tier-label" data-i18n="tierPerformance">Fast</span>
+          </button>
+          <button class="tier-btn" data-tier="balanced">
+            <span class="tier-icon">⚖️</span>
+            <span class="tier-label" data-i18n="tierBalanced">Balanced</span>
+          </button>
+          <button class="tier-btn" data-tier="quality">
+            <span class="tier-icon">🎨</span>
+            <span class="tier-label" data-i18n="tierQuality">Quality</span>
+          </button>
+          <button class="tier-btn" data-tier="ultra">
+            <span class="tier-icon">🔬</span>
+            <span class="tier-label" data-i18n="tierUltra">Ultra</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 模式选择器 -->
       <div class="setting-group">
         <label id="mode-label" for="mode-select" data-i18n="enhancementModeLabel">Enhancement Mode</label>
         <select id="mode-select" aria-labelledby="mode-label">
           <!-- 模式选项将由 popup.ts 动态填充 -->
         </select>
       </div>
-      
+
+      <!-- 分辨率选择器 -->
       <div class="setting-group">
         <label id="resolution-label" for="resolution-select" data-i18n="resolutionLabel">Resolution</label>
         <select id="resolution-select" aria-labelledby="resolution-label">
@@ -32,9 +59,11 @@
           <option value="native" data-i18n="nativeResolution">Native</option>
         </select>
       </div>
-      
-      <button id="save-settings" data-i18n="saveAndApply">Save and apply SR settings</button>
-      
+
+      <!-- 保存按钮 -->
+      <button id="save-settings" class="btn-primary" data-i18n="saveAndApply">Save and apply SR settings</button>
+
+      <!-- 白名单区域 -->
       <div class="whitelist-section">
         <div class="whitelist-toggle">
           <label for="whitelist-toggle" data-i18n="whitelistEnable">Enable Whitelist</label>
@@ -43,22 +72,34 @@
             <span class="slider"></span>
           </label>
         </div>
-        
+
         <div class="whitelist-buttons">
-          <button id="add-current-page" data-i18n="addCurrentPage">Add Current URL</button>
-          <button id="add-current-domain" data-i18n="addCurrentDomain">Add Current Domain</button>
-          <button id="add-parent-path" data-i18n="addParentPath">Add Parent Path</button>
+          <button id="add-current-page">
+            <span class="btn-icon">📄</span>
+            <span data-i18n="addCurrentPage">Page</span>
+          </button>
+          <button id="add-current-domain">
+            <span class="btn-icon">🌐</span>
+            <span data-i18n="addCurrentDomain">Domain</span>
+          </button>
+          <button id="add-parent-path">
+            <span class="btn-icon">📁</span>
+            <span data-i18n="addParentPath">Path</span>
+          </button>
         </div>
       </div>
+
       <button id="open-settings" data-i18n="openSettings">Settings</button>
     </div>
   </div>
-  
+
   <footer id="extension-footer">
-    <a href="https://github.com/chenmozhijin/Anime4K-WebExtension" target="_blank" rel="noopener">Anime4K WebExtension</a>
+    <a href="https://github.com/chenmozhijin/Anime4K-WebExtension" target="_blank" rel="noopener">Anime4K
+      WebExtension</a>
     <span> • </span>
     <span id="version-info"></span>
   </footer>
 
 </body>
+
 </html>
