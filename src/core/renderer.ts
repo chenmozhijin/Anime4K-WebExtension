@@ -92,7 +92,7 @@ export class Renderer {
   private useImageBitmapFallback = false;
   /** 在单次渲染循环中是否已尝试过自动修复 */
   private fixAttempted = false;
-  private lastError: Error | null  = null; // 存储最近一次错误信息
+  private lastError: Error | null = null; // 存储最近一次错误信息
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
@@ -162,7 +162,14 @@ export class Renderer {
       }
 
       // 请求 GPU 设备并配置 Canvas 上下文
-      this.device = await adapter.requestDevice();
+      // 根据适配器支持的限制请求更高的 maxBufferSize，以支持高分辨率视频处理
+      const adapterLimits = adapter.limits;
+      this.device = await adapter.requestDevice({
+        requiredLimits: {
+          maxBufferSize: adapterLimits.maxBufferSize,
+          maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
+        },
+      });
 
       // 检查是否需要使用 ImageBitmap 回退方案
       const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
@@ -220,30 +227,30 @@ export class Renderer {
    */
   private async buildPipelines(): Promise<void> {
     this.pipelines.forEach(p => (p as any).destroy?.());
-  
+
     const pipelines: Anime4KPipeline[] = [];
     let currentTexture = this.videoFrameTexture;
     let curWidth = this.video.videoWidth;
     let curHeight = this.video.videoHeight;
-  
+
     // 如果需要，动态导入 Downscale 类
     const needsDownscaling = this.effects.some((effect, i) => {
       const remainingFactor = this.effects.slice(i + 1).reduce((acc, val) => acc * (val.upscaleFactor ?? 1), 1);
       return (effect.upscaleFactor ?? 1) > 1 && remainingFactor > 1;
     });
-  
+
     const DownscaleClass = needsDownscaling ? (await import('anime4k-webgpu')).Downscale : null;
-  
+
     const upscaleFactors = this.effects.map(e => e.upscaleFactor ?? 1);
     const remainingUpscaleFactors = upscaleFactors.map((_, i) =>
       upscaleFactors.slice(i + 1).reduce((acc, val) => acc * val, 1)
     );
-  
+
     for (let i = 0; i < this.effects.length; i++) {
       const effect = this.effects[i];
       // 动态导入需要的类
       const EffectClass = (await import('anime4k-webgpu'))[effect.className as keyof typeof import('anime4k-webgpu')];
-  
+
       if (EffectClass) {
         const pipeline = new (EffectClass as any)({
           device: this.device,
@@ -253,16 +260,16 @@ export class Renderer {
         });
         pipelines.push(pipeline);
         currentTexture = pipeline.getOutputTexture();
-  
+
         if (effect.upscaleFactor) {
           curWidth *= effect.upscaleFactor;
           curHeight *= effect.upscaleFactor;
-  
+
           const remainingFactor = remainingUpscaleFactors[i];
           if (DownscaleClass && remainingFactor > 1) {
             const idealIntermediateWidth = this.targetDimensions.width / remainingFactor;
             const idealIntermediateHeight = this.targetDimensions.height / remainingFactor;
-  
+
             if (curWidth > idealIntermediateWidth * 1.1) {
               const intermediateDownscale = new DownscaleClass({
                 device: this.device,
@@ -283,13 +290,13 @@ export class Renderer {
         console.warn(`[Anime4KWebExt] Effect class "${effect.className}" not found in anime4k-webgpu module.`);
       }
     }
-  
+
     if (pipelines.length === 0) {
       // 如果没有应用任何效果，则创建一个虚拟管道
       pipelines.push({
-        pass: () => {},
+        pass: () => { },
         getOutputTexture: () => this.videoFrameTexture,
-        updateParam: () => {},
+        updateParam: () => { },
       } as unknown as Anime4KPipeline);
     }
     this.pipelines = pipelines;
@@ -313,7 +320,7 @@ export class Renderer {
     Renderer.webgpuFeatureCheckPromise = (async () => {
       try {
         // 在 initialize() 中已经检测了基本的 WebGPU 支持，这里只需要检测 VideoFrame 支持
-        
+
         const adapter = await navigator.gpu.requestAdapter();
         const device = await adapter?.requestDevice();
         if (!device) {
