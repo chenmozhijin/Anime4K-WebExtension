@@ -8,14 +8,15 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 
 ## Features
 
-- 🚀 **Real-time Super-Resolution:** Provides instant super-resolution effects during video playback in the browser using WebGPU technology.
-- ⚙️ **Flexible Enhancement Modes:** Offers multiple preset modes and supports custom modes, allowing free combination of different enhancement effects to suit various videos and devices.
-- 📏 **Flexible Scaling:** Provides 2x/4x/8x output, or fixed output resolutions of 720p/1080p/2K/4K.
-- ⚡ **One-Click Enhancement:** A purple "✨ Enhance" button automatically appears on the video player; click to enable the effect.
-- 🛡️ **Broad Compatibility:** Supports Shadow DOM, iframes, and cross-origin videos, aiming to be compatible with as many websites as possible.
-- 📋 **Precise Whitelist:** Works only on specified websites or pages to avoid interference and save resources.
-- 🌈 **Theme Toggle:** Supports light/dark/auto theme modes, providing a modern Material Design interface.
-- 🌐 **Multi-language Interface:** Supports Chinese, English, Japanese, Russian, etc.
+- 🚀 **Real-time Super-Resolution:** Leverage advanced WebGPU technology to achieve low-latency, high-performance real-time video super-resolution enhancement directly in the browser.
+- ⚡ **Multiple Performance Tiers:** Offers four preset modes: Fast/Balanced/Quality/Ultra, and supports Custom Modes to flexibly balance image quality improvement and hardware load.
+- 📊 **Hardware Performance Evaluation:** Built-in GPU benchmark test to recommend the best super-resolution tier for your hardware.
+- 📏 **Flexible Resolution Control:** Supports 2x/4x/8x upscaling factors, or can lock to target resolutions like 2K/4K to meet diverse viewing needs.
+- ✨ **One-Click Enhance:** A purple "✨ Enhance" button automatically appears on the video player for one-click image quality boost.
+- 🛡️ **Broad Compatibility:** Adapts to Shadow DOM, iframes, and cross-origin video sources, breaking through technical limitations to cover the vast majority of video websites.
+- 📋 **On-Demand Activation Mechanism:** Supports precise Whitelist strategy, effective only on specified sites to avoid resource waste and page interference.
+- 🌈 **Modern UI Design:** Follows Material Design guidelines, adapting to Light/Dark/System themes for a comfortable and smooth visual experience.
+- 🌐 **Internationalization Support:** Supports multiple languages including Chinese, English, Japanese, and Russian to serve global users.
 
 > [!WARNING]
 > This extension does not work on video websites with Encrypted Media Extensions (EME) or DRM protection, such as Netflix.
@@ -54,55 +55,58 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
    - Chrome: Open extensions page (`chrome://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
    - Edge: Open extensions page (`edge://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
 
-### I. Quick Start
+### I. First Run (Onboarding)
 
-1. **Enable Enhancement**: After installing the extension, play a video on a supported website (e.g., Bilibili, YouTube). A purple **"✨ Enhance"** button will appear on the left side of the video player when you hover over it.
-2. **Click to Toggle**: Click the button to enable real-time super-resolution. The button will show "Enhancing..." during processing and change to "Disable Enhancement" when complete. Clicking it again will turn off the enhancement.
-3. **Auto-hide**: The button will automatically hide when the mouse is moved away to maintain a clean viewing experience.
+After installing the extension, an onboarding page will automatically open. For the best experience, please follow the guide to complete the setup:
 
-### II. Popup Panel Settings
+1.  **GPU Benchmark**: The extension will run a short benchmark (Target: 1080p -> 4K 24fps) to evaluate your graphics card performance.
+2.  **Recommended Tier**: Based on the results, the extension will automatically recommend a suitable Performance Tier:
+    *   🚀 **Performance**: Best for integrated graphics or older devices, prioritizing smoothness.
+    *   ⚖️ **Balanced**: Balances quality and performance, suitable for most mid-range devices.
+    *   🎨 **Quality**: Provides better image detail, suitable for discrete graphics cards.
+    *   🔬 **Ultra**: Maximum quality, requires strong graphics card performance.
+3.  **Apply**: You can accept the recommendation or manually select another tier.
 
-Click the Anime4K extension icon in the browser toolbar to open the quick settings panel.
+### II. Daily Use
 
-- **Enhancement Mode**: Quickly switch between different preset or custom enhancement modes.
-- **Output Resolution**: Select the output resolution for the enhanced video.
-- **Scaling Factor**: `x2`, `x4`, `x8` will multiply the original video resolution by the corresponding factor.
-- **Fixed Resolution**: `720p`, `1080p`, `2K`, `4K` will output the video to a fixed resolution.
-- **Whitelist Switch**: Globally enable or disable the whitelist feature. If turned off, the extension will attempt to run on all websites.
-- **Quick Add to Whitelist**:
-- **Add Current Page**: Adds only the exact URL of the current page to the whitelist (excluding query parameters).
-- **Add Current Domain**: Adds all pages of the current website to the whitelist (e.g., `www.youtube.com/*`).
-- **Add Parent Path**: Adds the parent directory of the current page to the whitelist (e.g., adds `site.com/videos/*` from `site.com/videos/123`).
-- **Go to Advanced Settings**: Click the "Open Advanced Settings" button to access the more comprehensive options page.
+1.  **Enable Enhancement**: Play a video on a supported website (e.g., Bilibili, YouTube). A purple **"✨ Enhance"** button will appear on the left side of the video player when you hover over it.
+2.  **Click to Toggle**: Click the button to enable real-time super-resolution. The button state will change from "⏳ Starting..." to "❌ Cancel".
+3.  **Auto-hide**: The button will automatically hide when the mouse is moved away to maintain a clean viewing experience.
 
-### III. Advanced Settings
+### III. Popup Panel Settings
 
-On the options page, you can deeply customize the extension.
+Click the Anime4K extension icon in the browser toolbar to open the quick settings panel:
 
-#### 1. Enhancement Mode Management
+*   **Performance Tier**: Quickly switch between four presets.
+    *   *Note: When a "Custom Mode" is selected, the Performance Tier is unavailable because custom modes are defined by their specific shader combinations.*
+*   **Enhancement Mode**:
+    *   **Built-in Modes**: Classic Anime4K presets like Mode A, Mode B, Mode C.
+    *   **Custom Modes**: Advanced modes created or imported by you.
+*   **Resolution**: Set the target output resolution (x2 scaling or fixed 1080p/4K, etc.).
+*   **Whitelist**:
+    *   Quickly add the current page, domain, or parent path to the whitelist.
+    *   Enable/disable the global whitelist feature.
 
-Here, you have full control over the combination of enhancement effects:
+### IV. Advanced Options
 
-- **Create New Mode**: Click the "Add Mode" button to create a new blank mode.
-- **Customize Mode**:
-- **Rename**: Click the mode name directly to edit it.
-- **Adjust Effects**: Click the arrow on the left of the mode card to expand details. In the expanded view, you can **reorder** enhancement effects by dragging and dropping, or **remove** an effect by clicking `×`.
-- **Add Effect**: In the expanded view, select and add new enhancement effects to the processing chain from the dropdown menu.
-- **Manage Modes**: **Sort** all custom modes by dragging their cards, or **delete** unwanted custom modes by clicking the "Delete" button. (Built-in modes cannot be deleted or have their effect combinations modified).
-- **Import/Export**: Easily share or back up your custom mode configurations as a JSON file.
+Click the **"Settings"** button at the bottom of the panel to access the detailed settings page:
 
-#### 2. Whitelist Management
+#### 1. General Settings
+*   **Appearance**: Switch between Light/Dark themes.
+*   **Compatibility**: Enable **"Cross-Origin Compatibility Mode"** to fix videos that fail to enhance due to browser security policies (common with nested third-party players).
 
-Achieve fine-grained control over the extension's scope:
+#### 2. Performance Settings
+*   **GPU Benchmark**: Re-run the benchmark at any time to update your performance score.
+*   **Current Tier**: View the currently active performance configuration.
 
-- **Rule List**: Centrally manage all whitelist rules. You can manually **edit** rules, **enable/disable** specific rules via checkboxes, or **delete** rules.
-- **Add Rule**: Manually add new URL matching rules. Rules support the wildcard `*`, for example, `*.bilibili.com/*` can match all pages on Bilibili.
-- **Import/Export**: Back up your whitelist rules or import them from others' shares as a JSON file.
+#### 3. Enhancement Modes
+*   **Visual Editor**: Create brand new custom modes.
+*   **Drag & Drop Sorting**: Adjust the order of applied shaders or the mode list itself.
+*   **Share Config**: Import/Export your custom mode configurations (JSON format).
 
-#### 3. General Settings
-
-- **Theme Mode:** Choose the appearance theme for the interface. Supports light mode, dark mode, or auto mode that follows system settings.
-- **Cross-Origin Compatibility Mode**: When encountering videos that fail to enhance due to "cross-origin" restrictions (common on websites using third-party video sources), this mode will attempt to automatically fix the issue. If a security error appears during enhancement, be sure to enable this feature.
+#### 4. Whitelist Management
+*   **Rule Management**: View, edit, or delete added URL rules.
+*   **Wildcard Support**: Use `*` to match multiple pages (e.g., `*.bilibili.com/*`).
 
 ## Acknowledgments
 
