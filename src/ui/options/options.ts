@@ -85,7 +85,7 @@ const renderModesUI = () => {
     if (modeId) expandedModeIds.add(modeId);
   });
 
-  modesContainer.innerHTML = ''; // 清除现有卡片
+  modesContainer.textContent = ''; // 清除现有卡片
 
   settingsState.enhancementModes.forEach(mode => {
     const card = document.createElement('div');
@@ -146,7 +146,25 @@ const renderModesUI = () => {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'btn-toggle-collapse';
-    toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
+    // Create SVG icon safely
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "menu-icon");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+
+    const polyline = document.createElementNS(svgNS, "polyline");
+    polyline.setAttribute("points", "9 18 15 12 9 6");
+    svg.appendChild(polyline);
+
+    toggleBtn.appendChild(svg);
     toggleBtn.title = chrome.i18n.getMessage('expandCollapse') || 'Expand/Collapse';
     toggleBtn.addEventListener('click', () => {
       card.classList.toggle('collapsed');
@@ -272,7 +290,25 @@ const renderModesUI = () => {
 
         const createMoveBtn = (dir: 'up' | 'down') => {
           const btn = document.createElement('button');
-          btn.innerHTML = dir === 'up' ? '&#9650;' : '&#9660;';
+
+          // Create SVG arrow icon safely
+          const svgNS = "http://www.w3.org/2000/svg";
+          const arrowSvg = document.createElementNS(svgNS, "svg");
+          arrowSvg.setAttribute("width", "12");
+          arrowSvg.setAttribute("height", "12");
+          arrowSvg.setAttribute("viewBox", "0 0 24 24");
+          arrowSvg.setAttribute("fill", "currentColor");
+
+          const arrowPath = document.createElementNS(svgNS, "path");
+          // Use path data for up/down triangles
+          if (dir === 'up') {
+            arrowPath.setAttribute("d", "M12 4l-8 8h16z"); // Up triangle
+          } else {
+            arrowPath.setAttribute("d", "M12 20l-8-8h16z"); // Down triangle
+          }
+          arrowSvg.appendChild(arrowPath);
+
+          btn.appendChild(arrowSvg);
           btn.className = 'btn-move-effect';
           btn.title = chrome.i18n.getMessage(dir === 'up' ? 'moveUp' : 'moveDown') || (dir === 'up' ? 'Move Up' : 'Move Down');
           btn.disabled = (dir === 'up' && index === 0) || (dir === 'down' && index === mode.effects.length - 1);
@@ -363,7 +399,7 @@ const renderModesUI = () => {
  * 根据当前的 settingsState 渲染白名单规则 UI。
  */
 const renderRulesUI = () => {
-  rulesContainer.innerHTML = ''; // 清除现有规则
+  rulesContainer.textContent = ''; // 清除现有规则
   settingsState.whitelist.forEach((rule) => {
     const row = document.createElement('tr');
 
