@@ -20,6 +20,9 @@ module.exports = (env, argv) => {
     manifest.browser_specific_settings = {
       gecko: {
         id: 'anime4k-webextension@chenmozhijin',
+        data_collection_permissions: {
+          required: ['none']
+        }
       },
     };
   }
