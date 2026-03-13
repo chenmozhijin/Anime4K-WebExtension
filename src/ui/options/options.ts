@@ -1,15 +1,12 @@
 import './options.css';
 import '../common-vars.css';
-import { getSettings, saveSettings, synchronizeEffectsForCustomModes, getEffectsForMode, getLocalSettings, saveLocalSettings } from '../../utils/settings';
+import { BUILTIN_MODES, getSettings, saveSettings, synchronizeEffectsForCustomModes, getEffectsForMode, getLocalSettings, saveLocalSettings } from '../../utils/settings';
 import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
-import type { EnhancementMode, EnhancementEffect, CustomMode, BuiltInMode, PerformanceTier } from '../../types';
+import type { Anime4KWebExtSettings, EnhancementMode, EnhancementEffect, CustomMode, PerformanceTier } from '../../types';
 import { themeManager } from '../theme-manager';
 import { Sidebar } from './Sidebar';
 import { runGPUBenchmark } from '../../core/gpu-benchmark';
-
-
-import { Anime4KWebExtSettings } from '../../types';
 
 // --- 全局状态 ---
 let settingsState: Anime4KWebExtSettings;
@@ -74,6 +71,32 @@ const openFile = (): Promise<string> => {
   });
 };
 
+const rebuildEnhancementModes = () => {
+  settingsState.customModes = synchronizeEffectsForCustomModes(settingsState.customModes);
+  settingsState.enhancementModes = [...BUILTIN_MODES, ...settingsState.customModes];
+};
+
+const saveCustomModesState = async (modifiedModeId?: string, persistSelectedModeId = false) => {
+  rebuildEnhancementModes();
+  renderModesUI();
+
+  const settingsToPersist: Partial<Anime4KWebExtSettings> = {
+    customModes: settingsState.customModes,
+  };
+
+  if (persistSelectedModeId) {
+    settingsToPersist.selectedModeId = settingsState.selectedModeId;
+  }
+
+  await saveSettings(settingsToPersist);
+  notifyUpdate(modifiedModeId);
+};
+
+const isInteractiveModeElement = (target: EventTarget | null): boolean => {
+  return target instanceof HTMLElement
+    && target.closest('button, input, select, textarea, label, a, [contenteditable="true"]') !== null;
+};
+
 /**
  * 根据当前的 settingsState 渲染增强模式 UI。
  */
@@ -88,14 +111,19 @@ const renderModesUI = () => {
   modesContainer.textContent = ''; // 清除现有卡片
 
   settingsState.enhancementModes.forEach(mode => {
+    const isCustomMode = !mode.isBuiltIn;
     const card = document.createElement('div');
     card.className = 'mode-card collapsed';
+    card.classList.toggle('sortable-mode-card', isCustomMode);
     card.dataset.modeId = mode.id;
-    card.draggable = true;
+
+    const updateCardDraggableState = () => {
+      card.draggable = isCustomMode && card.classList.contains('collapsed');
+    };
 
     // --- 模式排序的拖放功能 ---
     card.addEventListener('dragstart', (e) => {
-      if (!card.classList.contains('collapsed')) {
+      if (!card.draggable || isInteractiveModeElement(e.target)) {
         e.preventDefault();
         return;
       }
@@ -113,30 +141,31 @@ const renderModesUI = () => {
     });
 
     card.addEventListener('dragover', (e) => {
+      const isModeCardDrag = draggedElement?.classList.contains('mode-card') ?? false;
+      if (!isCustomMode || !isModeCardDrag || draggedElement === card) return;
+
       e.preventDefault();
       const target = card;
-      if (draggedElement && draggedElement !== target) {
-        target.classList.add('drag-over');
-      }
+      target.classList.add('drag-over');
     });
 
     card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
 
     card.addEventListener('drop', async (e) => {
+      const isModeCardDrag = draggedElement?.classList.contains('mode-card') ?? false;
+      if (!isCustomMode || !isModeCardDrag) return;
+
       e.preventDefault();
       card.classList.remove('drag-over');
       if (!draggedModeId || draggedModeId === mode.id) return;
 
-      const fromIndex = settingsState.enhancementModes.findIndex(m => m.id === draggedModeId);
-      const toIndex = settingsState.enhancementModes.findIndex(m => m.id === mode.id);
+      const fromIndex = settingsState.customModes.findIndex(m => m.id === draggedModeId);
+      const toIndex = settingsState.customModes.findIndex(m => m.id === mode.id);
 
       if (fromIndex > -1 && toIndex > -1) {
-        const [movedMode] = settingsState.enhancementModes.splice(fromIndex, 1);
-        settingsState.enhancementModes.splice(toIndex, 0, movedMode);
-
-        renderModesUI(); // 从状态重新渲染
-        await saveSettings({ enhancementModes: settingsState.enhancementModes }); // 持久化更改
-        notifyUpdate();
+        const [movedMode] = settingsState.customModes.splice(fromIndex, 1);
+        settingsState.customModes.splice(toIndex, 0, movedMode);
+        await saveCustomModesState(movedMode.id);
       }
     });
 
@@ -168,21 +197,22 @@ const renderModesUI = () => {
     toggleBtn.title = chrome.i18n.getMessage('expandCollapse') || 'Expand/Collapse';
     toggleBtn.addEventListener('click', () => {
       card.classList.toggle('collapsed');
+      updateCardDraggableState();
     });
 
     const modeName = document.createElement('h2');
     modeName.textContent = mode.name;
     modeName.contentEditable = String(!mode.isBuiltIn);
+    modeName.draggable = false;
     modeName.title = mode.isBuiltIn ? (chrome.i18n.getMessage('builtInModeCannotRename') || 'Built-in modes cannot be renamed.') : (chrome.i18n.getMessage('clickToRename') || 'Click to rename');
+    modeName.addEventListener('dragstart', (e) => e.preventDefault());
     modeName.addEventListener('blur', async (e) => {
       if (mode.isBuiltIn) return;
       const newName = (e.target as HTMLElement).textContent?.trim() || '';
-      const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+      const targetMode = settingsState.customModes.find(m => m.id === mode.id);
       if (targetMode && newName && newName !== targetMode.name) {
         targetMode.name = newName;
-        mode.name = newName; // 更新本地对象以保持一致性
-        await saveSettings({ enhancementModes: settingsState.enhancementModes });
-        notifyUpdate(mode.id);
+        await saveCustomModesState(mode.id);
       } else {
         (e.target as HTMLElement).textContent = mode.name;
       }
@@ -195,16 +225,12 @@ const renderModesUI = () => {
     deleteBtn.onclick = async () => {
       if (confirm(chrome.i18n.getMessage('deleteModeConfirm', [mode.name]))) {
         const deletedModeId = mode.id;
-        settingsState.enhancementModes = settingsState.enhancementModes.filter(m => m.id !== deletedModeId);
+        settingsState.customModes = settingsState.customModes.filter(m => m.id !== deletedModeId);
+        const shouldPersistSelectedModeId = settingsState.selectedModeId === deletedModeId;
         if (settingsState.selectedModeId === deletedModeId) {
           settingsState.selectedModeId = 'builtin-mode-a'; // 回退到默认模式
         }
-        renderModesUI();
-        await saveSettings({
-          enhancementModes: settingsState.enhancementModes,
-          selectedModeId: settingsState.selectedModeId
-        });
-        notifyUpdate(deletedModeId);
+        await saveCustomModesState(deletedModeId, shouldPersistSelectedModeId);
       }
     };
 
@@ -274,13 +300,11 @@ const renderModesUI = () => {
           effectItem.classList.remove('drag-over');
           if (draggedModeId !== mode.id || draggedEffectIndex === null || draggedEffectIndex === index) return;
 
-          const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
-          if (targetMode && !targetMode.isBuiltIn) {
+          const targetMode = settingsState.customModes.find(m => m.id === mode.id);
+          if (targetMode) {
             const [movedEffect] = targetMode.effects.splice(draggedEffectIndex, 1);
             targetMode.effects.splice(index, 0, movedEffect);
-            renderModesUI();
-            await saveSettings({ enhancementModes: settingsState.enhancementModes });
-            notifyUpdate(mode.id);
+            await saveCustomModesState(mode.id);
           }
         });
 
@@ -313,14 +337,12 @@ const renderModesUI = () => {
           btn.title = chrome.i18n.getMessage(dir === 'up' ? 'moveUp' : 'moveDown') || (dir === 'up' ? 'Move Up' : 'Move Down');
           btn.disabled = (dir === 'up' && index === 0) || (dir === 'down' && index === mode.effects.length - 1);
           btn.onclick = async () => {
-            const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
-            if (targetMode && !targetMode.isBuiltIn) {
+            const targetMode = settingsState.customModes.find(m => m.id === mode.id);
+            if (targetMode) {
               const newIndex = dir === 'up' ? index - 1 : index + 1;
               const [movedEffect] = targetMode.effects.splice(index, 1);
               targetMode.effects.splice(newIndex, 0, movedEffect);
-              renderModesUI();
-              await saveSettings({ enhancementModes: settingsState.enhancementModes });
-              notifyUpdate(mode.id);
+              await saveCustomModesState(mode.id);
             }
           };
           return btn;
@@ -331,12 +353,10 @@ const renderModesUI = () => {
         removeEffectBtn.className = 'btn-remove-effect';
         removeEffectBtn.title = chrome.i18n.getMessage('removeEffect') || 'Remove effect';
         removeEffectBtn.onclick = async () => {
-          const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
-          if (targetMode && !targetMode.isBuiltIn) {
+          const targetMode = settingsState.customModes.find(m => m.id === mode.id);
+          if (targetMode) {
             targetMode.effects.splice(index, 1);
-            renderModesUI();
-            await saveSettings({ enhancementModes: settingsState.enhancementModes });
-            notifyUpdate(mode.id);
+            await saveCustomModesState(mode.id);
           }
         };
 
@@ -370,13 +390,11 @@ const renderModesUI = () => {
       effectSelect.onchange = async (e) => {
         const selectedEffectId = (e.target as HTMLSelectElement).value;
         const effectToAdd = AVAILABLE_EFFECTS.find(ef => ef.id === selectedEffectId);
-        const targetMode = settingsState.enhancementModes.find(m => m.id === mode.id);
+        const targetMode = settingsState.customModes.find(m => m.id === mode.id);
 
-        if (targetMode && !targetMode.isBuiltIn && effectToAdd) {
+        if (targetMode && effectToAdd) {
           targetMode.effects.push(effectToAdd);
-          renderModesUI();
-          await saveSettings({ enhancementModes: settingsState.enhancementModes });
-          notifyUpdate(mode.id);
+          await saveCustomModesState(mode.id);
         }
         (e.target as HTMLSelectElement).value = defaultOption.value; // 重置下拉菜单
       };
@@ -390,6 +408,8 @@ const renderModesUI = () => {
     if (expandedModeIds.has(mode.id)) {
       card.classList.remove('collapsed');
     }
+
+    updateCardDraggableState();
 
     modesContainer.appendChild(card);
   });
@@ -578,15 +598,14 @@ const setupEventListeners = () => {
 
   // --- 模式监听器 ---
   addModeBtn.addEventListener('click', async () => {
-    const newMode: EnhancementMode = {
+    const newMode: CustomMode = {
       id: `custom-${Date.now()}`,
       name: chrome.i18n.getMessage('newCustomModeName') || 'New Custom Mode',
       isBuiltIn: false,
       effects: [],
     };
-    settingsState.enhancementModes.unshift(newMode);
-    renderModesUI();
-    await saveSettings({ enhancementModes: settingsState.enhancementModes });
+    settingsState.customModes.unshift(newMode);
+    await saveCustomModesState(newMode.id);
   });
 
   // --- 白名单监听器 ---
@@ -605,8 +624,7 @@ const setupEventListeners = () => {
 
   // --- 模式导入/导出监听器 ---
   exportModesBtn.addEventListener('click', () => {
-    const customModes = settingsState.enhancementModes.filter(mode => !mode.isBuiltIn);
-    downloadJSON(customModes, 'anime4k-modes.json');
+    downloadJSON(settingsState.customModes, 'anime4k-modes.json');
   });
 
   importModesBtn.addEventListener('click', async () => {
@@ -634,12 +652,9 @@ const setupEventListeners = () => {
 
       // 同步自定义模式的效果
       const syncedNewModes = synchronizeEffectsForCustomModes(newModes);
-      const allCustomModes = [...settingsState.customModes, ...syncedNewModes];
-      settingsState.customModes = allCustomModes;
+      settingsState.customModes = [...settingsState.customModes, ...syncedNewModes];
 
-      renderModesUI();
-      await saveSettings({ customModes: settingsState.customModes });
-      notifyUpdate();
+      await saveCustomModesState();
       alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
     } catch (error) {
       if (error instanceof Error && error.message === 'No file selected') {
