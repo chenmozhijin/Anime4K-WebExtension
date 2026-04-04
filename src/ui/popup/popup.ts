@@ -192,11 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tabs[0]?.id) {
           chrome.tabs.sendMessage(tabs[0].id, {
             type: 'SETTINGS_UPDATED',
-            settings: {
-              selectedModeId,
-              targetResolution: selectedResolution,
-              performanceTier: currentTier,
-            }
+            modifiedModeId: selectedModeId,
           }, (response) => {
             if (chrome.runtime.lastError) {
               console.warn('Message send error:', chrome.runtime.lastError.message);

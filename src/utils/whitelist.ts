@@ -4,142 +4,183 @@
  */
 import { getSettings, saveSettings } from './settings';
 
-// 白名单规则接口
 export interface WhitelistRule {
-  pattern: string; // 通配符模式
+  pattern: string;
   enabled: boolean;
 }
 
-/**
- * 验证白名单规则语法
- * @param pattern 通配符模式
- */
+export interface CompiledWhitelistRule extends WhitelistRule {
+  normalizedPattern: string;
+  regex: RegExp;
+}
+
+const REGEX_ESCAPE_PATTERN = /[|\\{}()[\]^$+?.]/g;
+const WILDCARD_PLACEHOLDER = '__ANIME4K_WILDCARD__';
+
+export function normalizeWhitelistPattern(pattern: string): string {
+  return pattern.trim();
+}
+
+function compilePattern(pattern: string): RegExp {
+  const wildcardSafePattern = pattern.replace(/\*/g, WILDCARD_PLACEHOLDER);
+  const escapedPattern = wildcardSafePattern.replace(REGEX_ESCAPE_PATTERN, '\\$&');
+  const regexPattern = escapedPattern.replace(new RegExp(WILDCARD_PLACEHOLDER, 'g'), '.*');
+  return new RegExp(`^${regexPattern}$`, 'i');
+}
+
+function getUrlMatchTarget(url: string): string {
+  const parsedUrl = new URL(url);
+  return parsedUrl.hostname + parsedUrl.pathname;
+}
+
+function isCompiledWhitelistRule(rule: WhitelistRule | CompiledWhitelistRule): rule is CompiledWhitelistRule {
+  return 'regex' in rule;
+}
+
 export function validateRulePattern(pattern: string): boolean {
   try {
-    // 简单验证：不能为空且至少包含一个有效字符
-    return pattern.trim().length > 0;
+    return normalizeWhitelistPattern(pattern).length > 0;
   } catch {
     return false;
   }
 }
 
-/**
- * 检查URL是否匹配任何白名单规则
- * @param url 要检查的URL
- * @param rules 白名单规则数组
- */
-export function isUrlWhitelisted(url: string, rules: WhitelistRule[]): boolean {
-  if (!rules || rules.length === 0) return false;
-  
-  try {
-    const parsedUrl = new URL(url);
-    // 移除协议和查询参数
-    const baseUrl = parsedUrl.hostname + parsedUrl.pathname;
-    
-    const result = rules.some(rule => {
-      if (!rule.enabled) return false;
-      
-      // 将通配符模式转换为正则表达式
-      const regexPattern = rule.pattern
-        .replace(/\./g, '\\.')
-        .replace(/\*/g, '.*');
-        
-      // 创建不区分大小写的正则表达式
-      const regex = new RegExp(regexPattern, 'i');
-      const matchResult = regex.test(baseUrl);
-      
-      return matchResult;
+export function dedupeWhitelistRules(rules: WhitelistRule[]): WhitelistRule[] {
+  const dedupedRules = new Map<string, WhitelistRule>();
+
+  rules.forEach(rule => {
+    const normalizedPattern = normalizeWhitelistPattern(rule.pattern);
+    if (!normalizedPattern) {
+      return;
+    }
+
+    dedupedRules.set(normalizedPattern, {
+      pattern: normalizedPattern,
+      enabled: rule.enabled,
     });
-    
-    return result;
+  });
+
+  return Array.from(dedupedRules.values());
+}
+
+export function compileWhitelistRules(rules: WhitelistRule[]): CompiledWhitelistRule[] {
+  return dedupeWhitelistRules(rules)
+    .filter(rule => validateRulePattern(rule.pattern))
+    .map(rule => {
+      const normalizedPattern = normalizeWhitelistPattern(rule.pattern);
+      return {
+        ...rule,
+        pattern: normalizedPattern,
+        normalizedPattern,
+        regex: compilePattern(normalizedPattern),
+      };
+    });
+}
+
+export function isUrlWhitelisted(
+  url: string,
+  rules: ReadonlyArray<WhitelistRule | CompiledWhitelistRule>,
+): boolean {
+  if (rules.length === 0) {
+    return false;
+  }
+
+  try {
+    const baseUrl = getUrlMatchTarget(url);
+
+    return rules.some(rule => {
+      if (!rule.enabled) {
+        return false;
+      }
+
+      const compiledRule = isCompiledWhitelistRule(rule)
+        ? rule
+        : {
+          ...rule,
+          normalizedPattern: normalizeWhitelistPattern(rule.pattern),
+          regex: compilePattern(normalizeWhitelistPattern(rule.pattern)),
+        };
+
+      return compiledRule.regex.test(baseUrl);
+    });
   } catch (error) {
     console.error('[Whitelist] URL匹配失败:', error);
     return false;
   }
 }
 
-/**
- * 添加新规则到白名单
- * @param pattern 通配符模式
- * @param enabled 是否启用
- */
 export async function addWhitelistRule(pattern: string, enabled: boolean = true): Promise<void> {
+  const normalizedPattern = normalizeWhitelistPattern(pattern);
+  if (!validateRulePattern(normalizedPattern)) {
+    return;
+  }
+
   const { whitelist } = await getSettings();
-  const newRule: WhitelistRule = { pattern, enabled };
+  const existingWhitelist = whitelist || [];
+  const nextWhitelist = dedupeWhitelistRules([
+    ...existingWhitelist,
+    { pattern: normalizedPattern, enabled },
+  ]);
 
-  const newWhitelist = whitelist || [];
-
-  // 避免重复添加
-  if (!newWhitelist.some(r => r.pattern === pattern)) {
-    newWhitelist.push(newRule);
-    await saveSettings({ whitelist: newWhitelist });
-
-    // 通知白名单已更新
-    chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
+  if (nextWhitelist.length !== existingWhitelist.length) {
+    await saveSettings({ whitelist: nextWhitelist });
   }
 }
 
-/**
- * 删除白名单规则
- * @param pattern 要删除的规则模式
- */
 export async function removeWhitelistRule(pattern: string): Promise<void> {
   const { whitelist } = await getSettings();
+  const normalizedPattern = normalizeWhitelistPattern(pattern);
 
   if (whitelist) {
-    const newWhitelist = whitelist.filter(r => r.pattern !== pattern);
-    await saveSettings({ whitelist: newWhitelist });
-
-    // 通知白名单已更新
-    chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
+    const nextWhitelist = whitelist.filter(rule => normalizeWhitelistPattern(rule.pattern) !== normalizedPattern);
+    await saveSettings({ whitelist: dedupeWhitelistRules(nextWhitelist) });
   }
 }
 
-/**
- * 更新白名单规则
- * @param oldPattern 要更新的规则模式
- * @param update 更新内容（可以是新的启用状态或新的模式）
- */
 export async function updateWhitelistRule(oldPattern: string, update: boolean | string): Promise<void> {
   const { whitelist } = await getSettings();
+  const normalizedOldPattern = normalizeWhitelistPattern(oldPattern);
 
-  if (whitelist) {
-    const ruleIndex = whitelist.findIndex(r => r.pattern === oldPattern);
-    if (ruleIndex !== -1) {
-      if (typeof update === 'boolean') {
-        // 更新启用状态
-        whitelist[ruleIndex].enabled = update;
-      } else {
-        // 更新模式字符串
-        whitelist[ruleIndex].pattern = update;
-      }
-      await saveSettings({ whitelist });
-
-      // 通知白名单已更新
-      chrome.runtime.sendMessage({ type: 'WHITELIST_UPDATED' });
-    }
+  if (!whitelist) {
+    return;
   }
+
+  const nextWhitelist = whitelist.map(rule => ({
+    ...rule,
+    pattern: normalizeWhitelistPattern(rule.pattern),
+  }));
+
+  const ruleIndex = nextWhitelist.findIndex(rule => rule.pattern === normalizedOldPattern);
+  if (ruleIndex === -1) {
+    return;
+  }
+
+  if (typeof update === 'boolean') {
+    nextWhitelist[ruleIndex].enabled = update;
+  } else {
+    const normalizedUpdate = normalizeWhitelistPattern(update);
+    if (!validateRulePattern(normalizedUpdate)) {
+      return;
+    }
+    nextWhitelist[ruleIndex].pattern = normalizedUpdate;
+  }
+
+  await saveSettings({ whitelist: dedupeWhitelistRules(nextWhitelist) });
 }
 
-/**
- * 获取当前所有白名单规则
- */
 export async function getWhitelistRules(): Promise<WhitelistRule[]> {
   const settings = await getSettings();
-  return settings.whitelist || [];
+  return dedupeWhitelistRules(settings.whitelist || []);
 }
 
-/**
- * 设置默认白名单规则
- */
 export async function setDefaultWhitelist(): Promise<void> {
   const defaultRules = [
     { pattern: 'ani.gamer.com.tw/animeVideo.php', enabled: true },
-    { pattern: 'www.bilibili.com/bangumi/play/*', enabled: true }
+    { pattern: 'www.bilibili.com/bangumi/play/*', enabled: true },
   ];
 
   await saveSettings({
-    whitelist: defaultRules,
-    whitelistEnabled: false
+    whitelist: dedupeWhitelistRules(defaultRules),
+    whitelistEnabled: false,
   });
 }

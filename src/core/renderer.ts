@@ -64,6 +64,8 @@ export interface RendererOptions {
   canvas: HTMLCanvasElement;
   /** 要应用的增强效果数组 */
   effects: EnhancementEffect[];
+  /** 效果链的稳定签名 */
+  effectsSignature: string;
   /** 渲染的目标分辨率 */
   targetDimensions: Dimensions;
   /** 发生运行时错误时的回调函数 */
@@ -83,6 +85,7 @@ export class Renderer {
   private video: HTMLVideoElement;
   private canvas: HTMLCanvasElement;
   private effects: EnhancementEffect[];
+  private effectsSignature: string;
   private targetDimensions: Dimensions;
   private onError?: (error: Error) => void;
   private onFirstFrameRendered?: () => void;
@@ -128,6 +131,7 @@ export class Renderer {
     this.video = options.video;
     this.canvas = options.canvas;
     this.effects = options.effects;
+    this.effectsSignature = options.effectsSignature;
     this.targetDimensions = options.targetDimensions;
     this.onError = options.onError;
     this.onFirstFrameRendered = options.onFirstFrameRendered;
@@ -217,6 +221,7 @@ export class Renderer {
       await this.buildPipelines();
       await this.createRenderPipeline();
       this.createRenderBindGroup();
+      this.logGeometryState('Renderer initialized');
 
       // 启动渲染循环，尝试渲染第一帧并启动持续渲染
       this.renderFirstFrameAndStartLoop();
@@ -653,6 +658,7 @@ export class Renderer {
     this.createResources();
     await this.buildPipelines();
     this.createRenderBindGroup();
+    this.logGeometryState('Renderer source resized');
     console.log('[Anime4KWebExt] Renderer resized for source.');
   }
 
@@ -660,16 +666,23 @@ export class Renderer {
    * 根据用户设置（效果或目标分辨率）更新渲染器配置
    * @param options 包含新效果和目标尺寸的对象
    */
-  public async updateConfiguration(options: { effects: EnhancementEffect[], targetDimensions: Dimensions }): Promise<void> {
+  public async updateConfiguration(options: {
+    effects: EnhancementEffect[];
+    effectsSignature: string;
+    targetDimensions: Dimensions;
+    sourceDimensions: Dimensions;
+  }): Promise<void> {
     if (this.destroyed) return;
 
-    const { effects, targetDimensions } = options;
+    const { effects, effectsSignature, targetDimensions, sourceDimensions } = options;
 
-    // 使用JSON字符串比较来检测效果数组是否有实质性变化
-    const effectsChanged = JSON.stringify(this.effects) !== JSON.stringify(effects);
+    const effectsChanged = this.effectsSignature !== effectsSignature;
     const dimensionsChanged = this.targetDimensions.width !== targetDimensions.width || this.targetDimensions.height !== targetDimensions.height;
+    const sourceDimensionsChanged =
+      this.videoFrameTexture.width !== sourceDimensions.width
+      || this.videoFrameTexture.height !== sourceDimensions.height;
 
-    if (!effectsChanged && !dimensionsChanged) {
+    if (!effectsChanged && !dimensionsChanged && !sourceDimensionsChanged) {
       console.log('[Anime4KWebExt] Configuration unchanged, skipping pipeline rebuild.');
       return;
     }
@@ -682,11 +695,20 @@ export class Renderer {
     if (effectsChanged) {
       console.log('[Anime4KWebExt] Updating effects.');
       this.effects = effects;
+      this.effectsSignature = effectsSignature;
+    }
+
+    if (sourceDimensionsChanged) {
+      console.log(
+        `[Anime4KWebExt] Updating source dimensions to ${this.video.videoWidth}x${this.video.videoHeight}.`
+      );
+      this.createResources();
     }
 
     console.log('[Anime4KWebExt] Rebuilding pipeline due to configuration update.');
     await this.buildPipelines();
     this.createRenderBindGroup();
+    this.logGeometryState('Renderer configuration updated');
     console.log('[Anime4KWebExt] Renderer configuration updated.');
   }
 
@@ -696,11 +718,18 @@ export class Renderer {
    */
   public async updateVideoSource(newVideo: HTMLVideoElement): Promise<void> {
     console.log('[Anime4KWebExt] Renderer video source updated.');
+    this.video = newVideo;
+    this.logGeometryState('Renderer video source rebound');
+
+    if (newVideo.videoWidth <= 0 || newVideo.videoHeight <= 0) {
+      console.log('[Anime4KWebExt] New video metadata is not ready yet. Deferring source resize.');
+      return;
+    }
+
     if (newVideo.videoWidth !== this.videoFrameTexture.width || newVideo.videoHeight !== this.videoFrameTexture.height) {
       console.log('[Anime4KWebExt] Video dimensions changed on reattach. Updating renderer.');
       await this.handleSourceResize();
     }
-    this.video = newVideo;
   }
 
   /**
@@ -755,6 +784,7 @@ export class Renderer {
       await this.buildPipelines();
       await this.createRenderPipeline();
       this.createRenderBindGroup();
+      this.logGeometryState('Renderer recovered from device loss');
 
       // 重启渲染循环
       this.isRecovering = false;
@@ -801,5 +831,17 @@ export class Renderer {
     } catch (error) {
       console.error('[Anime4KWebExt] Error during renderer destruction:', error);
     }
+  }
+
+  private logGeometryState(context: string): void {
+    const canvasRect = this.canvas.getBoundingClientRect();
+    console.log(
+      `[Anime4KWebExt] ${context}: `
+      + `source=${this.video.videoWidth}x${this.video.videoHeight}, `
+      + `renderTarget=${this.targetDimensions.width}x${this.targetDimensions.height}, `
+      + `videoBox=${this.video.offsetWidth}x${this.video.offsetHeight}, `
+      + `canvasRect=${canvasRect.left.toFixed(2)},${canvasRect.top.toFixed(2)} `
+      + `${canvasRect.width.toFixed(2)}x${canvasRect.height.toFixed(2)}.`
+    );
   }
 }

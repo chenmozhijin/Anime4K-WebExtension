@@ -520,6 +520,15 @@ const renderAboutSectionUI = () => {
   }
 }
 
+const refreshUiFromStorage = async () => {
+  settingsState = await getSettings();
+  const localSettings = await getLocalSettings();
+  currentTier = localSettings.performanceTier;
+  renderModesUI();
+  renderRulesUI();
+  await renderGeneralSettingsUI();
+};
+
 const setupEventListeners = () => {
   // --- 常规设置监听器 ---
   crossOriginFixToggle.addEventListener('change', async (e) => {
@@ -702,18 +711,34 @@ const setupEventListeners = () => {
 
   // --- 消息监听器 ---
   chrome.runtime.onMessage.addListener(async (message) => {
-    if (message.type === 'WHITELIST_UPDATED') {
-      // 重新获取设置以从扩展的其他部分获取最新的白名单
-      settingsState = await getSettings();
-      renderRulesUI();
-    } else if (message.type === 'SETTINGS_UPDATED') {
+    if (message.type === 'SETTINGS_UPDATED') {
       // 重新获取设置和本地设置以更新档位和效果链显示
-      settingsState = await getSettings();
-      const localSettings = await getLocalSettings();
-      currentTier = localSettings.performanceTier;
-      renderModesUI();
+      await refreshUiFromStorage();
       console.log('[Options] Settings updated, tier:', currentTier);
     }
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'sync' && areaName !== 'local') {
+      return;
+    }
+
+    const relevantKeys = [
+      'selectedModeId',
+      'targetResolutionSetting',
+      'whitelistEnabled',
+      'whitelist',
+      'customModes',
+      'enableCrossOriginFix',
+      'performanceTier',
+      'gpuBenchmarkResult',
+    ];
+
+    if (!Object.keys(changes).some(key => relevantKeys.includes(key))) {
+      return;
+    }
+
+    void refreshUiFromStorage();
   });
 };
 
