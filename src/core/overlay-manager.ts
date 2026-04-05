@@ -1,6 +1,9 @@
 import { ANIME4K_BUTTON_CLASS } from '../constants';
+import { createLogger } from '../utils/logger';
+import { getRenderableParent } from './video-discovery';
 
 type StyleMap = Record<string, string>;
+const logger = createLogger('overlay');
 
 /**
  * OverlayManager
@@ -30,10 +33,20 @@ export class OverlayManager {
   private readonly hostStyleCache: StyleMap = {};
   private readonly canvasHostStyleCache: StyleMap = {};
   private readonly canvasStyleCache: StyleMap = {};
+  private visibilityCheckFrameId: number | null = null;
+  private obscuredCheckStreak = 0;
 
   private attachmentStrategy: 'sibling' | 'body' = 'sibling';
   private readonly resizeObserver: ResizeObserver;
   private readonly mutationObserver: MutationObserver;
+
+  private getAttachmentParent(video: HTMLVideoElement = this.video): Element | ShadowRoot | null {
+    return getRenderableParent(video);
+  }
+
+  private isAttachedToShadowRoot(video: HTMLVideoElement = this.video): boolean {
+    return this.getAttachmentParent(video) instanceof ShadowRoot;
+  }
 
   public static create(video: HTMLVideoElement): OverlayManager {
     const slotId = OverlayManager.getOrCreateSlotId(video);
@@ -51,7 +64,7 @@ export class OverlayManager {
     this.host.style.position = 'absolute';
     this.host.style.pointerEvents = 'none';
     this.host.style.zIndex = '2147483646';
-    this.video.parentElement?.insertBefore(this.host, this.video);
+    this.getAttachmentParent()?.insertBefore(this.host, this.video);
 
     this.shadowRoot = this.host.attachShadow({ mode: 'closed' });
     this.button = this.createButtonInShadow();
@@ -67,7 +80,6 @@ export class OverlayManager {
     });
 
     this.scheduleLayoutUpdate(true);
-    window.setTimeout(() => this.detectAndSwitchStrategy(), 100);
   }
 
   public getButton(): HTMLButtonElement {
@@ -89,7 +101,7 @@ export class OverlayManager {
       this.canvasHost.setAttribute(OverlayManager.SLOT_MARKER_ATTR, this.slotId);
       this.canvasHost.style.pointerEvents = 'none';
       this.canvasHost.style.position = 'absolute';
-      this.video.parentElement?.insertBefore(this.canvasHost, this.video);
+      this.getAttachmentParent()?.insertBefore(this.canvasHost, this.video);
     }
 
     this.canvas = document.createElement('canvas');
@@ -111,8 +123,9 @@ export class OverlayManager {
       this.getCanvas();
     }
 
-    if (this.canvasHost && this.canvasHost.parentElement !== this.video.parentElement) {
-      this.video.parentElement?.insertBefore(this.canvasHost, this.video);
+    const attachmentParent = this.getAttachmentParent();
+    if (this.canvasHost && attachmentParent && this.canvasHost.parentNode !== attachmentParent) {
+      attachmentParent.insertBefore(this.canvasHost, this.video);
     }
 
     if (this.canvas && this.canvas.parentElement !== this.canvasHost) {
@@ -153,15 +166,18 @@ export class OverlayManager {
     this.video = newVideo;
     this.video.setAttribute(OverlayManager.SLOT_MARKER_ATTR, this.slotId);
 
-    if (this.attachmentStrategy === 'sibling') {
-      newVideo.parentElement?.insertBefore(this.host, newVideo);
-    } else {
+    const attachmentParent = this.getAttachmentParent(newVideo);
+    if (this.attachmentStrategy === 'body' && !this.isAttachedToShadowRoot(newVideo)) {
       OverlayManager.registerBodyStrategyInstance(this);
       document.body.appendChild(this.host);
+    } else {
+      this.unsubscribeBodyStrategy();
+      this.attachmentStrategy = 'sibling';
+      attachmentParent?.insertBefore(this.host, newVideo);
     }
 
     if (this.canvasHost) {
-      newVideo.parentElement?.insertBefore(this.canvasHost, newVideo);
+      attachmentParent?.insertBefore(this.canvasHost, newVideo);
     }
 
     this.resizeObserver.observe(newVideo);
@@ -182,6 +198,10 @@ export class OverlayManager {
     if (this.layoutFrameId !== null) {
       cancelAnimationFrame(this.layoutFrameId);
       this.layoutFrameId = null;
+    }
+    if (this.visibilityCheckFrameId !== null) {
+      cancelAnimationFrame(this.visibilityCheckFrameId);
+      this.visibilityCheckFrameId = null;
     }
 
     this.resizeObserver.disconnect();
@@ -209,6 +229,7 @@ export class OverlayManager {
     this.layoutFrameId = requestAnimationFrame(() => {
       this.layoutFrameId = null;
       this.updatePosition();
+      this.scheduleVisibilityCheck();
 
       if (this.shouldRevealButtonOnNextLayout) {
         this.showButtonTemporarily();
@@ -269,6 +290,38 @@ export class OverlayManager {
     }
   }
 
+  private scheduleVisibilityCheck(): void {
+    if (
+      this.destroyed
+      || this.attachmentStrategy === 'body'
+      || this.visibilityCheckFrameId !== null
+      || this.isAttachedToShadowRoot()
+    ) {
+      return;
+    }
+
+    this.visibilityCheckFrameId = requestAnimationFrame(() => {
+      this.visibilityCheckFrameId = null;
+
+      if (this.destroyed || this.attachmentStrategy === 'body') {
+        return;
+      }
+
+      if (!this.isButtonObscured()) {
+        this.obscuredCheckStreak = 0;
+        return;
+      }
+
+      this.obscuredCheckStreak += 1;
+      if (this.obscuredCheckStreak < 2) {
+        this.scheduleVisibilityCheck();
+        return;
+      }
+
+      this.switchToBodyStrategy();
+    });
+  }
+
   private buildHostStyles(videoStyle: CSSStyleDeclaration): StyleMap {
     if (this.attachmentStrategy === 'body') {
       this.ensureBodyStrategyHostParent();
@@ -314,30 +367,40 @@ export class OverlayManager {
     }
   }
 
-  private detectAndSwitchStrategy(): void {
+  private isButtonObscured(): boolean {
     if (this.destroyed) {
-      return;
+      return false;
     }
 
     const initialOpacity = this.button.style.opacity;
     this.button.style.opacity = '1';
 
     const rect = this.button.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      this.button.style.opacity = initialOpacity;
+      return false;
+    }
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     const elementAtPoint = document.elementFromPoint(centerX, centerY);
 
     this.button.style.opacity = initialOpacity;
 
+    const hitsOverlayHost = elementAtPoint === this.host || this.host.contains(elementAtPoint);
     const isButtonOrChild = this.button.contains(elementAtPoint) || this.button === elementAtPoint;
-    if (isButtonOrChild || this.attachmentStrategy === 'body') {
+    return !(isButtonOrChild || hitsOverlayHost);
+  }
+
+  private switchToBodyStrategy(): void {
+    if (this.destroyed || this.attachmentStrategy === 'body' || this.isAttachedToShadowRoot()) {
       return;
     }
 
-    console.log('Anime4K button is obscured. Switching to body attachment strategy.');
+    logger.debug('Overlay button is obscured twice. Switching to body attachment strategy.');
     this.attachmentStrategy = 'body';
     OverlayManager.registerBodyStrategyInstance(this);
     document.body.appendChild(this.host);
+    this.obscuredCheckStreak = 0;
     this.scheduleLayoutUpdate(true);
   }
 
@@ -428,7 +491,7 @@ export class OverlayManager {
       .querySelectorAll(`body > [${OverlayManager.HOST_MARKER_ATTR}]`)
       .forEach(host => {
         if (host.getAttribute(OverlayManager.SLOT_MARKER_ATTR) === slotId) {
-          console.warn('[Anime4KWebExt] Detected orphaned overlay host on body, removing:', host);
+          logger.debug('Removing orphaned overlay host from body.', host);
           host.remove();
         }
       });
@@ -438,7 +501,7 @@ export class OverlayManager {
     let sibling = video.previousElementSibling;
     while (sibling && OverlayManager.isMarkedSiblingForSlot(sibling, slotId)) {
       const previousSibling = sibling.previousElementSibling;
-      console.warn('[Anime4KWebExt] Detected orphaned overlay artifact, removing:', sibling);
+      logger.debug('Removing orphaned overlay sibling artifact.', sibling);
       sibling.remove();
       sibling = previousSibling;
     }

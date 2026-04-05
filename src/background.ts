@@ -1,107 +1,206 @@
 import { getSettings, getLocalSettings } from './utils/settings';
 import { ensureLatestConfig } from './utils/migration';
+import { createLogger } from './utils/logger';
 
 const RULESET_ID = 'ruleset_1';
+const logger = createLogger('background');
+
+export type BackgroundBootstrapDeps = {
+  chromeApi: typeof chrome;
+  getSettings: typeof getSettings;
+  getLocalSettings: typeof getLocalSettings;
+  ensureLatestConfig: typeof ensureLatestConfig;
+};
+
+type ResolvedBackgroundBootstrapDeps = BackgroundBootstrapDeps;
+
+export interface BackgroundBootstrap {
+  updateDNRuleset(): Promise<void>;
+  checkOnboarding(): Promise<boolean>;
+  checkBenchmarkCrash(): Promise<void>;
+  registerListeners(): void;
+  dispose(): void;
+}
+
+function resolveBackgroundDependencies(overrides: Partial<BackgroundBootstrapDeps> = {}): ResolvedBackgroundBootstrapDeps {
+  return {
+    chromeApi: chrome,
+    getSettings,
+    getLocalSettings,
+    ensureLatestConfig,
+    ...overrides,
+  };
+}
+
+export function createBackgroundBootstrap(
+  overrides: Partial<BackgroundBootstrapDeps> = {},
+): BackgroundBootstrap {
+  const deps = resolveBackgroundDependencies(overrides);
+  const { chromeApi } = deps;
+  let listenersRegistered = false;
+
+  async function updateDNRuleset(): Promise<void> {
+    const { enableCrossOriginFix } = await deps.getSettings();
+    if (enableCrossOriginFix) {
+      await chromeApi.declarativeNetRequest.updateEnabledRulesets({
+        enableRulesetIds: [RULESET_ID],
+      });
+      logger.info('Cross-origin DNR ruleset enabled.');
+    } else {
+      await chromeApi.declarativeNetRequest.updateEnabledRulesets({
+        disableRulesetIds: [RULESET_ID],
+      });
+      logger.info('Cross-origin DNR ruleset disabled.');
+    }
+  }
+
+  async function checkOnboarding(): Promise<boolean> {
+    const local = await deps.getLocalSettings();
+
+    if (!local.hasCompletedOnboarding) {
+      logger.info('Opening onboarding page.');
+      chromeApi.tabs.create({ url: chromeApi.runtime.getURL('onboarding.html') });
+      return true;
+    }
+
+    return false;
+  }
+
+  async function checkBenchmarkCrash(): Promise<void> {
+    const local = await chromeApi.storage.local.get(['_benchmarkInProgress', 'benchmarkRunState']);
+    const currentLocalSettings = await deps.getLocalSettings();
+    const benchmarkRunState = local.benchmarkRunState ?? currentLocalSettings.benchmarkRunState;
+
+    if (local._benchmarkInProgress || benchmarkRunState?.status === 'running') {
+      logger.warn('Previous benchmark did not finish. Falling back to performance tier.');
+
+      await chromeApi.storage.local.set({
+        performanceTier: 'performance',
+        benchmarkRunState: {
+          status: 'interrupted',
+          failureReason: 'crash',
+          fallbackTierApplied: 'performance',
+          startedAt: benchmarkRunState?.startedAt,
+          endedAt: Date.now(),
+        },
+      });
+      await chromeApi.storage.local.remove('_benchmarkInProgress');
+    }
+  }
+
+  const onStartup = async () => {
+    logger.info('Browser startup.');
+
+    await checkBenchmarkCrash();
+    await updateDNRuleset();
+  };
+
+  const onInstalled = async (details: chrome.runtime.InstalledDetails) => {
+    logger.info('Extension installed/updated:', details.reason);
+
+    await deps.ensureLatestConfig();
+    await checkBenchmarkCrash();
+    await updateDNRuleset();
+
+    if (details.reason === 'install' || details.reason === 'update') {
+      await checkOnboarding();
+    }
+  };
+
+  const onTabUpdated = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+    if (changeInfo.status === 'complete' && tab.url) {
+      chromeApi.tabs.sendMessage(tabId, {
+        type: 'URL_UPDATED',
+        url: tab.url,
+      }).catch(error => {
+        if (!error.message.includes('Receiving end does not exist')) {
+          logger.error(`Error sending URL_UPDATED message: ${error.message}`);
+        }
+      });
+    }
+  };
+
+  const onMessage = (request: { type?: string }) => {
+    if (request.type === 'SETTINGS_UPDATED') {
+      logger.debug('Settings updated, checking DNR rules.');
+      void updateDNRuleset();
+    } else if (request.type === 'OPEN_OPTIONS_PAGE') {
+      chromeApi.runtime.openOptionsPage();
+    } else if (request.type === 'OPEN_ONBOARDING') {
+      chromeApi.tabs.create({ url: chromeApi.runtime.getURL('onboarding.html') });
+    }
+  };
+
+  function registerListeners(): void {
+    if (listenersRegistered) {
+      return;
+    }
+
+    listenersRegistered = true;
+    chromeApi.runtime.onStartup.addListener(onStartup);
+    chromeApi.runtime.onInstalled.addListener(onInstalled);
+    chromeApi.tabs.onUpdated.addListener(onTabUpdated);
+    chromeApi.runtime.onMessage.addListener(onMessage);
+  }
+
+  function dispose(): void {
+    if (!listenersRegistered) {
+      return;
+    }
+
+    listenersRegistered = false;
+    chromeApi.runtime.onStartup.removeListener(onStartup);
+    chromeApi.runtime.onInstalled.removeListener(onInstalled);
+    chromeApi.tabs.onUpdated.removeListener(onTabUpdated);
+    chromeApi.runtime.onMessage.removeListener(onMessage);
+  }
+
+  return {
+    updateDNRuleset,
+    checkOnboarding,
+    checkBenchmarkCrash,
+    registerListeners,
+    dispose,
+  };
+}
+
+let defaultBackgroundBootstrap: BackgroundBootstrap | null = null;
+
+function getDefaultBackgroundBootstrap(): BackgroundBootstrap {
+  defaultBackgroundBootstrap ??= createBackgroundBootstrap();
+  return defaultBackgroundBootstrap;
+}
 
 /**
  * 根据当前设置更新 declarativeNetRequest 规则集。
  */
-async function updateDNRuleset() {
-  const { enableCrossOriginFix } = await getSettings();
-  if (enableCrossOriginFix) {
-    await chrome.declarativeNetRequest.updateEnabledRulesets({
-      enableRulesetIds: [RULESET_ID]
-    });
-    console.log('[Background] Cross-origin DNR ruleset enabled.');
-  } else {
-    await chrome.declarativeNetRequest.updateEnabledRulesets({
-      disableRulesetIds: [RULESET_ID]
-    });
-    console.log('[Background] Cross-origin DNR ruleset disabled.');
-  }
+export async function updateDNRuleset(): Promise<void> {
+  await getDefaultBackgroundBootstrap().updateDNRuleset();
 }
 
 /**
  * 检查是否需要打开引导页面
  */
-async function checkOnboarding(): Promise<boolean> {
-  const local = await getLocalSettings();
-
-  // 如果未完成引导，打开引导页
-  if (!local.hasCompletedOnboarding) {
-    console.log('[Background] Opening onboarding page...');
-    chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
-    return true;
-  }
-
-  return false;
+export async function checkOnboarding(): Promise<boolean> {
+  return getDefaultBackgroundBootstrap().checkOnboarding();
 }
 
 /**
  * 检查上次测试是否崩溃
  */
-async function checkBenchmarkCrash(): Promise<void> {
-  const local = await chrome.storage.local.get(['_benchmarkInProgress']);
-
-  if (local._benchmarkInProgress) {
-    console.warn('[Background] Previous benchmark may have crashed, using safe defaults');
-
-    await chrome.storage.local.set({
-      performanceTier: 'performance',
-      hasCompletedOnboarding: true,
-    });
-    await chrome.storage.local.remove('_benchmarkInProgress');
-  }
+export async function checkBenchmarkCrash(): Promise<void> {
+  await getDefaultBackgroundBootstrap().checkBenchmarkCrash();
 }
 
-// 后台服务脚本
+export function registerBackgroundListeners(): void {
+  getDefaultBackgroundBootstrap().registerListeners();
+}
 
-// 在启动时检查 DNR 规则
-chrome.runtime.onStartup.addListener(async () => {
-  console.log('[Background] Browser startup');
+export function resetBackgroundBootstrapForTests(): void {
+  defaultBackgroundBootstrap?.dispose();
+  defaultBackgroundBootstrap = null;
+}
 
-  await checkBenchmarkCrash();
-  await updateDNRuleset();
-});
-
-// 安装或更新时初始化
-chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Background] Extension installed/updated:', details.reason);
-
-  // 确保配置是最新版本（处理迁移）
-  await ensureLatestConfig();
-
-  await checkBenchmarkCrash();
-  await updateDNRuleset();
-
-  // 新安装或更新时，如果未完成引导则打开引导页
-  if (details.reason === 'install' || details.reason === 'update') {
-    await checkOnboarding();
-  }
-});
-
-// 监听标签页更新
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    chrome.tabs.sendMessage(tabId, {
-      type: 'URL_UPDATED',
-      url: tab.url
-    }).catch(error => {
-      if (!error.message.includes('Receiving end does not exist')) {
-        console.error(`[Background] Error sending URL_UPDATED message: ${error.message}`);
-      }
-    });
-  }
-});
-
-// 监听来自内容脚本/popup/options 的请求
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'SETTINGS_UPDATED') {
-    console.log('[Background] Settings updated, checking DNR rules...');
-    updateDNRuleset();
-  } else if (request.type === 'OPEN_OPTIONS_PAGE') {
-    chrome.runtime.openOptionsPage();
-  } else if (request.type === 'OPEN_ONBOARDING') {
-    chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
-  }
-});
+if (!globalThis.__ANIME4K_DISABLE_AUTO_BOOTSTRAP__) {
+  registerBackgroundListeners();
+}

@@ -293,6 +293,86 @@
   "ruleAlreadyExists": {
     "message": "This rule already exists."
   },
+  "dismiss": {
+    "message": "Dismiss"
+  },
+  "errorTechnicalDetails": {
+    "message": "Technical details"
+  },
+  "saveFailed": {
+    "message": "Failed to save settings"
+  },
+  "whitelistAddFailed": {
+    "message": "Failed to add whitelist rule"
+  },
+  "benchmarkInterrupted": {
+    "message": "The previous benchmark did not complete. You can run it again manually."
+  },
+  "benchmarkFallbackApplied": {
+    "message": "The previous benchmark was interrupted. Performance tier was reset to $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyRecommendation": {
+    "message": "Benchmark finished. Recommended tier: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyNow": {
+    "message": "Apply"
+  },
+  "benchmarkKeepCurrent": {
+    "message": "Keep current"
+  },
+  "benchmarkRecommendationApplied": {
+    "message": "Applied recommended tier: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkRecommendationSkipped": {
+    "message": "Kept current tier: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "gpuUnsupported": {
+    "message": "This browser or GPU environment does not support WebGPU enhancement."
+  },
+  "gpuOutOfMemory": {
+    "message": "GPU memory was exhausted while processing this video."
+  },
+  "gpuDeviceLost": {
+    "message": "The GPU device was lost and could not be recovered."
+  },
+  "gpuEffectCompilationValidationFailed": {
+    "message": "GPU pipeline validation failed while preparing the effect chain."
+  },
+  "gpuEffectCompilationFailed": {
+    "message": "Failed to prepare the GPU effect chain for this video."
+  },
+  "gpuEffectWarmupValidationFailed": {
+    "message": "GPU pipeline validation failed while warming up the effect chain."
+  },
+  "gpuEffectWarmupFailed": {
+    "message": "Failed to warm up the GPU effect chain for this video."
+  },
+  "gpuFrameSubmissionValidationFailed": {
+    "message": "GPU pipeline validation failed while rendering video frames."
+  },
+  "gpuFrameSubmissionFailed": {
+    "message": "The GPU failed while rendering video frames."
+  },
   "testFailed": {
     "message": "Test failed"
   },

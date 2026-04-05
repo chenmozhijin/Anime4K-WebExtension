@@ -293,6 +293,86 @@
   "ruleAlreadyExists": {
     "message": "Это правило уже существует."
   },
+  "dismiss": {
+    "message": "Закрыть"
+  },
+  "errorTechnicalDetails": {
+    "message": "Технические детали"
+  },
+  "saveFailed": {
+    "message": "Не удалось сохранить настройки"
+  },
+  "whitelistAddFailed": {
+    "message": "Не удалось добавить правило в белый список"
+  },
+  "benchmarkInterrupted": {
+    "message": "Предыдущий benchmark не был завершен. При необходимости его можно запустить снова вручную."
+  },
+  "benchmarkFallbackApplied": {
+    "message": "Предыдущий benchmark был прерван, уровень производительности сброшен до $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyRecommendation": {
+    "message": "Benchmark завершен. Рекомендуемый уровень: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyNow": {
+    "message": "Применить"
+  },
+  "benchmarkKeepCurrent": {
+    "message": "Оставить текущий"
+  },
+  "benchmarkRecommendationApplied": {
+    "message": "Применен рекомендуемый уровень: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkRecommendationSkipped": {
+    "message": "Сохранен текущий уровень: $tier$.",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "gpuUnsupported": {
+    "message": "Этот браузер или GPU-среда не поддерживает WebGPU-улучшение."
+  },
+  "gpuOutOfMemory": {
+    "message": "Во время обработки видео закончилась память GPU."
+  },
+  "gpuDeviceLost": {
+    "message": "Устройство GPU было потеряно и не удалось восстановить."
+  },
+  "gpuEffectCompilationValidationFailed": {
+    "message": "Сбой проверки GPU-конвейера при подготовке цепочки эффектов."
+  },
+  "gpuEffectCompilationFailed": {
+    "message": "Не удалось подготовить GPU-цепочку эффектов для этого видео."
+  },
+  "gpuEffectWarmupValidationFailed": {
+    "message": "Сбой проверки GPU-конвейера при прогреве цепочки эффектов."
+  },
+  "gpuEffectWarmupFailed": {
+    "message": "Не удалось прогреть GPU-цепочку эффектов для этого видео."
+  },
+  "gpuFrameSubmissionValidationFailed": {
+    "message": "Сбой проверки GPU-конвейера при рендеринге кадров видео."
+  },
+  "gpuFrameSubmissionFailed": {
+    "message": "GPU завершился с ошибкой при рендеринге кадров видео."
+  },
   "testFailed": {
     "message": "Тест не удался"
   },

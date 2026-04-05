@@ -3,14 +3,18 @@ import '../common-vars.css';
 import { BUILTIN_MODES, getSettings, saveSettings, synchronizeEffectsForCustomModes, getEffectsForMode, getLocalSettings, saveLocalSettings } from '../../utils/settings';
 import { WhitelistRule, validateRulePattern, removeWhitelistRule, updateWhitelistRule, addWhitelistRule } from '../../utils/whitelist';
 import { AVAILABLE_EFFECTS } from '../../utils/effects-map';
-import type { Anime4KWebExtSettings, EnhancementMode, EnhancementEffect, CustomMode, PerformanceTier } from '../../types';
+import type { Anime4KWebExtSettings, EnhancementMode, EnhancementEffect, CustomMode, PerformanceTier, EffectDescriptor } from '../../types';
 import { themeManager } from '../theme-manager';
 import { Sidebar } from './Sidebar';
-import { runGPUBenchmark } from '../../core/gpu-benchmark';
+import { createEffectReference } from '../../core/effects/reference';
+import { getEffectDescriptor, validateEffectChain } from '../../core/effects/registry';
+import { showNotice } from '../shared/notice';
+import { createLogger } from '../../utils/logger';
 
 // --- 全局状态 ---
 let settingsState: Anime4KWebExtSettings;
 let currentTier: PerformanceTier = 'balanced'; // 当前性能档位
+const logger = createLogger('options');
 
 // --- UI 元素 ---
 const modesContainer = document.getElementById('modes-container') as HTMLElement;
@@ -33,6 +37,34 @@ const gpuTierDisplay = document.getElementById('gpu-tier-display') as HTMLSpanEl
 let draggedElement: HTMLElement | null = null;
 let draggedModeId: string | null = null;
 let draggedEffectIndex: number | null = null;
+let activePromptNotice: HTMLElement | null = null;
+
+const replacePromptNotice = (notice: HTMLElement): HTMLElement => {
+  activePromptNotice?.remove();
+  activePromptNotice = notice;
+  return notice;
+};
+
+const getEffectLabel = (effect: EnhancementEffect): string => {
+  const descriptor = getEffectDescriptor(effect);
+  if (!descriptor) {
+    return effect.id;
+  }
+
+  return descriptor.backendId === 'anime4k'
+    ? descriptor.name
+    : `${descriptor.backendId}: ${descriptor.name}`;
+};
+
+const validateCustomMode = (mode: CustomMode): string | null => {
+  const validation = validateEffectChain(mode.effects);
+  return validation.valid ? null : validation.errors[0] ?? 'Invalid effect chain';
+};
+
+const getTierDisplayName = (tier: PerformanceTier): string => {
+  const tierKey = `tier${tier.charAt(0).toUpperCase()}${tier.slice(1)}` as const;
+  return chrome.i18n.getMessage(tierKey);
+};
 
 // --- 文件助手函数 ---
 const downloadJSON = (data: unknown, filename: string) => {
@@ -79,6 +111,16 @@ const rebuildEnhancementModes = () => {
 const saveCustomModesState = async (modifiedModeId?: string, persistSelectedModeId = false) => {
   rebuildEnhancementModes();
   renderModesUI();
+
+  if (modifiedModeId) {
+    const modifiedMode = settingsState.customModes.find(mode => mode.id === modifiedModeId);
+    if (modifiedMode) {
+      const validationError = validateCustomMode(modifiedMode);
+      if (validationError) {
+        throw new Error(validationError);
+      }
+    }
+  }
 
   const settingsToPersist: Partial<Anime4KWebExtSettings> = {
     customModes: settingsState.customModes,
@@ -194,7 +236,7 @@ const renderModesUI = () => {
     svg.appendChild(polyline);
 
     toggleBtn.appendChild(svg);
-    toggleBtn.title = chrome.i18n.getMessage('expandCollapse') || 'Expand/Collapse';
+    toggleBtn.title = chrome.i18n.getMessage('expandCollapse');
     toggleBtn.addEventListener('click', () => {
       card.classList.toggle('collapsed');
       updateCardDraggableState();
@@ -204,7 +246,9 @@ const renderModesUI = () => {
     modeName.textContent = mode.name;
     modeName.contentEditable = String(!mode.isBuiltIn);
     modeName.draggable = false;
-    modeName.title = mode.isBuiltIn ? (chrome.i18n.getMessage('builtInModeCannotRename') || 'Built-in modes cannot be renamed.') : (chrome.i18n.getMessage('clickToRename') || 'Click to rename');
+    modeName.title = mode.isBuiltIn
+      ? chrome.i18n.getMessage('builtInModeCannotRename')
+      : chrome.i18n.getMessage('clickToRename');
     modeName.addEventListener('dragstart', (e) => e.preventDefault());
     modeName.addEventListener('blur', async (e) => {
       if (mode.isBuiltIn) return;
@@ -219,19 +263,30 @@ const renderModesUI = () => {
     });
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
+    deleteBtn.textContent = chrome.i18n.getMessage('delete');
     deleteBtn.className = 'btn btn-danger';
     deleteBtn.style.display = mode.isBuiltIn ? 'none' : 'block';
     deleteBtn.onclick = async () => {
-      if (confirm(chrome.i18n.getMessage('deleteModeConfirm', [mode.name]))) {
-        const deletedModeId = mode.id;
-        settingsState.customModes = settingsState.customModes.filter(m => m.id !== deletedModeId);
-        const shouldPersistSelectedModeId = settingsState.selectedModeId === deletedModeId;
-        if (settingsState.selectedModeId === deletedModeId) {
-          settingsState.selectedModeId = 'builtin-mode-a'; // 回退到默认模式
-        }
-        await saveCustomModesState(deletedModeId, shouldPersistSelectedModeId);
-      }
+      replacePromptNotice(showNotice({
+        kind: 'warning',
+        message: chrome.i18n.getMessage('deleteModeConfirm', [mode.name]),
+        timeoutMs: 0,
+        actions: [
+          {
+            label: chrome.i18n.getMessage('delete'),
+            emphasis: 'danger',
+            onClick: async () => {
+              const deletedModeId = mode.id;
+              settingsState.customModes = settingsState.customModes.filter(m => m.id !== deletedModeId);
+              const shouldPersistSelectedModeId = settingsState.selectedModeId === deletedModeId;
+              if (settingsState.selectedModeId === deletedModeId) {
+                settingsState.selectedModeId = 'builtin-mode-a';
+              }
+              await saveCustomModesState(deletedModeId, shouldPersistSelectedModeId);
+            },
+          },
+        ],
+      }));
     };
 
     cardHeader.appendChild(toggleBtn);
@@ -244,7 +299,9 @@ const renderModesUI = () => {
     summary.className = 'mode-summary';
     // 根据模式类型获取效果链
     const modeEffects = getEffectsForMode(mode, currentTier);
-    summary.textContent = modeEffects.map((e: EnhancementEffect) => e.name.split('/').pop()).join(' > ') || (chrome.i18n.getMessage('noEffects') || 'No effects');
+    summary.textContent = modeEffects.length > 0
+      ? modeEffects.map((effect: EnhancementEffect) => getEffectLabel(effect)).join(' > ')
+      : chrome.i18n.getMessage('noEffects');
     card.appendChild(summary);
 
     // --- 卡片内容（展开时显示）---
@@ -257,7 +314,7 @@ const renderModesUI = () => {
       const effectItem = document.createElement('li');
       effectItem.className = 'effect-item';
       const effectName = document.createElement('span');
-      effectName.textContent = effect.name;
+      effectName.textContent = getEffectLabel(effect);
       effectItem.appendChild(effectName);
 
       if (!mode.isBuiltIn) {
@@ -334,7 +391,7 @@ const renderModesUI = () => {
 
           btn.appendChild(arrowSvg);
           btn.className = 'btn-move-effect';
-          btn.title = chrome.i18n.getMessage(dir === 'up' ? 'moveUp' : 'moveDown') || (dir === 'up' ? 'Move Up' : 'Move Down');
+          btn.title = chrome.i18n.getMessage(dir === 'up' ? 'moveUp' : 'moveDown');
           btn.disabled = (dir === 'up' && index === 0) || (dir === 'down' && index === mode.effects.length - 1);
           btn.onclick = async () => {
             const targetMode = settingsState.customModes.find(m => m.id === mode.id);
@@ -351,7 +408,7 @@ const renderModesUI = () => {
         const removeEffectBtn = document.createElement('button');
         removeEffectBtn.textContent = '×';
         removeEffectBtn.className = 'btn-remove-effect';
-        removeEffectBtn.title = chrome.i18n.getMessage('removeEffect') || 'Remove effect';
+        removeEffectBtn.title = chrome.i18n.getMessage('removeEffect');
         removeEffectBtn.onclick = async () => {
           const targetMode = settingsState.customModes.find(m => m.id === mode.id);
           if (targetMode) {
@@ -375,7 +432,7 @@ const renderModesUI = () => {
       addEffectContainer.className = 'add-effect-container';
       const effectSelect = document.createElement('select');
       const defaultOption = document.createElement('option');
-      defaultOption.textContent = chrome.i18n.getMessage('addEffect') || 'Add effect...';
+      defaultOption.textContent = chrome.i18n.getMessage('addEffect');
       defaultOption.disabled = true;
       defaultOption.selected = true;
       effectSelect.appendChild(defaultOption);
@@ -383,17 +440,29 @@ const renderModesUI = () => {
       AVAILABLE_EFFECTS.forEach(availEffect => {
         const option = document.createElement('option');
         option.value = availEffect.id;
-        option.textContent = availEffect.name;
+        option.textContent = availEffect.backendId === 'anime4k'
+          ? availEffect.name
+          : `${availEffect.backendId}: ${availEffect.name}`;
         effectSelect.appendChild(option);
       });
 
       effectSelect.onchange = async (e) => {
         const selectedEffectId = (e.target as HTMLSelectElement).value;
-        const effectToAdd = AVAILABLE_EFFECTS.find(ef => ef.id === selectedEffectId);
+        const effectToAdd = AVAILABLE_EFFECTS.find((ef: EffectDescriptor) => ef.id === selectedEffectId);
         const targetMode = settingsState.customModes.find(m => m.id === mode.id);
 
         if (targetMode && effectToAdd) {
-          targetMode.effects.push(effectToAdd);
+          targetMode.effects.push(createEffectReference(effectToAdd));
+          const validationError = validateCustomMode(targetMode);
+          if (validationError) {
+            targetMode.effects.pop();
+            showNotice({
+              kind: 'error',
+              message: validationError,
+            });
+            (e.target as HTMLSelectElement).value = defaultOption.value;
+            return;
+          }
           await saveCustomModesState(mode.id);
         }
         (e.target as HTMLSelectElement).value = defaultOption.value; // 重置下拉菜单
@@ -434,7 +503,10 @@ const renderRulesUI = () => {
         await updateWhitelistRule(rule.pattern, newPattern);
         rule.pattern = newPattern; // 更新状态
       } else {
-        alert(chrome.i18n.getMessage('invalidPattern') || 'Invalid pattern format');
+        showNotice({
+          kind: 'error',
+          message: chrome.i18n.getMessage('invalidPattern'),
+        });
         (e.target as HTMLInputElement).value = rule.pattern;
       }
     });
@@ -460,7 +532,7 @@ const renderRulesUI = () => {
 
     const actionsCell = document.createElement('td');
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = chrome.i18n.getMessage('delete') || 'Delete';
+    deleteBtn.textContent = chrome.i18n.getMessage('delete');
     deleteBtn.className = 'action-btn';
     deleteBtn.addEventListener('click', async () => {
       await removeWhitelistRule(rule.pattern);
@@ -503,10 +575,10 @@ const renderGeneralSettingsUI = async () => {
 
   // 档位显示
   const tierIcons: Record<PerformanceTier, string> = {
-    performance: chrome.i18n.getMessage('tierPerformance') ? `🚀 ${chrome.i18n.getMessage('tierPerformance')}` : '🚀 Fast',
-    balanced: chrome.i18n.getMessage('tierBalanced') ? `⚖️ ${chrome.i18n.getMessage('tierBalanced')}` : '⚖️ Balanced',
-    quality: chrome.i18n.getMessage('tierQuality') ? `🎨 ${chrome.i18n.getMessage('tierQuality')}` : '🎨 Quality',
-    ultra: chrome.i18n.getMessage('tierUltra') ? `🔬 ${chrome.i18n.getMessage('tierUltra')}` : '🔬 Ultra'
+    performance: `🚀 ${chrome.i18n.getMessage('tierPerformance')}`,
+    balanced: `⚖️ ${chrome.i18n.getMessage('tierBalanced')}`,
+    quality: `🎨 ${chrome.i18n.getMessage('tierQuality')}`,
+    ultra: `🔬 ${chrome.i18n.getMessage('tierUltra')}`,
   };
   if (gpuTierDisplay) {
     gpuTierDisplay.textContent = tierIcons[localSettings.performanceTier];
@@ -523,6 +595,13 @@ const renderAboutSectionUI = () => {
 const refreshUiFromStorage = async () => {
   settingsState = await getSettings();
   const localSettings = await getLocalSettings();
+  if (localSettings.benchmarkRunState.status === 'interrupted') {
+    showNotice({
+      kind: 'warning',
+      message: chrome.i18n.getMessage('benchmarkFallbackApplied', [getTierDisplayName('performance')]),
+      timeoutMs: 5000,
+    });
+  }
   currentTier = localSettings.performanceTier;
   renderModesUI();
   renderRulesUI();
@@ -548,7 +627,7 @@ const setupEventListeners = () => {
   if (runBenchmarkBtn) {
     runBenchmarkBtn.addEventListener('click', async () => {
       runBenchmarkBtn.disabled = true;
-      runBenchmarkBtn.textContent = chrome.i18n.getMessage('testing') || 'Testing...';
+      runBenchmarkBtn.textContent = chrome.i18n.getMessage('testing');
 
       // 显示进度条
       const progressContainer = document.getElementById('benchmark-progress');
@@ -557,51 +636,81 @@ const setupEventListeners = () => {
       if (progressContainer) progressContainer.style.display = 'block';
 
       try {
+        const { runGPUBenchmark } = await import('../../core/gpu-benchmark');
         const result = await runGPUBenchmark((progress) => {
           // 更新进度条
           if (progressFill) progressFill.style.width = `${progress.progress * 100}%`;
           if (progressText) {
             if (progress.completed) {
-              progressText.textContent = chrome.i18n.getMessage('testComplete') || 'Test complete!';
+              progressText.textContent = chrome.i18n.getMessage('testComplete');
             } else {
               // 将 tier 键名转换为国际化文本
               const tierKey = `tier${progress.tier.charAt(0).toUpperCase()}${progress.tier.slice(1)}` as const;
-              const tierName = chrome.i18n.getMessage(tierKey) || progress.tier;
-              progressText.textContent = chrome.i18n.getMessage('testingTier', [tierName]) || `Testing ${tierName}...`;
+              const tierName = chrome.i18n.getMessage(tierKey);
+              progressText.textContent = chrome.i18n.getMessage('testingTier', [tierName]);
             }
           }
         });
 
         // 询问用户是否应用推荐档位
         const tierNames: Record<PerformanceTier, string> = {
-          performance: chrome.i18n.getMessage('tierPerformance') ? `🚀 ${chrome.i18n.getMessage('tierPerformance')}` : '🚀 Fast',
-          balanced: chrome.i18n.getMessage('tierBalanced') ? `⚖️ ${chrome.i18n.getMessage('tierBalanced')}` : '⚖️ Balanced',
-          quality: chrome.i18n.getMessage('tierQuality') ? `🎨 ${chrome.i18n.getMessage('tierQuality')}` : '🎨 Quality',
-          ultra: chrome.i18n.getMessage('tierUltra') ? `🔬 ${chrome.i18n.getMessage('tierUltra')}` : '🔬 Ultra'
+          performance: `🚀 ${chrome.i18n.getMessage('tierPerformance')}`,
+          balanced: `⚖️ ${chrome.i18n.getMessage('tierBalanced')}`,
+          quality: `🎨 ${chrome.i18n.getMessage('tierQuality')}`,
+          ultra: `🔬 ${chrome.i18n.getMessage('tierUltra')}`,
         };
-        const confirmMessage = chrome.i18n.getMessage('confirmApplyTier', [tierNames[result.tier]])
-          || `Test complete! Recommended tier: ${tierNames[result.tier]}\n\nApply this tier?`;
-
-        if (confirm(confirmMessage)) {
-          await saveLocalSettings({
-            performanceTier: result.tier,
-            gpuBenchmarkResult: result,
-          });
-          currentTier = result.tier;
-          renderGeneralSettingsUI();
-          renderModesUI();
-          notifyUpdate(); // 通知所有渲染器更新
-        }
+        const previousTier = currentTier;
+        replacePromptNotice(showNotice({
+          kind: 'success',
+          message: chrome.i18n.getMessage('benchmarkApplyRecommendation', [tierNames[result.tier]]),
+          timeoutMs: 0,
+          actions: [
+            {
+              label: chrome.i18n.getMessage('benchmarkApplyNow'),
+              emphasis: 'primary',
+              onClick: async () => {
+                await saveLocalSettings({
+                  performanceTier: result.tier,
+                  gpuBenchmarkResult: result,
+                });
+                currentTier = result.tier;
+                await renderGeneralSettingsUI();
+                renderModesUI();
+                notifyUpdate();
+                showNotice({
+                  kind: 'success',
+                  message: chrome.i18n.getMessage('benchmarkRecommendationApplied', [tierNames[result.tier]]),
+                });
+              },
+            },
+            {
+              label: chrome.i18n.getMessage('benchmarkKeepCurrent'),
+              onClick: () => {
+                showNotice({
+                  kind: 'info',
+                  message: chrome.i18n.getMessage(
+                    'benchmarkRecommendationSkipped',
+                    [getTierDisplayName(previousTier)],
+                  ),
+                });
+              },
+            },
+          ],
+        }));
       } catch (error) {
-        console.error('Benchmark failed:', error);
+        logger.error('Benchmark failed:', error);
         const errorMsg = error instanceof Error ? error.message : String(error);
-        alert((chrome.i18n.getMessage('testFailed') || 'Test failed') + ': ' + errorMsg);
+        showNotice({
+          kind: 'error',
+          message: `${chrome.i18n.getMessage('testFailed')}: ${errorMsg}`,
+          timeoutMs: 7000,
+        });
       }
 
       // 隐藏进度条
       if (progressContainer) progressContainer.style.display = 'none';
       runBenchmarkBtn.disabled = false;
-      runBenchmarkBtn.textContent = chrome.i18n.getMessage('runTest') || 'Run Test';
+      runBenchmarkBtn.textContent = chrome.i18n.getMessage('runTest');
     });
   }
 
@@ -609,7 +718,7 @@ const setupEventListeners = () => {
   addModeBtn.addEventListener('click', async () => {
     const newMode: CustomMode = {
       id: `custom-${Date.now()}`,
-      name: chrome.i18n.getMessage('newCustomModeName') || 'New Custom Mode',
+      name: chrome.i18n.getMessage('newCustomModeName'),
       isBuiltIn: false,
       effects: [],
     };
@@ -622,7 +731,7 @@ const setupEventListeners = () => {
     const newPattern = '*.example.com/*';
     // 从 UI 端防止重复添加
     if (settingsState.whitelist.some(r => r.pattern === newPattern)) {
-      alert(chrome.i18n.getMessage('ruleAlreadyExists') || 'This rule already exists.');
+      showNotice({ kind: 'warning', message: chrome.i18n.getMessage('ruleAlreadyExists') });
       return;
     }
     await addWhitelistRule(newPattern, true);
@@ -646,7 +755,7 @@ const setupEventListeners = () => {
       const newModes: CustomMode[] = [];
       for (const mode of importedModes) {
         if (typeof mode !== 'object' || typeof mode.name !== 'string' || !Array.isArray((mode as any).effects)) {
-          console.warn('Skipping invalid mode object on import:', mode);
+          logger.warn('Skipping invalid mode object on import.', mode);
           continue;
         }
 
@@ -661,17 +770,23 @@ const setupEventListeners = () => {
 
       // 同步自定义模式的效果
       const syncedNewModes = synchronizeEffectsForCustomModes(newModes);
+      for (const mode of syncedNewModes) {
+        const validationError = validateCustomMode(mode);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+      }
       settingsState.customModes = [...settingsState.customModes, ...syncedNewModes];
 
       await saveCustomModesState();
-      alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
+      showNotice({ kind: 'success', message: chrome.i18n.getMessage('importSuccess') });
     } catch (error) {
       if (error instanceof Error && error.message === 'No file selected') {
-        console.log('File import cancelled.');
+        logger.debug('Mode import cancelled.');
         return;
       }
-      console.error('Import failed:', error);
-      alert(chrome.i18n.getMessage('importError') || 'Import failed: invalid format or file error.');
+      logger.error('Mode import failed:', error);
+      showNotice({ kind: 'error', message: chrome.i18n.getMessage('importError') });
     }
   });
 
@@ -691,21 +806,21 @@ const setupEventListeners = () => {
         if (typeof rule === 'object' && rule.pattern && typeof rule.pattern === 'string' && typeof rule.enabled === 'boolean' && validateRulePattern(rule.pattern)) {
           validRules.push(rule as WhitelistRule);
         } else {
-          console.warn('Skipping invalid whitelist rule on import:', rule);
+          logger.warn('Skipping invalid whitelist rule on import.', rule);
         }
       }
 
       settingsState.whitelist = validRules;
       await saveSettings({ whitelist: settingsState.whitelist });
       renderRulesUI();
-      alert(chrome.i18n.getMessage('importSuccess') || 'Import successful');
+      showNotice({ kind: 'success', message: chrome.i18n.getMessage('importSuccess') });
     } catch (error) {
       if (error instanceof Error && error.message === 'No file selected') {
-        console.log('File import cancelled.');
+        logger.debug('Whitelist import cancelled.');
         return;
       }
-      console.error('Import failed:', error);
-      alert(chrome.i18n.getMessage('importError') || 'Import failed: invalid format or file error.');
+      logger.error('Whitelist import failed:', error);
+      showNotice({ kind: 'error', message: chrome.i18n.getMessage('importError') });
     }
   });
 
@@ -714,7 +829,7 @@ const setupEventListeners = () => {
     if (message.type === 'SETTINGS_UPDATED') {
       // 重新获取设置和本地设置以更新档位和效果链显示
       await refreshUiFromStorage();
-      console.log('[Options] Settings updated, tier:', currentTier);
+      logger.debug('Settings updated.', { tier: currentTier });
     }
   });
 
@@ -756,11 +871,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sidebar = new Sidebar();
     sidebar.initialize();
   } catch (error) {
-    console.error('Failed to initialize sidebar:', error);
+    logger.error('Failed to initialize sidebar:', error);
   }
 
   if (!modesContainer || !addModeBtn || !importModesBtn || !exportModesBtn || !rulesContainer || !addRuleBtn || !importBtn || !exportBtn) {
-    console.error('Required UI elements not found. Aborting initialization.');
+    logger.error('Required UI elements not found. Aborting initialization.');
     return;
   }
 

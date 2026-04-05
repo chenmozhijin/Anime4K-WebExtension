@@ -1,182 +1,206 @@
 import './onboarding.css';
 import '../common-vars.css';
 import { saveLocalSettings, getLocalSettings } from '../../utils/settings';
-import { runGPUBenchmark, BenchmarkProgress } from '../../core/gpu-benchmark';
 import { themeManager } from '../theme-manager';
 import type { PerformanceTier, GPUBenchmarkResult } from '../../types';
+import type { BenchmarkProgress } from '../../core/gpu-benchmark';
+import { showNotice } from '../shared/notice';
+import { createLogger } from '../../utils/logger';
 
-// 档位显示名称
-const TIER_DISPLAY: Record<PerformanceTier, { icon: string; name: string }> = {
-    performance: { icon: '🚀', name: chrome.i18n.getMessage('tierPerformance') || 'Fast' },
-    balanced: { icon: '⚖️', name: chrome.i18n.getMessage('tierBalanced') || 'Balanced' },
-    quality: { icon: '🎨', name: chrome.i18n.getMessage('tierQuality') || 'Quality' },
-    ultra: { icon: '🔬', name: chrome.i18n.getMessage('tierUltra') || 'Ultra' },
-};
+const logger = createLogger('onboarding');
 
-let currentStep = 1;
+const TIER_DISPLAY = (): Record<PerformanceTier, { icon: string; name: string }> => ({
+  performance: { icon: '🚀', name: chrome.i18n.getMessage('tierPerformance') },
+  balanced: { icon: '⚖️', name: chrome.i18n.getMessage('tierBalanced') },
+  quality: { icon: '🎨', name: chrome.i18n.getMessage('tierQuality') },
+  ultra: { icon: '🔬', name: chrome.i18n.getMessage('tierUltra') },
+});
+
 let selectedTier: PerformanceTier = 'balanced';
 let benchmarkResult: GPUBenchmarkResult | null = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 初始化主题
-    themeManager.getTheme();
+  themeManager.getTheme();
+  applyI18n();
 
-    // 应用国际化
-    applyI18n();
+  const localSettings = await getLocalSettings();
+  selectedTier = localSettings.performanceTier;
 
-    // 获取元素
-    const startTestBtn = document.getElementById('start-test') as HTMLButtonElement;
-    const skipTestBtn = document.getElementById('skip-test') as HTMLButtonElement;
-    const confirmTierBtn = document.getElementById('confirm-tier') as HTMLButtonElement;
-    const finishBtn = document.getElementById('finish') as HTMLButtonElement;
-    const openOptionsBtn = document.getElementById('open-options') as HTMLButtonElement;
-    const tierButtons = document.querySelectorAll<HTMLButtonElement>('.tier-btn');
+  if (localSettings.benchmarkRunState.status === 'interrupted') {
+    showNotice({
+      kind: 'warning',
+      message: chrome.i18n.getMessage(
+        'benchmarkFallbackApplied',
+        [chrome.i18n.getMessage('tierPerformance')],
+      ),
+      timeoutMs: 5000,
+    });
+  }
 
-    // 步骤 1: GPU 测试
-    startTestBtn.addEventListener('click', async () => {
-        startTestBtn.disabled = true;
-        skipTestBtn.style.display = 'none';
+  const startTestBtn = document.getElementById('start-test') as HTMLButtonElement | null;
+  const skipTestBtn = document.getElementById('skip-test') as HTMLButtonElement | null;
+  const confirmTierBtn = document.getElementById('confirm-tier') as HTMLButtonElement | null;
+  const finishBtn = document.getElementById('finish') as HTMLButtonElement | null;
+  const openOptionsBtn = document.getElementById('open-options') as HTMLButtonElement | null;
+  const tierButtons = document.querySelectorAll<HTMLButtonElement>('.tier-btn');
 
-        const testStatus = document.getElementById('test-status')!;
-        const progressContainer = document.getElementById('progress-container')!;
-        const progressFill = document.getElementById('progress-fill')!;
-        const progressText = document.getElementById('progress-text')!;
+  if (!startTestBtn || !skipTestBtn || !confirmTierBtn || !finishBtn || !openOptionsBtn) {
+    logger.error('Required onboarding elements not found.');
+    return;
+  }
 
-        testStatus.style.display = 'none';
-        progressContainer.style.display = 'block';
+  startTestBtn.addEventListener('click', async () => {
+    startTestBtn.disabled = true;
+    skipTestBtn.style.display = 'none';
 
-        try {
-            benchmarkResult = await runGPUBenchmark((progress: BenchmarkProgress) => {
-                progressFill.style.width = `${progress.progress * 100}%`;
-                if (progress.completed) {
-                    progressText.textContent = chrome.i18n.getMessage('testComplete') || 'Test complete!';
-                } else {
-                    // 将 tier 键名转换为国际化文本
-                    const tierKey = `tier${progress.tier.charAt(0).toUpperCase()}${progress.tier.slice(1)}` as const;
-                    const tierName = chrome.i18n.getMessage(tierKey) || progress.tier;
-                    progressText.textContent = chrome.i18n.getMessage('testingTier', [tierName]) || `Testing ${tierName}...`;
-                }
-            });
+    const testStatus = document.getElementById('test-status') as HTMLElement | null;
+    const progressContainer = document.getElementById('progress-container') as HTMLElement | null;
+    const progressFill = document.getElementById('progress-fill') as HTMLElement | null;
+    const progressText = document.getElementById('progress-text') as HTMLElement | null;
 
-            selectedTier = benchmarkResult.tier;
+    if (testStatus) {
+      testStatus.style.display = 'none';
+    }
+    if (progressContainer) {
+      progressContainer.style.display = 'block';
+    }
 
-            // 保存结果
-            await saveLocalSettings({
-                performanceTier: selectedTier,
-                gpuBenchmarkResult: benchmarkResult,
-            });
-
-            // 更新结果显示
-            updateResultDisplay();
-
-            // 跳到步骤 2
-            goToStep(2);
-        } catch (error) {
-            console.error('Benchmark failed:', error);
-            progressText.textContent = chrome.i18n.getMessage('testFailedDefault') || 'Test failed. Using default settings.';
-            selectedTier = 'balanced';
-
-            await saveLocalSettings({ performanceTier: selectedTier });
-
-            setTimeout(() => goToStep(2), 2000);
+    try {
+      const { runGPUBenchmark } = await import('../../core/gpu-benchmark');
+      benchmarkResult = await runGPUBenchmark((progress: BenchmarkProgress) => {
+        if (progressFill) {
+          progressFill.style.width = `${progress.progress * 100}%`;
         }
-    });
+        if (progressText) {
+          if (progress.completed) {
+            progressText.textContent = chrome.i18n.getMessage('testComplete');
+          } else {
+            const tierKey = `tier${progress.tier.charAt(0).toUpperCase()}${progress.tier.slice(1)}` as const;
+            progressText.textContent = chrome.i18n.getMessage('testingTier', [chrome.i18n.getMessage(tierKey)]);
+          }
+        }
+      });
 
-    // 跳过测试
-    skipTestBtn.addEventListener('click', async () => {
-        selectedTier = 'balanced';
-        await saveLocalSettings({ performanceTier: selectedTier });
-        goToStep(2);
-    });
+      selectedTier = benchmarkResult.tier;
+      await saveLocalSettings({
+        performanceTier: selectedTier,
+        gpuBenchmarkResult: benchmarkResult,
+      });
 
-    // 档位选择
-    tierButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tier = btn.getAttribute('data-tier') as PerformanceTier;
-            selectedTier = tier;
-            updateTierButtons();
-        });
-    });
+      updateResultDisplay();
+      goToStep(2);
+    } catch (error) {
+      logger.error('Benchmark failed:', error);
+      if (progressText) {
+        progressText.textContent = chrome.i18n.getMessage('testFailedDefault');
+      }
+      selectedTier = 'balanced';
+      await saveLocalSettings({ performanceTier: selectedTier });
 
-    // 确认档位
-    confirmTierBtn.addEventListener('click', async () => {
-        await saveLocalSettings({
-            performanceTier: selectedTier,
-            hasCompletedOnboarding: true,
-        });
-        // 通知所有渲染器更新
-        chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED' });
-        goToStep(3);
-    });
+      showNotice({
+        kind: 'warning',
+        message: chrome.i18n.getMessage('benchmarkInterrupted'),
+        timeoutMs: 5000,
+      });
 
-    // 完成
-    finishBtn.addEventListener('click', () => {
-        window.close();
-    });
+      window.setTimeout(() => goToStep(2), 2000);
+    } finally {
+      startTestBtn.disabled = false;
+      skipTestBtn.style.display = '';
+    }
+  });
 
-    openOptionsBtn.addEventListener('click', () => {
-        chrome.runtime.openOptionsPage();
-        window.close();
+  skipTestBtn.addEventListener('click', async () => {
+    selectedTier = 'balanced';
+    await saveLocalSettings({ performanceTier: selectedTier });
+    goToStep(2);
+  });
+
+  tierButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedTier = btn.getAttribute('data-tier') as PerformanceTier;
+      updateTierButtons();
     });
+  });
+
+  confirmTierBtn.addEventListener('click', async () => {
+    await saveLocalSettings({
+      performanceTier: selectedTier,
+      hasCompletedOnboarding: true,
+    });
+    chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED' });
+    goToStep(3);
+  });
+
+  finishBtn.addEventListener('click', () => {
+    window.close();
+  });
+
+  openOptionsBtn.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+    window.close();
+  });
 });
 
 function applyI18n(): void {
-    document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (key) {
-            const message = chrome.i18n.getMessage(key);
-            if (message) el.textContent = message;
-        }
-    });
+  document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (!key) {
+      return;
+    }
+
+    const message = chrome.i18n.getMessage(key);
+    if (message) {
+      el.textContent = message;
+    }
+  });
 }
 
 function goToStep(step: number): void {
-    // 更新步骤指示器
-    document.querySelectorAll('.step').forEach((el, i) => {
-        el.classList.remove('active', 'completed');
-        if (i + 1 < step) el.classList.add('completed');
-        if (i + 1 === step) el.classList.add('active');
-    });
-
-    // 更新内容
-    document.querySelectorAll('.step-content').forEach((el, i) => {
-        el.classList.toggle('active', i + 1 === step);
-    });
-
-    currentStep = step;
-
-    if (step === 2) {
-        updateTierButtons();
+  document.querySelectorAll('.step').forEach((el, index) => {
+    el.classList.remove('active', 'completed');
+    if (index + 1 < step) {
+      el.classList.add('completed');
     }
+    if (index + 1 === step) {
+      el.classList.add('active');
+    }
+  });
+
+  document.querySelectorAll('.step-content').forEach((el, index) => {
+    el.classList.toggle('active', index + 1 === step);
+  });
+
+  if (step === 2) {
+    updateTierButtons();
+  }
 }
 
 function updateResultDisplay(): void {
-    const resultTier = document.getElementById('result-tier')!;
-    const resultDesc = document.getElementById('result-desc')!;
+  const resultTier = document.getElementById('result-tier');
+  const resultDesc = document.getElementById('result-desc');
+  if (!resultTier || !resultDesc) {
+    return;
+  }
 
-    const display = TIER_DISPLAY[selectedTier];
-    resultTier.textContent = `${display.icon} ${display.name}`;
+  const display = TIER_DISPLAY()[selectedTier];
+  resultTier.textContent = `${display.icon} ${display.name}`;
 
-    // 只有当选择的档位与测试推荐的档位一致时才显示推荐文本
-    if (benchmarkResult && selectedTier === benchmarkResult.tier) {
-        resultDesc.textContent = chrome.i18n.getMessage('resultDesc') || 'This tier is recommended based on your hardware.';
-        resultDesc.style.display = 'block';
-    } else if (benchmarkResult) {
-        // 用户选择了不同档位
-        resultDesc.textContent = chrome.i18n.getMessage('manuallySelected') || 'You have selected a different tier.';
-        resultDesc.style.display = 'block';
-    } else {
-        // 跳过了测试
-        resultDesc.textContent = chrome.i18n.getMessage('defaultTier') || 'Default tier selected.';
-        resultDesc.style.display = 'block';
-    }
+  if (benchmarkResult && selectedTier === benchmarkResult.tier) {
+    resultDesc.textContent = chrome.i18n.getMessage('resultDesc');
+  } else if (benchmarkResult) {
+    resultDesc.textContent = chrome.i18n.getMessage('manuallySelected');
+  } else {
+    resultDesc.textContent = chrome.i18n.getMessage('defaultTier');
+  }
+
+  resultDesc.style.display = 'block';
 }
 
 function updateTierButtons(): void {
-    document.querySelectorAll<HTMLButtonElement>('.tier-btn').forEach(btn => {
-        const tier = btn.getAttribute('data-tier');
-        btn.classList.toggle('active', tier === selectedTier);
-    });
+  document.querySelectorAll<HTMLButtonElement>('.tier-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-tier') === selectedTier);
+  });
 
-    updateResultDisplay();
+  updateResultDisplay();
 }

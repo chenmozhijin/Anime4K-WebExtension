@@ -55,10 +55,14 @@ module.exports = (env, argv) => {
             'css-loader'
           ],
         },
+        {
+          test: /\.wgsl$/,
+          type: 'asset/source',
+        },
       ],
     },
     resolve: {
-      extensions: ['.ts', '.js'],
+      extensions: ['.ts', '.js', '.wgsl'],
     },
     plugins: [
       new CleanWebpackPlugin(),

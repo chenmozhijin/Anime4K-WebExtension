@@ -22,8 +22,8 @@ function stableSerialize(value: unknown): string {
 export function createEffectSignature(effects: readonly EnhancementEffect[]): string {
   return effects.map(effect => stableSerialize({
     id: effect.id,
-    className: effect.className,
-    upscaleFactor: effect.upscaleFactor ?? null,
+    backendId: effect.backendId,
+    key: effect.key,
     params: effect.params ?? null,
   })).join('|');
 }

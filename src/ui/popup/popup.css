@@ -404,6 +404,14 @@ input:checked+.slider:before {
   animation: fadeIn 0.2s ease-out;
 }
 
+.save-status.warning {
+  color: #b26a00;
+}
+
+.save-status.error {
+  color: var(--error, #b3261e);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

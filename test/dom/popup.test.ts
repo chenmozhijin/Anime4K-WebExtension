@@ -1,0 +1,127 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { installChromeMock } from '../support/chrome';
+
+const popupHtml = readFileSync(resolve(process.cwd(), 'src/ui/popup/popup.html'), 'utf8');
+
+function setDocumentFromHtml(html: string): void {
+  const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
+  document.body.innerHTML = body;
+}
+
+async function flushPromises(times = 3): Promise<void> {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve();
+  }
+}
+
+describe('popup UI', () => {
+  it('initializes, saves settings, and handles whitelist/options actions', async () => {
+    vi.useFakeTimers();
+    setDocumentFromHtml(popupHtml);
+    const chromeMock = installChromeMock({
+      manifestVersion: '9.9.9',
+    });
+    const saveSettings = vi.fn().mockResolvedValue(undefined);
+    const saveLocalSettings = vi.fn().mockResolvedValue(undefined);
+    const addWhitelistRule = vi.fn().mockResolvedValue(undefined);
+    const setDefaultWhitelist = vi.fn().mockResolvedValue(undefined);
+    const showNotice = vi.fn(() => document.createElement('div'));
+
+    (chrome.tabs as any).query = vi.fn((_queryInfo: unknown, callback?: (tabs: chrome.tabs.Tab[]) => void) => {
+      const tabs = [{ id: 7, url: 'https://example.com/show/episode' } as chrome.tabs.Tab];
+      callback?.(tabs);
+      return Promise.resolve(tabs);
+    });
+    (chrome.tabs as any).sendMessage = vi.fn((_tabId: number, _message: unknown, callback?: (response?: any) => void) => {
+      const response = { status: 'SUCCESS', message: 'Applied now' };
+      callback?.(response);
+      return Promise.resolve(response);
+    });
+    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => undefined);
+
+    vi.doMock('../../src/utils/settings', () => ({
+      BUILTIN_MODES: [
+        { id: 'builtin-mode-a', name: 'Mode A' },
+        { id: 'builtin-mode-b', name: 'Mode B' },
+      ],
+      getSettings: vi.fn().mockResolvedValue({
+        enhancementModes: [{ id: 'builtin-mode-a', name: 'Mode A' }],
+        customModes: [{ id: 'custom-1', name: 'Custom Mode' }],
+        selectedModeId: 'builtin-mode-a',
+        targetResolutionSetting: 'x2',
+        whitelistEnabled: false,
+        whitelist: [{ pattern: 'example.com/*', enabled: true }],
+      }),
+      getLocalSettings: vi.fn().mockResolvedValue({
+        performanceTier: 'quality',
+        benchmarkRunState: { status: 'interrupted' },
+      }),
+      saveSettings,
+      saveLocalSettings,
+    }));
+    vi.doMock('../../src/utils/whitelist', () => ({
+      addWhitelistRule,
+      setDefaultWhitelist,
+    }));
+    vi.doMock('../../src/ui/theme-manager', () => ({
+      themeManager: {
+        getTheme: vi.fn(),
+      },
+    }));
+    vi.doMock('../../src/ui/shared/notice', () => ({
+      showNotice,
+    }));
+    vi.doMock('../../src/utils/logger', () => ({
+      createLogger: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
+    }));
+
+    await import('../../src/ui/popup/popup');
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    await flushPromises(6);
+
+    expect(document.getElementById('version-info')?.textContent).toBe('9.9.9');
+    expect(document.querySelectorAll('#mode-select option')).toHaveLength(3);
+    expect(document.querySelector('.tier-btn.active')?.getAttribute('data-tier')).toBe('quality');
+    expect(showNotice).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'warning',
+    }));
+
+    const modeSelect = document.getElementById('mode-select') as HTMLSelectElement;
+    const resolutionSelect = document.getElementById('resolution-select') as HTMLSelectElement;
+    modeSelect.value = 'builtin-mode-b';
+    resolutionSelect.value = '4k';
+
+    document.getElementById('save-settings')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(saveSettings).toHaveBeenCalledWith({
+      selectedModeId: 'builtin-mode-b',
+      targetResolutionSetting: '4k',
+    });
+    expect(saveLocalSettings).toHaveBeenCalledWith({ performanceTier: 'quality' });
+    expect((chrome.tabs.sendMessage as any)).toHaveBeenCalledWith(
+      7,
+      { type: 'SETTINGS_UPDATED', modifiedModeId: 'builtin-mode-b' },
+      expect.any(Function),
+    );
+    expect(document.querySelector('.save-status')?.textContent).toBe('Applied now');
+
+    document.getElementById('add-current-domain')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises(6);
+    expect(addWhitelistRule).toHaveBeenCalledWith('example.com/*');
+
+    document.getElementById('open-settings')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(chromeMock.__mock.openOptionsPageCalls).toHaveLength(1);
+
+    vi.runAllTimers();
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+});

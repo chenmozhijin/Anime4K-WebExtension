@@ -12,19 +12,18 @@ import type {
   CustomMode,
   EnhancementEffect,
   PerformanceTier,
-  BaseMode,
+  BenchmarkRunState,
 } from '../types';
-import { AVAILABLE_EFFECTS } from './effects-map';
-import { resolveEffectChain } from './effect-chain-templates';
+import { normalizeEffectReference, resolvePresetEffects } from '../core/effects/registry';
 
 // ===== 内置模式定义 =====
 export const BUILTIN_MODES: BuiltInMode[] = [
-  { id: 'builtin-mode-a', baseMode: 'A', name: 'Mode A', isBuiltIn: true },
-  { id: 'builtin-mode-b', baseMode: 'B', name: 'Mode B', isBuiltIn: true },
-  { id: 'builtin-mode-c', baseMode: 'C', name: 'Mode C', isBuiltIn: true },
-  { id: 'builtin-mode-aa', baseMode: 'A+A', name: 'Mode A+A', isBuiltIn: true },
-  { id: 'builtin-mode-bb', baseMode: 'B+B', name: 'Mode B+B', isBuiltIn: true },
-  { id: 'builtin-mode-ca', baseMode: 'C+A', name: 'Mode C+A', isBuiltIn: true },
+  { id: 'builtin-mode-a', baseMode: 'A', name: 'Mode A', backendId: 'anime4k', presetKey: 'A', isBuiltIn: true },
+  { id: 'builtin-mode-b', baseMode: 'B', name: 'Mode B', backendId: 'anime4k', presetKey: 'B', isBuiltIn: true },
+  { id: 'builtin-mode-c', baseMode: 'C', name: 'Mode C', backendId: 'anime4k', presetKey: 'C', isBuiltIn: true },
+  { id: 'builtin-mode-aa', baseMode: 'A+A', name: 'Mode A+A', backendId: 'anime4k', presetKey: 'A+A', isBuiltIn: true },
+  { id: 'builtin-mode-bb', baseMode: 'B+B', name: 'Mode B+B', backendId: 'anime4k', presetKey: 'B+B', isBuiltIn: true },
+  { id: 'builtin-mode-ca', baseMode: 'C+A', name: 'Mode C+A', backendId: 'anime4k', presetKey: 'C+A', isBuiltIn: true },
 ];
 
 // ===== 默认设置 =====
@@ -41,19 +40,19 @@ const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   performanceTier: 'balanced',
   gpuBenchmarkResult: null,
   hasCompletedOnboarding: false,
+  benchmarkRunState: {
+    status: 'idle',
+    fallbackTierApplied: null,
+  },
 };
 
 /**
  * 确保自定义模式中的效果与 AVAILABLE_EFFECTS 保持一致
  */
 export function synchronizeEffectsForCustomModes(modes: CustomMode[]): CustomMode[] {
-  const availableEffectsMap = new Map(
-    AVAILABLE_EFFECTS.map(e => [e.id, e])
-  );
-
   return modes.map(mode => {
-    const synchronizedEffects = mode.effects
-      .map(effectInMode => availableEffectsMap.get(effectInMode.id))
+    const synchronizedEffects = (mode.effects as unknown[])
+      .map(effectInMode => normalizeEffectReference(effectInMode))
       .filter((effect): effect is EnhancementEffect => !!effect);
 
     return { ...mode, effects: synchronizedEffects };
@@ -95,14 +94,31 @@ export async function getLocalSettings(): Promise<LocalSettings> {
       'gpuBenchmarkResult',
       'gpuAdapterInfo',
       'hasCompletedOnboarding',
+      'benchmarkRunState',
     ], (data) => {
       resolve({
         performanceTier: data.performanceTier ?? DEFAULT_LOCAL_SETTINGS.performanceTier,
         gpuBenchmarkResult: data.gpuBenchmarkResult ?? DEFAULT_LOCAL_SETTINGS.gpuBenchmarkResult,
         hasCompletedOnboarding: data.hasCompletedOnboarding ?? DEFAULT_LOCAL_SETTINGS.hasCompletedOnboarding,
+        benchmarkRunState: normalizeBenchmarkRunState(data.benchmarkRunState),
       });
     });
   });
+}
+
+function normalizeBenchmarkRunState(state: unknown): BenchmarkRunState {
+  if (!state || typeof state !== 'object') {
+    return { ...DEFAULT_LOCAL_SETTINGS.benchmarkRunState };
+  }
+
+  const candidate = state as Partial<BenchmarkRunState>;
+  return {
+    status: candidate.status ?? DEFAULT_LOCAL_SETTINGS.benchmarkRunState.status,
+    failureReason: candidate.failureReason,
+    fallbackTierApplied: candidate.fallbackTierApplied ?? null,
+    startedAt: candidate.startedAt,
+    endedAt: candidate.endedAt,
+  };
 }
 
 /**
@@ -179,6 +195,7 @@ export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Pr
     'performanceTier',
     'gpuBenchmarkResult',
     'hasCompletedOnboarding',
+    'benchmarkRunState',
   ];
 
   const syncSettings: Partial<SyncedSettings> = {};
@@ -215,10 +232,9 @@ export function getEffectsForMode(
   tier: PerformanceTier
 ): EnhancementEffect[] {
   if (mode.isBuiltIn) {
-    // 内置模式：根据档位动态解析
-    return resolveEffectChain((mode as BuiltInMode).baseMode, tier);
+    const builtInMode = mode as BuiltInMode;
+    return resolvePresetEffects(builtInMode.backendId, builtInMode.presetKey, tier);
   } else {
-    // 自定义模式：使用用户定义的效果链
     return (mode as CustomMode).effects;
   }
 }

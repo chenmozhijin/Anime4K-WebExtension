@@ -293,6 +293,86 @@
   "ruleAlreadyExists": {
     "message": "規則已存在。"
   },
+  "dismiss": {
+    "message": "關閉"
+  },
+  "errorTechnicalDetails": {
+    "message": "技術細節"
+  },
+  "saveFailed": {
+    "message": "儲存設定失敗"
+  },
+  "whitelistAddFailed": {
+    "message": "新增白名單規則失敗"
+  },
+  "benchmarkInterrupted": {
+    "message": "上次 benchmark 未完成，你可以手動重新執行。"
+  },
+  "benchmarkFallbackApplied": {
+    "message": "上次 benchmark 被中斷，效能檔位已回退到 $tier$。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyRecommendation": {
+    "message": "Benchmark 已完成，建議檔位：$tier$。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyNow": {
+    "message": "套用建議"
+  },
+  "benchmarkKeepCurrent": {
+    "message": "保留目前檔位"
+  },
+  "benchmarkRecommendationApplied": {
+    "message": "已套用建議檔位：$tier$。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkRecommendationSkipped": {
+    "message": "已保留目前檔位：$tier$。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "gpuUnsupported": {
+    "message": "目前瀏覽器或 GPU 環境不支援 WebGPU 增強。"
+  },
+  "gpuOutOfMemory": {
+    "message": "處理此影片時 GPU 記憶體已耗盡。"
+  },
+  "gpuDeviceLost": {
+    "message": "GPU 裝置已遺失，且無法恢復。"
+  },
+  "gpuEffectCompilationValidationFailed": {
+    "message": "準備效果鏈時發生 GPU 管線驗證失敗。"
+  },
+  "gpuEffectCompilationFailed": {
+    "message": "為此影片準備 GPU 效果鏈失敗。"
+  },
+  "gpuEffectWarmupValidationFailed": {
+    "message": "預熱效果鏈時發生 GPU 管線驗證失敗。"
+  },
+  "gpuEffectWarmupFailed": {
+    "message": "為此影片預熱 GPU 效果鏈失敗。"
+  },
+  "gpuFrameSubmissionValidationFailed": {
+    "message": "渲染影片影格時發生 GPU 管線驗證失敗。"
+  },
+  "gpuFrameSubmissionFailed": {
+    "message": "GPU 在渲染影片影格時失敗。"
+  },
   "testFailed": {
     "message": "測試失敗"
   },

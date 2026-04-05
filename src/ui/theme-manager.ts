@@ -2,8 +2,10 @@
  * Material Design 主题管理器
  * 负责主题切换和持久化
  */
+import { createLogger } from '../utils/logger';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
+const logger = createLogger('theme');
 
 export class ThemeManager {
   private static instance: ThemeManager;
@@ -71,7 +73,7 @@ export class ThemeManager {
       }
       this.applyTheme();
     } catch (error) {
-      console.warn('Failed to load theme from storage:', error);
+      logger.warn('Failed to load theme from storage.', error);
       this.applyTheme();
     }
   }
@@ -83,7 +85,7 @@ export class ThemeManager {
     try {
       await chrome.storage.sync.set({ theme: this.currentTheme });
     } catch (error) {
-      console.warn('Failed to save theme to storage:', error);
+      logger.warn('Failed to save theme to storage.', error);
     }
   }
 

@@ -3,6 +3,7 @@
  * 提供白名单规则匹配、验证和持久化功能
  */
 import { getSettings, saveSettings } from './settings';
+import { createLogger } from './logger';
 
 export interface WhitelistRule {
   pattern: string;
@@ -16,6 +17,7 @@ export interface CompiledWhitelistRule extends WhitelistRule {
 
 const REGEX_ESCAPE_PATTERN = /[|\\{}()[\]^$+?.]/g;
 const WILDCARD_PLACEHOLDER = '__ANIME4K_WILDCARD__';
+const logger = createLogger('whitelist');
 
 export function normalizeWhitelistPattern(pattern: string): string {
   return pattern.trim();
@@ -104,7 +106,7 @@ export function isUrlWhitelisted(
       return compiledRule.regex.test(baseUrl);
     });
   } catch (error) {
-    console.error('[Whitelist] URL匹配失败:', error);
+    logger.error('URL match failed.', error);
     return false;
   }
 }

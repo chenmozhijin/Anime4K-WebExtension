@@ -293,6 +293,86 @@
   "ruleAlreadyExists": {
     "message": "このルールは既に存在します。"
   },
+  "dismiss": {
+    "message": "閉じる"
+  },
+  "errorTechnicalDetails": {
+    "message": "技術詳細"
+  },
+  "saveFailed": {
+    "message": "設定の保存に失敗しました"
+  },
+  "whitelistAddFailed": {
+    "message": "ホワイトリスト ルールの追加に失敗しました"
+  },
+  "benchmarkInterrupted": {
+    "message": "前回の benchmark は完了しませんでした。必要なら手動で再実行できます。"
+  },
+  "benchmarkFallbackApplied": {
+    "message": "前回の benchmark は中断され、パフォーマンス階層は $tier$ に戻されました。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyRecommendation": {
+    "message": "Benchmark が完了しました。推奨階層: $tier$。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkApplyNow": {
+    "message": "適用"
+  },
+  "benchmarkKeepCurrent": {
+    "message": "現在の設定を維持"
+  },
+  "benchmarkRecommendationApplied": {
+    "message": "推奨階層 $tier$ を適用しました。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "benchmarkRecommendationSkipped": {
+    "message": "現在の階層 $tier$ を維持しました。",
+    "placeholders": {
+      "tier": {
+        "content": "$1"
+      }
+    }
+  },
+  "gpuUnsupported": {
+    "message": "このブラウザーまたは GPU 環境は WebGPU 強化に対応していません。"
+  },
+  "gpuOutOfMemory": {
+    "message": "この動画の処理中に GPU メモリが不足しました。"
+  },
+  "gpuDeviceLost": {
+    "message": "GPU デバイスが失われ、復旧できませんでした。"
+  },
+  "gpuEffectCompilationValidationFailed": {
+    "message": "エフェクト チェーン準備中に GPU パイプライン検証が失敗しました。"
+  },
+  "gpuEffectCompilationFailed": {
+    "message": "この動画の GPU エフェクト チェーンを準備できませんでした。"
+  },
+  "gpuEffectWarmupValidationFailed": {
+    "message": "エフェクト チェーンのウォームアップ中に GPU パイプライン検証が失敗しました。"
+  },
+  "gpuEffectWarmupFailed": {
+    "message": "この動画の GPU エフェクト チェーンをウォームアップできませんでした。"
+  },
+  "gpuFrameSubmissionValidationFailed": {
+    "message": "動画フレーム描画中に GPU パイプライン検証が失敗しました。"
+  },
+  "gpuFrameSubmissionFailed": {
+    "message": "動画フレームの描画中に GPU が失敗しました。"
+  },
   "testFailed": {
     "message": "テスト失敗"
   },

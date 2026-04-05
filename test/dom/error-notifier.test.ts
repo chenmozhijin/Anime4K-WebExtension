@@ -1,0 +1,48 @@
+import { describe, expect, it, vi } from 'vitest';
+import { installChromeMock } from '../support/chrome';
+import { EnhancerErrorNotifier } from '../../src/core/video-enhancer/error-notifier';
+
+describe('EnhancerErrorNotifier', () => {
+  it('renders notifications with technical details and dismiss controls', () => {
+    installChromeMock();
+    vi.useFakeTimers();
+    const notifier = new EnhancerErrorNotifier();
+    const validationError = new Error('WebGPU failed during effect compilation: [validation] bad bind group');
+    validationError.name = 'RendererRuntimeError';
+
+    notifier.present(validationError, 'render', {
+      enableCrossOriginFix: false,
+    });
+
+    const notification = document.querySelector('[data-anime4k-error-notification]');
+    expect(notification).not.toBeNull();
+    expect(notification?.textContent).toContain('extensionName');
+    expect(notification?.textContent).toContain('gpuEffectCompilationValidationFailed');
+    expect(notification?.querySelector('details')).not.toBeNull();
+
+    notification?.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('[data-anime4k-error-notification]')).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it('opens the options page for cross-origin guidance and clears existing notifications', () => {
+    const chromeMock = installChromeMock();
+    const notifier = new EnhancerErrorNotifier();
+    const error = new Error('Canvas has been tainted by cross-origin data.');
+    error.name = 'SecurityError';
+
+    notifier.present(error, 'enhance', {
+      enableCrossOriginFix: false,
+    });
+
+    const link = document.querySelector('[data-anime4k-error-notification] a');
+    expect(link).not.toBeNull();
+    link?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(chromeMock.__mock.runtimeMessages).toContainEqual({ type: 'OPEN_OPTIONS_PAGE' });
+
+    notifier.clear();
+    expect(document.querySelector('[data-anime4k-error-notification]')).toBeNull();
+  });
+});

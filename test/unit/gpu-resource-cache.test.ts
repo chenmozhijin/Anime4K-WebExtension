@@ -1,0 +1,98 @@
+import { describe, expect, it } from 'vitest';
+import {
+  createBindGroupChecked,
+  clearGpuResourceCache,
+  flushGpuResourceErrors,
+  getGpuResourceCacheStats,
+  getOrCreateComputePipeline,
+  getOrCreateRenderPipeline,
+  getOrCreateShaderModule,
+  subscribeGpuResourceErrors,
+} from '../../src/core/gpu-resource-cache';
+import { createWebGpuMock } from '../support/webgpu';
+
+describe('gpu resource cache', () => {
+  it('reuses shader and pipeline objects for stable keys', () => {
+    const { device } = createWebGpuMock();
+
+    const shaderA = getOrCreateShaderModule(device as unknown as GPUDevice, 'shader/a', () => ({
+      code: 'shader-a',
+    }));
+    const shaderB = getOrCreateShaderModule(device as unknown as GPUDevice, 'shader/a', () => ({
+      code: 'shader-b',
+    }));
+
+    const computeA = getOrCreateComputePipeline(device as unknown as GPUDevice, 'compute/a', () => ({
+      layout: 'auto',
+      compute: {
+        module: shaderA,
+        entryPoint: 'main',
+      },
+    }));
+    const computeB = getOrCreateComputePipeline(device as unknown as GPUDevice, 'compute/a', () => ({
+      layout: 'auto',
+      compute: {
+        module: shaderB,
+        entryPoint: 'main',
+      },
+    }));
+
+    const renderA = getOrCreateRenderPipeline(device as unknown as GPUDevice, 'render/a', () => ({
+      layout: 'auto',
+      vertex: {
+        module: shaderA,
+        entryPoint: 'main',
+      },
+      fragment: {
+        module: shaderA,
+        entryPoint: 'main',
+        targets: [{ format: 'rgba8unorm' }],
+      },
+    }));
+    const renderB = getOrCreateRenderPipeline(device as unknown as GPUDevice, 'render/a', () => ({
+      layout: 'auto',
+      vertex: {
+        module: shaderA,
+        entryPoint: 'main',
+      },
+      fragment: {
+        module: shaderA,
+        entryPoint: 'main',
+        targets: [{ format: 'rgba8unorm' }],
+      },
+    }));
+
+    const stats = getGpuResourceCacheStats(device as unknown as GPUDevice);
+    expect(shaderA).toBe(shaderB);
+    expect(computeA).toBe(computeB);
+    expect(renderA).toBe(renderB);
+    expect(stats.shaderHits).toBeGreaterThan(0);
+    expect(stats.pipelineHits).toBeGreaterThan(0);
+
+    clearGpuResourceCache(device as unknown as GPUDevice);
+  });
+
+  it('captures bind group validation errors through the shared wrapper', async () => {
+    const { device } = createWebGpuMock();
+    const errors: string[] = [];
+    const unsubscribe = subscribeGpuResourceErrors(device as unknown as GPUDevice, (error) => {
+      errors.push(`${error.source}:${error.message}`);
+    });
+
+    (device as unknown as { queueScopedError: (error: { name?: string; message?: string } | null) => void }).queueScopedError({
+      name: 'GPUValidationError',
+      message: 'mock bind group mismatch',
+    });
+
+    createBindGroupChecked(device as unknown as GPUDevice, 'test/bind-group', () => ({
+      layout: {} as GPUBindGroupLayout,
+      entries: [],
+    }));
+    await flushGpuResourceErrors(device as unknown as GPUDevice);
+
+    expect(errors).toEqual(['bind-group:test/bind-group:mock bind group mismatch']);
+
+    unsubscribe();
+    clearGpuResourceCache(device as unknown as GPUDevice);
+  });
+});

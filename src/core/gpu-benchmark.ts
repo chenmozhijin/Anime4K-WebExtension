@@ -3,8 +3,22 @@
  * 使用真实 Anime4K 效果进行测试
  */
 
-import type { PerformanceTier, GPUBenchmarkResult, EnhancementEffect } from '../types';
+import type {
+    PerformanceTier,
+    GPUBenchmarkResult,
+    EnhancementEffect,
+    BenchmarkFailureReason,
+} from '../types';
 import { resolveEffectChain } from '../utils/effect-chain-templates';
+import { compileEffectChain } from './effects/chain-compiler';
+import {
+    clearGpuResourceCache,
+    flushGpuResourceErrors,
+    subscribeGpuResourceErrors,
+    type GpuResourceError,
+} from './gpu-resource-cache';
+import { clearTexturePool } from './texture-pool';
+import { createLogger } from '../utils/logger';
 
 // 测试配置
 const TEST_TIMEOUT_MS = 20000; // 单个测试超时时间
@@ -13,6 +27,7 @@ const TEST_HEIGHT = 1080; // 测试输入高度
 const TARGET_WIDTH = 3840;  // 目标 4K
 const TARGET_HEIGHT = 2160;
 const TARGET_FRAME_TIME_24FPS = 1000 / 24; // 约 41.67ms
+const logger = createLogger('gpu-benchmark');
 
 export interface BenchmarkProgress {
     tier: string;
@@ -57,6 +72,94 @@ async function safeDestroyPipelines(device: GPUDevice, pipelines: any[]): Promis
             // 忽略单个管道销毁错误
         }
     }
+}
+
+function cleanupBenchmarkDevice(device: GPUDevice): void {
+    clearTexturePool(device);
+    clearGpuResourceCache(device);
+}
+
+interface BenchmarkGpuErrorMonitor {
+    reset(): void;
+    throwIfCaptured(stage: string): Promise<void>;
+    dispose(): void;
+}
+
+function createBenchmarkGpuErrorMonitor(device: GPUDevice): BenchmarkGpuErrorMonitor {
+    let capturedGpuErrors: GpuResourceError[] = [];
+    const unsubscribe = subscribeGpuResourceErrors(device, (error) => {
+        capturedGpuErrors.push(error);
+        logger.error(`GPU resource error from ${error.source}: ${error.message}`);
+    });
+
+    const boundUncapturedErrorHandler = (event: Event) => {
+        const gpuEvent = event as Event & {
+            error?: { name?: string; message?: string };
+            preventDefault?: () => void;
+        };
+        const message = gpuEvent.error?.message ?? 'Unknown uncaptured GPU error';
+        const kind = gpuEvent.error?.name === 'GPUValidationError'
+            ? 'validation'
+            : gpuEvent.error?.name === 'GPUInternalError'
+                ? 'internal'
+                : gpuEvent.error?.name === 'GPUOutOfMemoryError'
+                    ? 'out-of-memory'
+                    : 'unknown';
+
+        capturedGpuErrors.push({
+            source: 'uncapturederror',
+            message,
+            kind,
+        });
+
+        logger.error('Uncaptured GPU error:', gpuEvent.error ?? event);
+        gpuEvent.preventDefault?.();
+    };
+
+    const eventTargetDevice = device as GPUDevice & EventTarget;
+    if (typeof eventTargetDevice.addEventListener === 'function') {
+        eventTargetDevice.addEventListener('uncapturederror', boundUncapturedErrorHandler as EventListener);
+    }
+
+    return {
+        reset(): void {
+            capturedGpuErrors = [];
+        },
+        async throwIfCaptured(stage: string): Promise<void> {
+            await flushGpuResourceErrors(device);
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            if (capturedGpuErrors.length === 0) {
+                return;
+            }
+
+            const summary = capturedGpuErrors
+                .map(error => `[${error.kind}] ${error.source}: ${error.message}`)
+                .join(' | ');
+            capturedGpuErrors = [];
+            throw new Error(`WebGPU failed during ${stage}: ${summary}`);
+        },
+        dispose(): void {
+            unsubscribe();
+            if (typeof eventTargetDevice.removeEventListener === 'function') {
+                eventTargetDevice.removeEventListener('uncapturederror', boundUncapturedErrorHandler as EventListener);
+            }
+        },
+    };
+}
+
+function classifyBenchmarkFailure(error: unknown): BenchmarkFailureReason {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes('timeout')) {
+        return 'timeout';
+    }
+    if (message.includes('device lost') || message.includes('device loss')) {
+        return 'device-lost';
+    }
+    if (message.includes('validation') || message.includes('gpuvalidationerror')) {
+        return 'validation';
+    }
+    return 'crash';
 }
 
 /**
@@ -107,180 +210,205 @@ export async function runGPUBenchmark(
     let intentionalDestroy = false;
     device.lost.then((info) => {
         if (!intentionalDestroy) {
-            console.warn(`[GPUBenchmark] Device lost: ${info.reason} - ${info.message}`);
+            logger.warn(`Device lost: ${info.reason} - ${info.message}`);
         }
         deviceLost = true;
     });
+    const gpuErrorMonitor = createBenchmarkGpuErrorMonitor(device);
 
-    // 预先生成测试数据（复用于所有档位）
-    const testData = new Uint8Array(TEST_WIDTH * TEST_HEIGHT * 4);
-    for (let j = 0; j < testData.length; j += 4) {
-        testData[j] = Math.random() * 255;     // R
-        testData[j + 1] = Math.random() * 255; // G
-        testData[j + 2] = Math.random() * 255; // B
-        testData[j + 3] = 255;                 // A
-    }
+    const benchmarkStartedAt = Date.now();
+    await chrome.storage.local.set({
+        benchmarkRunState: {
+            status: 'running',
+            startedAt: benchmarkStartedAt,
+            fallbackTierApplied: null,
+        },
+        _benchmarkInProgress: true,
+    });
 
-    let recommendedTier: PerformanceTier = 'performance';
-
-    // 动态导入 anime4k-webgpu 模块
-    console.log('[GPUBenchmark] Loading anime4k-webgpu module...');
-    const Anime4K = await import('anime4k-webgpu');
-
-    console.log('[GPUBenchmark] Starting benchmark...');
-
-    // 全局预热阶段：使用 performance 效果链运行多帧，热身 GPU
-    console.log('[GPUBenchmark] Global warmup phase...');
-    {
-        const warmupTexture = device.createTexture({
-            size: [TEST_WIDTH, TEST_HEIGHT],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-        device.queue.writeTexture(
-            { texture: warmupTexture },
-            testData,
-            { bytesPerRow: TEST_WIDTH * 4, rowsPerImage: TEST_HEIGHT },
-            [TEST_WIDTH, TEST_HEIGHT]
-        );
-        await device.queue.onSubmittedWorkDone();
-
-        const warmupEffects = resolveEffectChain('A+A', 'performance');
-        await runEffectChainTest(device, warmupTexture, warmupEffects, Anime4K);
-        warmupTexture.destroy();
-        console.log('[GPUBenchmark] Global warmup complete');
-    }
-
-    // 渐进式测试：从 performance 到 ultra
-    for (let i = 0; i < tiers.length; i++) {
-        const tier = tiers[i];
-
-        // 检查设备是否仍然有效
-        if (deviceLost || !isDeviceValid(device)) {
-            console.warn(`[GPUBenchmark] Device lost before ${tier} test, stopping benchmark`);
-            break;
+    try {
+        // 预先生成测试数据（复用于所有档位）
+        const testData = new Uint8Array(TEST_WIDTH * TEST_HEIGHT * 4);
+        for (let j = 0; j < testData.length; j += 4) {
+            testData[j] = Math.random() * 255;     // R
+            testData[j + 1] = Math.random() * 255; // G
+            testData[j + 2] = Math.random() * 255; // B
+            testData[j + 3] = 255;                 // A
         }
 
-        onProgress?.({
-            tier,
-            progress: (i + 0.5) / tiers.length,
-            completed: false,
-        });
+        let recommendedTier: PerformanceTier = 'performance';
 
-        // 为每个档位测试创建独立的输入纹理
-        let inputTexture: GPUTexture;
-        try {
-            inputTexture = device.createTexture({
+        logger.info('Starting benchmark.');
+
+        // 全局预热阶段：使用 performance 效果链运行多帧，热身 GPU
+        logger.debug('Global warmup phase.');
+        {
+            const warmupTexture = device.createTexture({
                 size: [TEST_WIDTH, TEST_HEIGHT],
                 format: 'rgba8unorm',
                 usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
             });
-            device.queue.writeTexture(
-                { texture: inputTexture },
-                testData,
-                { bytesPerRow: TEST_WIDTH * 4, rowsPerImage: TEST_HEIGHT },
-                [TEST_WIDTH, TEST_HEIGHT]
-            );
-            // 等待纹理写入完成
-            await device.queue.onSubmittedWorkDone();
-        } catch (error) {
-            console.warn(`[GPUBenchmark] Failed to create texture for ${tier}:`, error);
-            break;
+            try {
+                device.queue.writeTexture(
+                    { texture: warmupTexture },
+                    testData,
+                    { bytesPerRow: TEST_WIDTH * 4, rowsPerImage: TEST_HEIGHT },
+                    [TEST_WIDTH, TEST_HEIGHT]
+                );
+                await device.queue.onSubmittedWorkDone();
+
+                const warmupEffects = resolveEffectChain('A+A', 'performance');
+                await runEffectChainTest(device, warmupTexture, warmupEffects, gpuErrorMonitor);
+                logger.debug('Global warmup complete.');
+            } finally {
+                warmupTexture.destroy();
+            }
         }
 
-        try {
-            // 设置崩溃恢复标记
-            await chrome.storage.local.set({ _benchmarkInProgress: true });
+        // 渐进式测试：从 performance 到 ultra
+        for (let i = 0; i < tiers.length; i++) {
+            const tier = tiers[i];
 
-            // 获取该档位的 Mode A+A 效果链
-            const effects = resolveEffectChain('A+A', tier);
-
-            // 运行测试
-            const { avgTime, maxTime } = await runWithTimeout(
-                runEffectChainTest(device, inputTexture, effects, Anime4K),
-                TEST_TIMEOUT_MS
-            );
-
-            // 清除崩溃标记
-            await chrome.storage.local.remove('_benchmarkInProgress');
-
-            scores[tier] = avgTime;
-            maxScores[tier] = maxTime;
-            console.log(`[GPUBenchmark] ${tier}: avg=${avgTime.toFixed(2)}ms, max=${maxTime.toFixed(2)}ms per frame`);
-
-            // 如果能在 24fps 内稳定完成，这个档位可用
-            // 要求：最大帧时间 < 目标帧时间，平均帧时间 < 目标帧时间 * 0.9
-            if (maxTime < TARGET_FRAME_TIME_24FPS && avgTime < TARGET_FRAME_TIME_24FPS * 0.9) {
-                recommendedTier = tier;
-            }
-
-            // 安全地销毁纹理
-            try {
-                await device.queue.onSubmittedWorkDone();
-                inputTexture.destroy();
-            } catch {
-                // 忽略销毁错误
-            }
-
-            // 如果当前档位太慢，跳过更重的档位
-            if (avgTime > TARGET_FRAME_TIME_24FPS * 2) {
-                console.log(`[GPUBenchmark] ${tier} too slow (${avgTime.toFixed(2)}ms), skipping heavier tiers`);
+            // 检查设备是否仍然有效
+            if (deviceLost || !isDeviceValid(device)) {
+                logger.warn(`Device lost before ${tier} test, stopping benchmark.`);
                 break;
             }
 
-        } catch (error) {
-            console.warn(`[GPUBenchmark] ${tier} failed:`, error);
-            await chrome.storage.local.remove('_benchmarkInProgress');
+            onProgress?.({
+                tier,
+                progress: (i + 0.5) / tiers.length,
+                completed: false,
+            });
+
+            // 为每个档位测试创建独立的输入纹理
+            let inputTexture: GPUTexture;
+            try {
+                inputTexture = device.createTexture({
+                    size: [TEST_WIDTH, TEST_HEIGHT],
+                    format: 'rgba8unorm',
+                    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+                });
+                device.queue.writeTexture(
+                    { texture: inputTexture },
+                    testData,
+                    { bytesPerRow: TEST_WIDTH * 4, rowsPerImage: TEST_HEIGHT },
+                    [TEST_WIDTH, TEST_HEIGHT]
+                );
+                // 等待纹理写入完成
+                await device.queue.onSubmittedWorkDone();
+            } catch (error) {
+                logger.warn(`Failed to create texture for ${tier}:`, error);
+                break;
+            }
 
             try {
-                inputTexture.destroy();
-            } catch {
-                // 忽略销毁错误
+                // 获取该档位的 Mode A+A 效果链
+                const effects = resolveEffectChain('A+A', tier);
+
+                // 运行测试
+                const { avgTime, maxTime } = await runWithTimeout(
+                    runEffectChainTest(device, inputTexture, effects, gpuErrorMonitor),
+                    TEST_TIMEOUT_MS
+                );
+
+                scores[tier] = avgTime;
+                maxScores[tier] = maxTime;
+                logger.info(`${tier}: avg=${avgTime.toFixed(2)}ms, max=${maxTime.toFixed(2)}ms per frame`);
+
+                // 如果能在 24fps 内稳定完成，这个档位可用
+                // 要求：最大帧时间 < 目标帧时间，平均帧时间 < 目标帧时间 * 0.9
+                if (maxTime < TARGET_FRAME_TIME_24FPS && avgTime < TARGET_FRAME_TIME_24FPS * 0.9) {
+                    recommendedTier = tier;
+                }
+
+                // 安全地销毁纹理
+                try {
+                    await device.queue.onSubmittedWorkDone();
+                    inputTexture.destroy();
+                } catch {
+                    // 忽略销毁错误
+                }
+
+                // 如果当前档位太慢，跳过更重的档位
+                if (avgTime > TARGET_FRAME_TIME_24FPS * 2) {
+                    logger.info(`${tier} too slow (${avgTime.toFixed(2)}ms), skipping heavier tiers.`);
+                    break;
+                }
+
+            } catch (error) {
+                logger.warn(`${tier} failed:`, error);
+
+                try {
+                    inputTexture.destroy();
+                } catch {
+                    // 忽略销毁错误
+                }
+
+                // 如果第一个档位（performance）就失败，直接抛出错误
+                if (i === 0) {
+                    throw error;
+                }
+                // 否则使用已成功测试的档位
+                break;
             }
 
-            // 如果第一个档位（performance）就失败，直接抛出错误
-            if (i === 0) {
-                intentionalDestroy = true;
-                device.destroy();
-                throw error;
-            }
-            // 否则使用已成功测试的档位
-            break;
+            onProgress?.({
+                tier,
+                progress: (i + 1) / tiers.length,
+                completed: false,
+            });
         }
 
+        // 如果没有任何档位成功测试（scores 全是 Infinity），抛出错误
+        if (scores.performance === Infinity) {
+            throw new Error('All benchmark tests failed');
+        }
+
+        const result: GPUBenchmarkResult = {
+            tier: recommendedTier,
+            scores,
+            maxScores,
+            timestamp: Date.now(),
+            adapterInfo,
+        };
+
         onProgress?.({
-            tier,
-            progress: (i + 1) / tiers.length,
-            completed: false,
+            tier: 'done',
+            progress: 1,
+            completed: true,
         });
-    }
 
-    // 如果没有任何档位成功测试（scores 全是 Infinity），抛出错误
-    if (scores.performance === Infinity) {
+        await chrome.storage.local.set({
+            benchmarkRunState: {
+                status: 'completed',
+                startedAt: benchmarkStartedAt,
+                endedAt: Date.now(),
+                fallbackTierApplied: null,
+            },
+            _benchmarkInProgress: false,
+        });
+
+        return result;
+    } catch (error) {
+        await chrome.storage.local.set({
+            benchmarkRunState: {
+                status: 'failed',
+                failureReason: deviceLost ? 'device-lost' : classifyBenchmarkFailure(error),
+                startedAt: benchmarkStartedAt,
+                endedAt: Date.now(),
+                fallbackTierApplied: null,
+            },
+            _benchmarkInProgress: false,
+        });
+        throw error;
+    } finally {
         intentionalDestroy = true;
+        await chrome.storage.local.remove('_benchmarkInProgress');
+        gpuErrorMonitor.dispose();
+        cleanupBenchmarkDevice(device);
         device.destroy();
-        throw new Error('All benchmark tests failed');
     }
-
-    // 清理资源
-    intentionalDestroy = true;
-    device.destroy();
-
-    const result: GPUBenchmarkResult = {
-        tier: recommendedTier,
-        scores,
-        maxScores,
-        timestamp: Date.now(),
-        adapterInfo,
-    };
-
-    onProgress?.({
-        tier: 'done',
-        progress: 1,
-        completed: true,
-    });
-
-    return result;
 }
 
 /**
@@ -291,144 +419,91 @@ async function runEffectChainTest(
     device: GPUDevice,
     inputTexture: GPUTexture,
     effects: EnhancementEffect[],
-    Anime4K: typeof import('anime4k-webgpu')
+    gpuErrorMonitor: BenchmarkGpuErrorMonitor,
 ): Promise<{ avgTime: number; maxTime: number }> {
-    // 构建管道
-    const pipelines: any[] = [];
-    let currentTexture: GPUTexture = inputTexture;
-    let curWidth = TEST_WIDTH;
-    let curHeight = TEST_HEIGHT;
-
-    // 动态获取 Downscale 类
-    const DownscaleClass = (Anime4K as Record<string, any>).Downscale;
-
-    // 预计算剩余放大倍数
-    const upscaleFactors = effects.map(e => e.upscaleFactor ?? 1);
-    const remainingUpscaleFactors = upscaleFactors.map((_, i) =>
-        upscaleFactors.slice(i + 1).reduce((acc, val) => acc * val, 1)
-    );
-
-    for (let i = 0; i < effects.length; i++) {
-        const effect = effects[i];
-        try {
-            const EffectClass = (Anime4K as Record<string, any>)[effect.className];
-            if (!EffectClass) {
-                console.warn(`[GPUBenchmark] Effect class not found: ${effect.className}`);
-                continue;
-            }
-
-            const pipeline = new EffectClass({
-                device,
-                inputTexture: currentTexture,
-                nativeDimensions: { width: curWidth, height: curHeight },
-                targetDimensions: { width: TARGET_WIDTH, height: TARGET_HEIGHT },
-            });
-            pipelines.push(pipeline);
-
-            // 更新当前纹理为此管道的输出
-            currentTexture = pipeline.getOutputTexture();
-
-            // 更新尺寸
-            const upscaleFactor = effect.upscaleFactor ?? 1;
-            if (upscaleFactor > 1) {
-                curWidth *= upscaleFactor;
-                curHeight *= upscaleFactor;
-
-                // 检查是否需要中间降采样（与 renderer.ts 保持一致）
-                const remainingFactor = remainingUpscaleFactors[i];
-                if (DownscaleClass && remainingFactor > 1) {
-                    const idealIntermediateWidth = TARGET_WIDTH / remainingFactor;
-                    const idealIntermediateHeight = TARGET_HEIGHT / remainingFactor;
-
-                    if (curWidth > idealIntermediateWidth * 1.1) {
-                        const intermediateDownscale = new DownscaleClass({
-                            device,
-                            inputTexture: currentTexture,
-                            targetDimensions: {
-                                width: Math.ceil(idealIntermediateWidth),
-                                height: Math.ceil(idealIntermediateHeight),
-                            },
-                        });
-                        pipelines.push(intermediateDownscale);
-                        currentTexture = intermediateDownscale.getOutputTexture();
-                        curWidth = Math.ceil(idealIntermediateWidth);
-                        curHeight = Math.ceil(idealIntermediateHeight);
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn(`[GPUBenchmark] Failed to create ${effect.className}:`, e);
-        }
-    }
+    gpuErrorMonitor.reset();
+    const compiledPlan = await compileEffectChain({
+        device,
+        inputTexture,
+        effects,
+        sourceDimensions: { width: TEST_WIDTH, height: TEST_HEIGHT },
+        targetDimensions: { width: TARGET_WIDTH, height: TARGET_HEIGHT },
+    });
+    await gpuErrorMonitor.throwIfCaptured('effect compilation');
+    const pipelines: any[] = compiledPlan.pipelines;
 
     if (pipelines.length === 0) {
         throw new Error('No valid pipelines created');
     }
 
-    // 预热：逐个效果进行预热，避免同时运行整个管道链导致内存压力过大
-    for (let pipelineIdx = 0; pipelineIdx < pipelines.length; pipelineIdx++) {
-        const pipeline = pipelines[pipelineIdx];
-        const commandEncoder = device.createCommandEncoder();
-        pipeline.pass(commandEncoder);
-        device.queue.submit([commandEncoder.finish()]);
-        await device.queue.onSubmittedWorkDone();
-    }
-
-    // 整体预热：运行完整管道链 4 帧
-    for (let warmup = 0; warmup < 4; warmup++) {
-        const commandEncoder = device.createCommandEncoder();
-        for (const pipeline of pipelines) {
+    try {
+        // 预热：逐个效果进行预热，避免同时运行整个管道链导致内存压力过大
+        for (let pipelineIdx = 0; pipelineIdx < pipelines.length; pipelineIdx++) {
+            const pipeline = pipelines[pipelineIdx];
+            const commandEncoder = device.createCommandEncoder();
             pipeline.pass(commandEncoder);
+            device.queue.submit([commandEncoder.finish()]);
+            await device.queue.onSubmittedWorkDone();
         }
-        device.queue.submit([commandEncoder.finish()]);
-        await device.queue.onSubmittedWorkDone();
-    }
+        await gpuErrorMonitor.throwIfCaptured('effect warmup');
 
-
-    // 正式测试：运行 120 帧，记录每帧时间
-    const testFrames = 120;
-    const frameTimes: number[] = [];
-
-    // 为避免 Firefox 下单帧同步 (onSubmittedWorkDone) 带来的巨大开销，
-    // 同时避免一次性提交过多帧导致 TDR (超时检测) 崩溃，
-    // 我们使用小批量提交 (Micro-batching) 的策略。
-    const BATCH_SIZE = 6;
-
-    for (let frame = 0; frame < testFrames; frame += BATCH_SIZE) {
-        const batchStart = performance.now();
-        const framesInBatch = Math.min(BATCH_SIZE, testFrames - frame);
-
-        for (let i = 0; i < framesInBatch; i++) {
+        // 整体预热：运行完整管道链 4 帧
+        for (let warmup = 0; warmup < 4; warmup++) {
             const commandEncoder = device.createCommandEncoder();
             for (const pipeline of pipelines) {
                 pipeline.pass(commandEncoder);
             }
             device.queue.submit([commandEncoder.finish()]);
+            await device.queue.onSubmittedWorkDone();
+        }
+        await gpuErrorMonitor.throwIfCaptured('effect warmup');
+
+        // 正式测试：运行 120 帧，记录每帧时间
+        const testFrames = 120;
+        const frameTimes: number[] = [];
+
+        // 为避免 Firefox 下单帧同步 (onSubmittedWorkDone) 带来的巨大开销，
+        // 同时避免一次性提交过多帧导致 TDR (超时检测) 崩溃，
+        // 我们使用小批量提交 (Micro-batching) 的策略。
+        const BATCH_SIZE = 6;
+
+        for (let frame = 0; frame < testFrames; frame += BATCH_SIZE) {
+            const batchStart = performance.now();
+            const framesInBatch = Math.min(BATCH_SIZE, testFrames - frame);
+
+            for (let i = 0; i < framesInBatch; i++) {
+                const commandEncoder = device.createCommandEncoder();
+                for (const pipeline of pipelines) {
+                    pipeline.pass(commandEncoder);
+                }
+                device.queue.submit([commandEncoder.finish()]);
+            }
+
+            // 等待当前批次完成
+            await device.queue.onSubmittedWorkDone();
+
+            const batchDuration = performance.now() - batchStart;
+            await gpuErrorMonitor.throwIfCaptured(`benchmark batch ${frame / BATCH_SIZE + 1}`);
+            const avgFrameTime = batchDuration / framesInBatch;
+
+            // 将平均帧时作为该批次每一帧的成绩
+            for (let i = 0; i < framesInBatch; i++) {
+                frameTimes.push(avgFrameTime);
+            }
         }
 
-        // 等待当前批次完成
-        await device.queue.onSubmittedWorkDone();
+        // 丢弃前 24 帧以消除预热偏差（着色器编译延迟、GPU 频率提升等）
+        const WARMUP_DISCARD_FRAMES = 24;
+        const stableFrameTimes = frameTimes.slice(WARMUP_DISCARD_FRAMES);
+        const totalTime = stableFrameTimes.reduce((a, b) => a + b, 0);
+        const avgTime = totalTime / stableFrameTimes.length;
+        const maxTime = Math.max(...stableFrameTimes);
 
-        const batchDuration = performance.now() - batchStart;
-        const avgFrameTime = batchDuration / framesInBatch;
-
-        // 将平均帧时作为该批次每一帧的成绩
-        for (let i = 0; i < framesInBatch; i++) {
-            frameTimes.push(avgFrameTime);
-        }
+        return { avgTime, maxTime };
+    } finally {
+        // 安全清理管道（等待同步后再销毁）
+        await safeDestroyPipelines(device, pipelines);
     }
-
-    // 丢弃前 24 帧以消除预热偏差（着色器编译延迟、GPU 频率提升等）
-    const WARMUP_DISCARD_FRAMES = 24;
-    const stableFrameTimes = frameTimes.slice(WARMUP_DISCARD_FRAMES);
-    const totalTime = stableFrameTimes.reduce((a, b) => a + b, 0);
-    const avgTime = totalTime / stableFrameTimes.length;
-    const maxTime = Math.max(...stableFrameTimes);
-
-    // 安全清理管道（等待同步后再销毁）
-    await safeDestroyPipelines(device, pipelines);
-
-    return { avgTime, maxTime };
 }
 
 /**

@@ -1,153 +1,135 @@
 /**
  * 配置迁移模块
- * 处理从 v1 配置格式到 v2 配置格式的迁移
+ * 将旧版 effect 结构迁移到 backend-aware effect references。
  */
 
 import type { CustomMode, EnhancementEffect, PerformanceTier } from '../types';
-import { AVAILABLE_EFFECTS } from './effects-map';
+import { normalizeEffectReference } from '../core/effects/registry';
+import { createLogger } from './logger';
 
-// v1 版本的模式定义（旧格式）
-interface V1EnhancementMode {
-    id: string;
-    name: string;
-    isBuiltIn: boolean;
-    effects: EnhancementEffect[];
+interface LegacyEnhancementMode {
+  id: string;
+  name: string;
+  isBuiltIn: boolean;
+  effects: unknown[];
 }
 
-// 配置版本
-const CURRENT_CONFIG_VERSION = 2;
+const CURRENT_CONFIG_VERSION = 3;
+const logger = createLogger('migration');
 
-/**
- * 检查是否需要迁移
- */
+function normalizeCustomModes(modes: unknown): CustomMode[] {
+  if (!Array.isArray(modes)) {
+    return [];
+  }
+
+  return modes.flatMap((mode): CustomMode[] => {
+    if (!mode || typeof mode !== 'object') {
+      return [];
+    }
+
+    const candidate = mode as Partial<CustomMode> & { effects?: unknown[] };
+    if (typeof candidate.id !== 'string' || typeof candidate.name !== 'string') {
+      return [];
+    }
+
+    const effects = (candidate.effects ?? [])
+      .map((effect) => normalizeEffectReference(effect))
+      .filter((effect): effect is EnhancementEffect => Boolean(effect));
+
+    return [{
+      id: candidate.id,
+      name: candidate.name,
+      isBuiltIn: false,
+      effects,
+    }];
+  });
+}
+
 export async function needsMigration(): Promise<boolean> {
-    const data = await chrome.storage.sync.get(['_configVersion', 'enhancementModes']);
-
-    // 如果已经是新版本，不需要迁移
-    if (data._configVersion >= CURRENT_CONFIG_VERSION) {
-        return false;
-    }
-
-    // 如果有旧的 enhancementModes 数据，需要迁移
-    if (data.enhancementModes) {
-        return true;
-    }
-
-    return false;
+  const data = await chrome.storage.sync.get(['_configVersion', 'enhancementModes', 'customModes']);
+  return (data._configVersion ?? 0) < CURRENT_CONFIG_VERSION
+    || Boolean(data.enhancementModes);
 }
 
-/**
- * 执行从 v1 到 v2 的迁移
- */
-export async function migrateV1ToV2(): Promise<void> {
-    console.log('[Migration] Starting v1 to v2 migration...');
+export async function migrateToLatest(): Promise<void> {
+  logger.info('Migrating configuration to v3.');
 
-    const syncData = await chrome.storage.sync.get([
-        'enhancementModes',
-        'selectedModeId',
-        'targetResolutionSetting',
-        'whitelistEnabled',
-        'whitelist',
-        'enableCrossOriginFix',
-    ]);
+  const syncData = await chrome.storage.sync.get([
+    '_configVersion',
+    'enhancementModes',
+    'customModes',
+    'selectedModeId',
+    'targetResolutionSetting',
+    'whitelistEnabled',
+    'whitelist',
+    'enableCrossOriginFix',
+  ]);
 
-    const oldModes = syncData.enhancementModes as V1EnhancementMode[] | undefined;
+  const legacyModes = syncData.enhancementModes as LegacyEnhancementMode[] | undefined;
+  const customModes = legacyModes
+    ? normalizeCustomModes(legacyModes.filter((mode) => !mode.isBuiltIn))
+    : normalizeCustomModes(syncData.customModes);
 
-    // 提取用户自定义模式（保留完整效果链）
-    const customModes: CustomMode[] = [];
-    if (oldModes) {
-        for (const mode of oldModes) {
-            if (!mode.isBuiltIn) {
-                // 同步效果定义，移除不再存在的效果
-                const syncedEffects = mode.effects
-                    .map(e => AVAILABLE_EFFECTS.find(ae => ae.id === e.id))
-                    .filter((e): e is EnhancementEffect => !!e);
+  await chrome.storage.sync.set({
+    customModes,
+    selectedModeId: syncData.selectedModeId || 'builtin-mode-a',
+    targetResolutionSetting: syncData.targetResolutionSetting || 'x2',
+    whitelistEnabled: syncData.whitelistEnabled ?? false,
+    whitelist: syncData.whitelist || [],
+    enableCrossOriginFix: syncData.enableCrossOriginFix ?? false,
+    _configVersion: CURRENT_CONFIG_VERSION,
+  });
 
-                customModes.push({
-                    id: mode.id,
-                    name: mode.name,
-                    isBuiltIn: false,
-                    effects: syncedEffects,
-                });
-            }
-        }
-    }
+  await chrome.storage.sync.remove('enhancementModes');
 
-    // 确定选中的模式 ID
-    let selectedModeId = syncData.selectedModeId || 'builtin-mode-a';
+  const localData = await chrome.storage.local.get([
+    'performanceTier',
+    'gpuBenchmarkResult',
+    'hasCompletedOnboarding',
+    'benchmarkRunState',
+  ]);
+  await chrome.storage.local.set({
+    performanceTier: (localData.performanceTier || 'balanced') as PerformanceTier,
+    gpuBenchmarkResult: localData.gpuBenchmarkResult ?? null,
+    hasCompletedOnboarding: localData.hasCompletedOnboarding ?? false,
+    benchmarkRunState: localData.benchmarkRunState ?? {
+      status: 'idle',
+      fallbackTierApplied: null,
+    },
+  });
+  await chrome.storage.local.remove('_benchmarkInProgress');
 
-    // 如果选中的是旧的内置模式，映射到新的 ID
-    const builtInModeMap: Record<string, string> = {
-        'builtin-mode-a': 'builtin-mode-a',
-        'builtin-mode-b': 'builtin-mode-b',
-        'builtin-mode-c': 'builtin-mode-c',
-        'builtin-mode-aa': 'builtin-mode-aa',
-        'builtin-mode-bb': 'builtin-mode-bb',
-        'builtin-mode-ca': 'builtin-mode-ca',
-    };
+  logger.info(`Migrated ${customModes.length} custom modes.`);
+}
 
-    if (builtInModeMap[selectedModeId]) {
-        selectedModeId = builtInModeMap[selectedModeId];
-    }
+export async function ensureLatestConfig(): Promise<void> {
+  if (await needsMigration()) {
+    await migrateToLatest();
+    return;
+  }
 
-    // 保存迁移后的数据
+  const syncData = await chrome.storage.sync.get(['_configVersion']);
+  if (!syncData._configVersion) {
     await chrome.storage.sync.set({
-        customModes,
-        selectedModeId,
-        targetResolutionSetting: syncData.targetResolutionSetting || 'x2',
-        whitelistEnabled: syncData.whitelistEnabled ?? false,
-        whitelist: syncData.whitelist || [],
-        enableCrossOriginFix: syncData.enableCrossOriginFix ?? false,
-        _configVersion: CURRENT_CONFIG_VERSION,
+      customModes: [],
+      selectedModeId: 'builtin-mode-a',
+      targetResolutionSetting: 'x2',
+      whitelistEnabled: false,
+      whitelist: [],
+      enableCrossOriginFix: false,
+      _configVersion: CURRENT_CONFIG_VERSION,
     });
 
-    // 清理旧数据
-    await chrome.storage.sync.remove('enhancementModes');
+    await chrome.storage.local.set({
+      performanceTier: 'balanced' as PerformanceTier,
+      gpuBenchmarkResult: null,
+      hasCompletedOnboarding: false,
+      benchmarkRunState: {
+        status: 'idle',
+        fallbackTierApplied: null,
+      },
+    });
 
-    // 设置默认本地设置
-    const localData = await chrome.storage.local.get(['performanceTier']);
-    if (!localData.performanceTier) {
-        await chrome.storage.local.set({
-            performanceTier: 'balanced' as PerformanceTier,
-            gpuBenchmarkResult: null,
-            gpuAdapterInfo: null,
-            hasCompletedOnboarding: false,
-        });
-    }
-
-    console.log('[Migration] v1 to v2 migration completed');
-    console.log(`[Migration] Migrated ${customModes.length} custom modes`);
-}
-
-/**
- * 确保配置是最新版本
- */
-export async function ensureLatestConfig(): Promise<void> {
-    const needs = await needsMigration();
-    if (needs) {
-        await migrateV1ToV2();
-    } else {
-        // 确保新字段存在（用于全新安装）
-        const syncData = await chrome.storage.sync.get(['_configVersion']);
-        if (!syncData._configVersion) {
-            await chrome.storage.sync.set({
-                customModes: [],
-                selectedModeId: 'builtin-mode-a',
-                targetResolutionSetting: 'x2',
-                whitelistEnabled: false,
-                whitelist: [],
-                enableCrossOriginFix: false,
-                _configVersion: CURRENT_CONFIG_VERSION,
-            });
-
-            await chrome.storage.local.set({
-                performanceTier: 'balanced' as PerformanceTier,
-                gpuBenchmarkResult: null,
-                gpuAdapterInfo: null,
-                hasCompletedOnboarding: false,
-            });
-
-            console.log('[Migration] Initialized new config with defaults');
-        }
-    }
+    logger.info('Initialized new config with defaults.');
+  }
 }

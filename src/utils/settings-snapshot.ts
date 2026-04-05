@@ -1,6 +1,7 @@
 import type { Anime4KWebExtSettings } from '../types';
 import { getSettings } from './settings';
 import { compileWhitelistRules, type CompiledWhitelistRule } from './whitelist';
+import { createLogger } from './logger';
 
 export interface SettingsSnapshot {
   settings: Anime4KWebExtSettings;
@@ -30,13 +31,14 @@ let initPromise: Promise<SettingsSnapshot> | null = null;
 let refreshPromise: Promise<SettingsSnapshot> | null = null;
 let storageListenerInstalled = false;
 const listeners = new Set<SettingsSnapshotListener>();
+const logger = createLogger('settings-snapshot');
 
 function notifyListeners(snapshot: SettingsSnapshot): void {
   listeners.forEach(listener => {
     try {
       listener(snapshot);
     } catch (error) {
-      console.error('[Anime4KWebExt] Settings snapshot listener failed:', error);
+      logger.error('Settings snapshot listener failed.', error);
     }
   });
 }

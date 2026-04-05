@@ -3,6 +3,8 @@ import { ANIME4K_APPLIED_ATTR } from '../constants';
 import type { Anime4KWebExtSettings } from '../types';
 import { stashEnhancer, findAndunstashEnhancer } from './enhancer-stash';
 import * as EnhancerMap from './enhancer-map';
+import { createLogger } from '../utils/logger';
+import { hasRenderableParent as hasRenderableVideoParent, walkVisibleVideos } from './video-discovery';
 
 type SettingsUpdateMessage = {
   type: string;
@@ -10,8 +12,12 @@ type SettingsUpdateMessage = {
 };
 
 type SettingsUpdateResponse = {
-  status: 'SUCCESS' | 'NO_ACTION' | 'ERROR';
+  status: 'SUCCESS' | 'NO_ACTION' | 'PARTIAL_SUCCESS' | 'ERROR';
   message: string;
+  updatedCount?: number;
+  failedCount?: number;
+  skippedCount?: number;
+  failedReasons?: string[];
 };
 
 const processedDocs = new Set<Document | ShadowRoot>();
@@ -19,6 +25,31 @@ const mediaEventsToWatch: ReadonlyArray<string> = ['loadedmetadata', 'play', 'pl
 
 let domObserver: MutationObserver | null = null;
 let beforeUnloadRegistered = false;
+const logger = createLogger('video-manager');
+
+function hasRenderableParent(videoEl: HTMLVideoElement): boolean {
+  return hasRenderableVideoParent(videoEl);
+}
+
+function shouldSkipRemovalCleanup(video: HTMLVideoElement, addedVideos: ReadonlySet<HTMLVideoElement>): boolean {
+  return addedVideos.has(video) && video.isConnected;
+}
+
+function processObservedVideoMutations(
+  addedVideos: ReadonlySet<HTMLVideoElement>,
+  removedVideos: ReadonlySet<HTMLVideoElement>,
+): void {
+  removedVideos.forEach(video => {
+    if (shouldSkipRemovalCleanup(video, addedVideos)) {
+      logger.debug('Skipping cleanup for reconnected video element.', video);
+      return;
+    }
+
+    cleanupVideoEnhancer(video);
+  });
+
+  addedVideos.forEach(video => processVideoElement(video, 'mutation-observer:batched-added'));
+}
 
 function cleanupVideoEnhancer(video: HTMLVideoElement): void {
   const enhancer = EnhancerMap.getEnhancer(video);
@@ -33,28 +64,28 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
   }
 
   EnhancerMap.dissociateEnhancer(video);
-  console.log('[Anime4KWebExt] Cleaned up or stashed enhancer for video:', video);
+  logger.debug('Cleaned up or stashed enhancer for video.', video);
 }
 
 export function processVideoElement(videoEl: HTMLVideoElement, source: string): void {
-  console.log(`[Anime4KWebExt] processVideoElement called from: ${source}`);
+  logger.debug(`processVideoElement called from: ${source}`);
 
   if (EnhancerMap.hasEnhancer(videoEl)) {
-    console.log(`[Anime4KWebExt] Enhancer already exists for this video. Skipping. Source: ${source}`);
+    logger.debug(`Enhancer already exists for this video. Skipping. Source: ${source}`);
     return;
   }
 
-  if (!videoEl.parentElement) {
-    console.log('[Anime4KWebExt] Video is not in the DOM, skipping enhancer creation for now.', videoEl);
+  if (!hasRenderableParent(videoEl)) {
+    logger.debug('Video is not in the DOM, skipping enhancer creation for now.', videoEl);
     return;
   }
 
   const stashedEnhancer = findAndunstashEnhancer(videoEl);
   if (stashedEnhancer) {
-    console.log('[Anime4KWebExt] Re-attaching stashed enhancer.');
+    logger.debug('Re-attaching stashed enhancer.');
     EnhancerMap.associateEnhancer(videoEl, stashedEnhancer);
     stashedEnhancer.reattach(videoEl).catch(err => {
-      console.error('[Anime4KWebExt] Failed to re-attach stashed enhancer:', err);
+      logger.error('Failed to re-attach stashed enhancer.', err);
       EnhancerMap.dissociateEnhancer(videoEl);
       stashedEnhancer.destroy();
     });
@@ -62,36 +93,27 @@ export function processVideoElement(videoEl: HTMLVideoElement, source: string): 
   }
 
   try {
-    console.log('[Anime4KWebExt] Creating new enhancer for video:', videoEl);
+    logger.debug('Creating new enhancer for video.', videoEl);
     const enhancer = VideoEnhancer.create(videoEl);
+    if (EnhancerMap.hasEnhancer(videoEl)) {
+      logger.warn('Detected duplicate enhancer creation attempt for the same video element. Discarding new instance.');
+      enhancer.destroy();
+      return;
+    }
     EnhancerMap.associateEnhancer(videoEl, enhancer);
-    console.log('[Anime4KWebExt] Associated new enhancer to video:', videoEl);
+    logger.debug('Associated new enhancer to video.', videoEl);
   } catch (error) {
-    console.error('Failed to create enhancer for video:', videoEl, error);
+    logger.error('Failed to create enhancer for video.', videoEl, error);
   }
 }
 
 function scanNodeTreeForVideos(root: ParentNode, visitor: (video: HTMLVideoElement) => void): void {
-  const visitElement = (element: Element) => {
-    if (element.tagName === 'VIDEO') {
-      visitor(element as HTMLVideoElement);
-    }
-
-    if (element.shadowRoot) {
-      processDoc(element.shadowRoot);
-      scanNodeTreeForVideos(element.shadowRoot, visitor);
-    }
-  };
-
-  if (root instanceof Element) {
-    visitElement(root);
-  }
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-  let currentNode: Node | null;
-  while ((currentNode = walker.nextNode())) {
-    visitElement(currentNode as Element);
-  }
+  walkVisibleVideos(root, {
+    onRoot: processDoc,
+    onVideo: video => {
+      visitor(video);
+    },
+  });
 }
 
 function collectVideosFromNode(node: Node, collector: Set<HTMLVideoElement>): void {
@@ -117,7 +139,7 @@ function processDoc(doc: Document | ShadowRoot): void {
     return;
   }
 
-  console.log('[Anime4KWebExt] Processing document/shadowRoot for media events:', doc);
+  logger.debug('Processing document/shadowRoot for media events.', doc);
   for (const eventName of mediaEventsToWatch) {
     doc.addEventListener(eventName, handleMediaEvent, { capture: true, passive: true });
   }
@@ -126,7 +148,7 @@ function processDoc(doc: Document | ShadowRoot): void {
 
 export function initializeOnPage(): void {
   if (domObserver) {
-    console.warn('[Anime4KWebExt] initializeOnPage called while already initialized. Ignoring.');
+    logger.warn('initializeOnPage called while already initialized. Ignoring.');
     return;
   }
 
@@ -150,8 +172,7 @@ export function setupDOMObserver(): MutationObserver {
       mutation.removedNodes.forEach(node => collectVideosFromNode(node, removedVideos));
     }
 
-    addedVideos.forEach(video => processVideoElement(video, 'mutation-observer:batched-added'));
-    removedVideos.forEach(cleanupVideoEnhancer);
+    processObservedVideoMutations(addedVideos, removedVideos);
   });
 
   observer.observe(document.documentElement ?? document, { childList: true, subtree: true });
@@ -163,30 +184,82 @@ export async function handleSettingsUpdate(
   settings: Anime4KWebExtSettings,
   sendResponse?: (response?: SettingsUpdateResponse) => void,
 ): Promise<SettingsUpdateResponse> {
-  console.log('Received settings update:', message);
+  logger.debug('Received settings update.', message);
 
   let updatedCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
+  const failedReasons: string[] = [];
   const videos = EnhancerMap.getAllManagedVideos();
 
   for (const videoElement of videos) {
     const enhancer = EnhancerMap.getEnhancer(videoElement);
-    if (enhancer && videoElement.getAttribute(ANIME4K_APPLIED_ATTR) === 'true') {
-      const shouldUpdate = !message.modifiedModeId || enhancer.getCurrentModeId() === message.modifiedModeId;
+    if (!enhancer || videoElement.getAttribute(ANIME4K_APPLIED_ATTR) !== 'true') {
+      skippedCount++;
+      continue;
+    }
 
-      if (shouldUpdate) {
-        try {
-          await enhancer.updateSettings(settings);
-          updatedCount++;
-        } catch (error) {
-          console.error('Error updating video settings:', error, videoElement);
-        }
+    const shouldUpdate = !message.modifiedModeId || enhancer.getCurrentModeId() === message.modifiedModeId;
+    if (!shouldUpdate) {
+      skippedCount++;
+      continue;
+    }
+
+    try {
+      await enhancer.updateSettings(settings);
+      updatedCount++;
+    } catch (error) {
+      failedCount++;
+      const reason = error instanceof Error ? error.message : String(error);
+      if (failedReasons.length < 3) {
+        failedReasons.push(reason);
+      }
+      logger.error('Error updating video settings.', error, videoElement);
+      if (failedCount === 1) {
+        logger.warn(`Renderer update failed for one or more videos: ${reason}`);
+      }
+      if (failedCount === 3) {
+        logger.warn('Additional video update failures suppressed for brevity.');
       }
     }
   }
 
-  const response: SettingsUpdateResponse = updatedCount > 0
-    ? { status: 'SUCCESS', message: `Updated ${updatedCount} videos.` }
-    : { status: 'NO_ACTION', message: 'No active instances needed an update.' };
+  let response: SettingsUpdateResponse;
+  if (updatedCount > 0 && failedCount > 0) {
+    response = {
+      status: 'PARTIAL_SUCCESS',
+      message: `Updated ${updatedCount} videos, but ${failedCount} failed.`,
+      updatedCount,
+      failedCount,
+      skippedCount,
+      failedReasons,
+    };
+  } else if (updatedCount > 0) {
+    response = {
+      status: 'SUCCESS',
+      message: `Updated ${updatedCount} videos.`,
+      updatedCount,
+      failedCount,
+      skippedCount,
+    };
+  } else if (failedCount > 0) {
+    response = {
+      status: 'ERROR',
+      message: `Failed to update ${failedCount} videos.`,
+      updatedCount,
+      failedCount,
+      skippedCount,
+      failedReasons,
+    };
+  } else {
+    response = {
+      status: 'NO_ACTION',
+      message: 'No active instances needed an update.',
+      updatedCount,
+      failedCount,
+      skippedCount,
+    };
+  }
 
   sendResponse?.(response);
   return response;
@@ -196,7 +269,7 @@ export function deinitializeOnPage(): void {
   if (domObserver) {
     domObserver.disconnect();
     domObserver = null;
-    console.log('[Anime4KWebExt] DOM Observer disconnected.');
+    logger.debug('DOM observer disconnected.');
   }
 
   processedDocs.forEach(doc => {
@@ -205,7 +278,7 @@ export function deinitializeOnPage(): void {
     }
   });
   processedDocs.clear();
-  console.log('[Anime4KWebExt] All media event listeners removed.');
+  logger.debug('All media event listeners removed.');
 
   if (beforeUnloadRegistered) {
     window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -213,7 +286,7 @@ export function deinitializeOnPage(): void {
   }
 
   const videos = EnhancerMap.getAllManagedVideos();
-  console.log(`[Anime4KWebExt] De-initializing and cleaning up ${videos.length} videos.`);
+  logger.debug(`De-initializing and cleaning up ${videos.length} videos.`);
   videos.forEach(video => {
     const enhancer = EnhancerMap.getEnhancer(video);
     if (enhancer) {
