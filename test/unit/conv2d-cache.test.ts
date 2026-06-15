@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { clearGpuResourceCache } from '../../src/core/gpu-resource-cache';
 import { clearTexturePool } from '../../src/core/texture-pool';
-import { Conv2d } from '../../src/engines/anime4k/vendor/pipelines/helpers/Conv2d';
+import { Conv2d } from '../../src/engines/anime4k/pipelines/helpers/Conv2d';
 import { createWebGpuMock } from '../support/webgpu';
 
 const shaderVariantA = `

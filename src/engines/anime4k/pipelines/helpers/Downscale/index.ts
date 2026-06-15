@@ -1,7 +1,7 @@
 import { Anime4KPipeline, Anime4KPipelineDescriptor, DownscalePipelineDescriptor } from '../../interfaces';
 import vertexWGSL from './shaders/vertex.wgsl';
 import fragmentWGSL from './shaders/fragment.wgsl';
-import { createBindGroupChecked } from '../../../../../../core/gpu-resource-cache';
+import { createBindGroupChecked } from '../../../../../core/gpu-resource-cache';
 
 export class Downscale implements Anime4KPipeline {
   outputTexture: GPUTexture;
@@ -129,3 +129,4 @@ export class Downscale implements Anime4KPipeline {
     return this.outputTexture;
   }
 }
+

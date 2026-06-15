@@ -25,63 +25,63 @@ function createLoader<T extends PipelineModule>(moduleImporter: () => Promise<T>
 
 const loaders: Record<string, EffectLoader> = {
   BilateralMean: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-bilateral-mean" */ './vendor/pipelines/denoise/BilateralMean'),
+    () => import(/* webpackChunkName: "anime4k-effect-bilateral-mean" */ './pipelines/denoise/BilateralMean'),
     'BilateralMean',
   ),
   ClampHighlights: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-clamp-highlights" */ './vendor/pipelines/helpers/ClampHighlights'),
+    () => import(/* webpackChunkName: "anime4k-effect-clamp-highlights" */ './pipelines/helpers/ClampHighlights'),
     'ClampHighlights',
   ),
   CNNM: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnm" */ './vendor/pipelines/restore/CNNM'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnm" */ './pipelines/restore/CNNM'),
     'CNNM',
   ),
   CNNSoftM: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnsoftm" */ './vendor/pipelines/restore/CNNSoftM'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnsoftm" */ './pipelines/restore/CNNSoftM'),
     'CNNSoftM',
   ),
   CNNSoftVL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnsoftvl" */ './vendor/pipelines/restore/CNNSoftVL'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnsoftvl" */ './pipelines/restore/CNNSoftVL'),
     'CNNSoftVL',
   ),
   CNNUL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnul" */ './vendor/pipelines/restore/CNNUL'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnul" */ './pipelines/restore/CNNUL'),
     'CNNUL',
   ),
   CNNVL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnvl" */ './vendor/pipelines/restore/CNNVL'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnvl" */ './pipelines/restore/CNNVL'),
     'CNNVL',
   ),
   CNNx2M: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnx2m" */ './vendor/pipelines/upscale/CNNx2M'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnx2m" */ './pipelines/upscale/CNNx2M'),
     'CNNx2M',
   ),
   CNNx2UL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnx2ul" */ './vendor/pipelines/upscale/CNNx2UL'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnx2ul" */ './pipelines/upscale/CNNx2UL'),
     'CNNx2UL',
   ),
   CNNx2VL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-cnnx2vl" */ './vendor/pipelines/upscale/CNNx2VL'),
+    () => import(/* webpackChunkName: "anime4k-effect-cnnx2vl" */ './pipelines/upscale/CNNx2VL'),
     'CNNx2VL',
   ),
   DenoiseCNNx2VL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-denoise-cnnx2vl" */ './vendor/pipelines/upscale/DenoiseCNNx2VL'),
+    () => import(/* webpackChunkName: "anime4k-effect-denoise-cnnx2vl" */ './pipelines/upscale/DenoiseCNNx2VL'),
     'DenoiseCNNx2VL',
   ),
   DoG: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-dog" */ './vendor/pipelines/deblur/DoG'),
+    () => import(/* webpackChunkName: "anime4k-effect-dog" */ './pipelines/deblur/DoG'),
     'DoG',
   ),
   GANUUL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-ganuul" */ './vendor/pipelines/restore/GANUUL'),
+    () => import(/* webpackChunkName: "anime4k-effect-ganuul" */ './pipelines/restore/GANUUL'),
     'GANUUL',
   ),
   GANx3L: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-ganx3l" */ './vendor/pipelines/upscale/GANx3L'),
+    () => import(/* webpackChunkName: "anime4k-effect-ganx3l" */ './pipelines/upscale/GANx3L'),
     'GANx3L',
   ),
   GANx4UUL: createLoader(
-    () => import(/* webpackChunkName: "anime4k-effect-ganx4uul" */ './vendor/pipelines/upscale/GANx4UUL'),
+    () => import(/* webpackChunkName: "anime4k-effect-ganx4uul" */ './pipelines/upscale/GANx4UUL'),
     'GANx4UUL',
   ),
 };

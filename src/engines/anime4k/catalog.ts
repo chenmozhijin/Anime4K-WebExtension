@@ -1,4 +1,4 @@
-import type { BaseMode, EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
+import type { Anime4KPresetId, EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
 import { createEffectReference } from '../../core/effects/reference';
 
 export const anime4kBackendId = 'anime4k';
@@ -143,7 +143,7 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
 
 const effectDescriptorByKey = new Map(anime4kEffectDescriptors.map(descriptor => [descriptor.key, descriptor]));
 
-const presetTemplates: Record<BaseMode, Record<PerformanceTier, string[]>> = {
+const presetTemplates: Record<Anime4KPresetId, Record<PerformanceTier, string[]>> = {
   A: {
     performance: ['ClampHighlights', 'CNNM', 'CNNx2M', 'CNNx2M'],
     balanced: ['ClampHighlights', 'CNNVL', 'CNNx2VL', 'CNNx2M'],
@@ -183,7 +183,7 @@ const presetTemplates: Record<BaseMode, Record<PerformanceTier, string[]>> = {
 };
 
 export function resolveAnime4kPreset(modeId: string, tier: PerformanceTier): EffectReference[] {
-  const preset = (modeId in presetTemplates ? modeId : 'A') as BaseMode;
+  const preset = (modeId in presetTemplates ? modeId : 'A') as Anime4KPresetId;
   return presetTemplates[preset][tier]
     .map(key => effectDescriptorByKey.get(key))
     .filter((descriptor): descriptor is EffectDescriptor => Boolean(descriptor))

@@ -4,8 +4,8 @@ import {
   getOrCreateBindGroupLayout,
   getOrCreateComputePipeline,
   getOrCreateShaderModule,
-} from '../../../../../../core/gpu-resource-cache';
-import { borrowTexture, releaseTexture } from '../../../../../../core/texture-pool';
+} from '../../../../../core/gpu-resource-cache';
+import { borrowTexture, releaseTexture } from '../../../../../core/texture-pool';
 
 function getShaderFingerprint(shaderWGSL: string): string {
   let hash = 2166136261;
@@ -158,3 +158,4 @@ export class Conv2d implements Anime4KPipeline {
     releaseTexture(this.outputTexture);
   }
 }
+

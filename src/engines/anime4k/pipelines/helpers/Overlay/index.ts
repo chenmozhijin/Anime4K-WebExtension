@@ -7,8 +7,8 @@ import {
   getOrCreateRenderPipeline,
   getOrCreateSampler,
   getOrCreateShaderModule,
-} from '../../../../../../core/gpu-resource-cache';
-import { borrowTexture, releaseTexture } from '../../../../../../core/texture-pool';
+} from '../../../../../core/gpu-resource-cache';
+import { borrowTexture, releaseTexture } from '../../../../../core/texture-pool';
 
 /**
  * Render Pipeline:
@@ -174,3 +174,4 @@ export class Overlay implements Anime4KPipeline {
     releaseTexture(this.outputTexture);
   }
 }
+

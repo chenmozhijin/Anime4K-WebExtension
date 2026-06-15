@@ -1,6 +1,6 @@
 import { Anime4KPipeline, Anime4KPipelineDescriptor } from '../../interfaces';
 import denoiseBilateralMeanWGSL from './shaders/bilateralMean.wgsl';
-import { createBindGroupChecked } from '../../../../../../core/gpu-resource-cache';
+import { createBindGroupChecked } from '../../../../../core/gpu-resource-cache';
 
 export class BilateralMean implements Anime4KPipeline {
   texture: GPUTexture;
@@ -186,3 +186,4 @@ export class BilateralMean implements Anime4KPipeline {
     }
   }
 }
+

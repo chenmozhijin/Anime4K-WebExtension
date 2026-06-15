@@ -7,8 +7,8 @@ import {
   getOrCreateBindGroupLayout,
   getOrCreateComputePipeline,
   getOrCreateShaderModule,
-} from '../../../../../../core/gpu-resource-cache';
-import { borrowTexture, releaseTexture } from '../../../../../../core/texture-pool';
+} from '../../../../../core/gpu-resource-cache';
+import { borrowTexture, releaseTexture } from '../../../../../core/texture-pool';
 
 export class ClampHighlights implements Anime4KPipeline {
   name: string;
@@ -268,3 +268,4 @@ export class ClampHighlights implements Anime4KPipeline {
     releaseTexture(this.statsYTexture);
   }
 }
+

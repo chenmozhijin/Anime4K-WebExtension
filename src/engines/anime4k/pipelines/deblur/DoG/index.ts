@@ -3,7 +3,7 @@ import luminationWGSL from './shaders/lumination.wgsl';
 import deblurDoGXWGSL from './shaders/deblurDoGX.wgsl';
 import deblurDoGYWGSL from './shaders/deblurDoGY.wgsl';
 import deblurDoGApplyWGSL from './shaders/deblurDoGApply.wgsl';
-import { createBindGroupChecked } from '../../../../../../core/gpu-resource-cache';
+import { createBindGroupChecked } from '../../../../../core/gpu-resource-cache';
 
 export class DoG implements Anime4KPipeline {
   textures: GPUTexture[];
@@ -435,3 +435,4 @@ export class DoG implements Anime4KPipeline {
     }
   }
 }
+

@@ -5,8 +5,8 @@ import {
   getOrCreateBindGroupLayout,
   getOrCreateComputePipeline,
   getOrCreateShaderModule,
-} from '../../../../../../core/gpu-resource-cache';
-import { borrowTexture, releaseTexture } from '../../../../../../core/texture-pool';
+} from '../../../../../core/gpu-resource-cache';
+import { borrowTexture, releaseTexture } from '../../../../../core/texture-pool';
 
 export class DepthToSpace implements Anime4KPipeline {
   outputTexture: GPUTexture;
@@ -148,3 +148,4 @@ export class DepthToSpace implements Anime4KPipeline {
     releaseTexture(this.outputTexture);
   }
 }
+

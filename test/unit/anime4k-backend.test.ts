@@ -42,11 +42,11 @@ class MockCNNx2M {
   }
 }
 
-vi.mock('../../src/engines/anime4k/vendor/pipelines/denoise/BilateralMean', () => ({
+vi.mock('../../src/engines/anime4k/pipelines/denoise/BilateralMean', () => ({
   BilateralMean: MockBilateralMean,
 }));
 
-vi.mock('../../src/engines/anime4k/vendor/pipelines/upscale/CNNx2M', () => ({
+vi.mock('../../src/engines/anime4k/pipelines/upscale/CNNx2M', () => ({
   CNNx2M: MockCNNx2M,
 }));
 
