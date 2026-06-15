@@ -1,10 +1,12 @@
 import type { EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
 import { createEffectReference } from './reference';
 import { anime4kEffectDescriptors, resolveAnime4kPreset } from '../../engines/anime4k/catalog';
+import { artcnnEffectDescriptors } from '../../engines/artcnn/catalog';
 import { coreEffectDescriptors } from '../../engines/core/catalog';
 
 const descriptors = [
   ...anime4kEffectDescriptors,
+  ...artcnnEffectDescriptors,
   ...coreEffectDescriptors,
 ];
 const descriptorById = new Map(descriptors.map(descriptor => [descriptor.id, descriptor]));

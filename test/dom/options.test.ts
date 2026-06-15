@@ -72,12 +72,20 @@ describe('options UI', () => {
       addWhitelistRule,
     }));
     vi.doMock('../../src/utils/effects-map', () => ({
-      AVAILABLE_EFFECTS: [{
-        id: 'anime4k/CNNM',
-        backendId: 'anime4k',
-        key: 'CNNM',
-        name: 'CNNM',
-      }],
+      AVAILABLE_EFFECTS: [
+        {
+          id: 'anime4k/CNNM',
+          backendId: 'anime4k',
+          key: 'CNNM',
+          name: 'CNNM',
+        },
+        {
+          id: 'artcnn/Upscale/C4F16',
+          backendId: 'artcnn',
+          key: 'C4F16',
+          name: 'Upscale ArtCNN x2 (C4F16)',
+        },
+      ],
     }));
     vi.doMock('../../src/ui/theme-manager', () => ({
       themeManager: {
@@ -125,6 +133,27 @@ describe('options UI', () => {
     expect(document.querySelectorAll('#modes-container .mode-card')).toHaveLength(2);
     expect(document.querySelectorAll('#rules-container tr')).toHaveLength(1);
     expect(document.getElementById('version-number')?.textContent).toBe('1.2.3');
+    expect(document.querySelector('[data-mode-id="builtin-mode-a"]')?.textContent).not.toContain('ArtCNN');
+
+    const artcnnEffectSelect = document.querySelector(
+      '[data-mode-id="custom-1"] .add-effect-container select',
+    ) as HTMLSelectElement;
+    expect(Array.from(artcnnEffectSelect.options).map(option => option.value)).toContain('artcnn/Upscale/C4F16');
+    artcnnEffectSelect.value = 'artcnn/Upscale/C4F16';
+    artcnnEffectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushPromises();
+    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      customModes: [expect.objectContaining({
+        id: 'custom-1',
+        effects: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'artcnn/Upscale/C4F16',
+            backendId: 'artcnn',
+            key: 'C4F16',
+          }),
+        ]),
+      })],
+    }));
 
     document.getElementById('add-mode-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();

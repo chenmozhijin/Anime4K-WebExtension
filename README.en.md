@@ -10,6 +10,7 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 
 - 🚀 **Real-time Super-Resolution:** Leverage advanced WebGPU technology to achieve low-latency, high-performance real-time video super-resolution enhancement directly in the browser.
 - ⚡ **Multiple Performance Tiers:** Offers four preset modes: Fast/Balanced/Quality/Ultra, and supports Custom Modes to flexibly balance image quality improvement and hardware load.
+- 🧪 **Advanced Custom Effects:** Custom Modes can use ArtCNN effects; in this release, ArtCNN is not used for automatic recommendations and does not appear as a built-in mode.
 - 📊 **Hardware Performance Evaluation:** Built-in GPU benchmark test to recommend the best super-resolution tier for your hardware.
 - 📏 **Flexible Resolution Control:** Supports 2x/4x/8x upscaling factors, or can lock to target resolutions like 2K/4K to meet diverse viewing needs.
 - ✨ **One-Click Enhance:** A purple "✨ Enhance" button automatically appears on the video player for one-click image quality boost.
@@ -101,6 +102,7 @@ Click the **"Settings"** button at the bottom of the panel to access the detaile
 
 #### 3. Enhancement Modes
 *   **Visual Editor**: Create brand new custom modes.
+*   **ArtCNN Advanced Effects**: Add them manually in Custom Modes for high-load experimental configurations; this release does not recommend them through GPU Benchmark and does not expose them as built-in modes.
 *   **Drag & Drop Sorting**: Adjust the order of applied shaders or the mode list itself.
 *   **Share Config**: Import/Export your custom mode configurations (JSON format).
 

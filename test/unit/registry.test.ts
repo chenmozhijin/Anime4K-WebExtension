@@ -22,6 +22,25 @@ describe('effects registry', () => {
     expect(descriptor?.backendId).toBe('core');
   });
 
+  it('returns ArtCNN descriptors by id', () => {
+    const descriptor = getEffectDescriptorById('artcnn/Upscale/C4F16');
+    expect(descriptor?.backendId).toBe('artcnn');
+  });
+
+  it('normalizes ArtCNN custom-mode references', () => {
+    const effect = normalizeEffectReference({
+      id: 'artcnn/Upscale/C4F16',
+      backendId: 'artcnn',
+      key: 'C4F16',
+    });
+
+    expect(effect).toEqual({
+      id: 'artcnn/Upscale/C4F16',
+      backendId: 'artcnn',
+      key: 'C4F16',
+    });
+  });
+
   it('validates unknown effect chains', () => {
     const validation = validateEffectChain([
       {

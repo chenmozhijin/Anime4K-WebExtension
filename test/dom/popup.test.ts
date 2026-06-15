@@ -43,12 +43,12 @@ describe('popup UI', () => {
 
     vi.doMock('../../src/utils/settings', () => ({
       BUILTIN_MODES: [
-        { id: 'builtin-mode-a', name: 'Mode A' },
-        { id: 'builtin-mode-b', name: 'Mode B' },
+        { id: 'builtin-mode-a', name: 'Mode A', backendId: 'anime4k' },
+        { id: 'builtin-mode-b', name: 'Mode B', backendId: 'anime4k' },
       ],
       getSettings: vi.fn().mockResolvedValue({
         enhancementModes: [{ id: 'builtin-mode-a', name: 'Mode A' }],
-        customModes: [{ id: 'custom-1', name: 'Custom Mode' }],
+        customModes: [{ id: 'custom-artcnn', name: 'ArtCNN Custom Mode' }],
         selectedModeId: 'builtin-mode-a',
         targetResolutionSetting: 'x2',
         whitelistEnabled: false,
@@ -88,6 +88,10 @@ describe('popup UI', () => {
 
     expect(document.getElementById('version-info')?.textContent).toBe('9.9.9');
     expect(document.querySelectorAll('#mode-select option')).toHaveLength(3);
+    const modeGroups = Array.from(document.querySelectorAll('#mode-select optgroup'));
+    expect(modeGroups[0].querySelectorAll('option')).toHaveLength(2);
+    expect(modeGroups[0].textContent).not.toContain('ArtCNN');
+    expect(modeGroups[1].textContent).toContain('ArtCNN Custom Mode');
     expect(document.querySelector('.tier-btn.active')?.getAttribute('data-tier')).toBe('quality');
     expect(showNotice).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'warning',

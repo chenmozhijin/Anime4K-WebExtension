@@ -10,6 +10,11 @@ describe('runtime registry', () => {
     expect(first.backendId).toBe('core');
   });
 
+  it('loads the ArtCNN backend', async () => {
+    const backend = await getRuntimeBackend('artcnn');
+    expect(backend.backendId).toBe('artcnn');
+  });
+
   it('throws for unknown runtime backends', async () => {
     await expect(getRuntimeBackend('missing')).rejects.toThrow('Unknown runtime backend');
   });
