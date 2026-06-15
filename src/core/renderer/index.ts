@@ -1,7 +1,9 @@
 import type { Dimensions, EnhancementEffect } from '../../types';
 import type { PipelinePass } from '../effects/backend-types';
 import { compileEffectChain } from '../effects/chain-compiler';
+import { getEffectDescriptor } from '../effects/registry';
 import { RendererInitializationError, RendererRuntimeError } from '../errors';
+import { getRequiredDeviceLimits } from '../gpu-device-limits';
 import {
   createBindGroupChecked,
   clearGpuResourceCache,
@@ -189,13 +191,10 @@ export class Renderer {
       }
 
       // 请求 GPU 设备并配置 Canvas 上下文
-      // 根据适配器支持的限制请求更高的 maxBufferSize，以支持高分辨率视频处理
-      const adapterLimits = adapter.limits;
+      // 根据适配器支持的限制请求更高的缓冲区和 workgroup storage 上限，
+      // 以支持高分辨率视频处理和更重的 ArtCNN C4F32 shader。
       this.device = await adapter.requestDevice({
-        requiredLimits: {
-          maxBufferSize: adapterLimits.maxBufferSize,
-          maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
-        },
+        requiredLimits: getRequiredDeviceLimits(adapter),
       });
       this.setupGpuErrorMonitoring(this.device);
 
@@ -340,6 +339,7 @@ export class Renderer {
 
     }
 
+    const effectChainLabel = this.getEffectChainLabel();
     const compileStartedAt = performance.now();
     const compiledPlan = await compileEffectChain({
       device: this.device,
@@ -352,7 +352,7 @@ export class Renderer {
       targetDimensions: this.targetDimensions,
     });
     const compileTime = performance.now() - compileStartedAt;
-    await this.throwIfCapturedGpuErrors('effect compilation');
+    await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect compilation', effectChainLabel));
 
     this.pipelines = compiledPlan.pipelines;
     this.finalOutputTexture = compiledPlan.outputTexture;
@@ -367,7 +367,7 @@ export class Renderer {
     } catch (error) {
       warmupError = error;
     }
-    await this.throwIfCapturedGpuErrors('effect warmup');
+    await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect warmup', effectChainLabel));
     if (warmupError) {
       throw new RendererRuntimeError('Failed to warmup compiled effect plan.', { cause: warmupError as Error });
     }
@@ -767,12 +767,8 @@ export class Renderer {
         throw new Error('Failed to get GPU adapter during recovery');
       }
 
-      const adapterLimits = adapter.limits;
       this.device = await adapter.requestDevice({
-        requiredLimits: {
-          maxBufferSize: adapterLimits.maxBufferSize,
-          maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
-        },
+        requiredLimits: getRequiredDeviceLimits(adapter),
       });
       this.setupGpuErrorMonitoring(this.device);
 
@@ -856,5 +852,23 @@ export class Renderer {
       + `canvasRect=${canvasRect.left.toFixed(2)},${canvasRect.top.toFixed(2)} `
       + `${canvasRect.width.toFixed(2)}x${canvasRect.height.toFixed(2)}.`
     );
+  }
+
+  private getEffectChainLabel(): string | null {
+    if (this.effects.length === 0) {
+      return null;
+    }
+
+    const names = this.effects.map((effect) => {
+      const descriptor = getEffectDescriptor(effect);
+      return descriptor?.name ?? effect.id;
+    });
+    const uniqueNames = [...new Set(names)];
+
+    return uniqueNames.join(' -> ');
+  }
+
+  private buildGpuStageLabel(stage: string, effectChainLabel: string | null): string {
+    return effectChainLabel ? `${stage} (${effectChainLabel})` : stage;
   }
 }

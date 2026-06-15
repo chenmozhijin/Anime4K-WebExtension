@@ -41,6 +41,18 @@ describe('error presentation', () => {
     expect(presentation.details).toContain('bind-group:test');
   });
 
+  it('keeps stage-aware summaries when effect names are appended to GPU stage context', () => {
+    const rootCause = new Error(
+      'WebGPU failed during effect compilation (Upscale ArtCNN x2 (C4F16)): [validation] mock mismatch',
+    );
+    rootCause.name = 'RendererRuntimeError';
+
+    const presentation = buildErrorPresentation(rootCause, baseOptions);
+
+    expect(presentation.summary).toBe('GPU pipeline validation failed while preparing the effect chain.');
+    expect(presentation.details).toContain('Upscale ArtCNN x2 (C4F16)');
+  });
+
   it('surfaces device loss as a user-readable summary', () => {
     const error = new Error('Failed to recover from device loss');
 

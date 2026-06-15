@@ -87,6 +87,7 @@ class MockDevice {
   readonly limits = {
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
+    maxComputeWorkgroupStorageSize: 32768,
   } as GPUSupportedLimits;
   destroyed = false;
   textures: MockTexture[] = [];
@@ -200,11 +201,12 @@ class MockAdapter {
   readonly limits = {
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
+    maxComputeWorkgroupStorageSize: 32768,
   } as GPUSupportedLimits;
 
   constructor(public readonly device: MockDevice) {}
 
-  async requestDevice(): Promise<GPUDevice> {
+  async requestDevice(_descriptor?: GPUDeviceDescriptor): Promise<GPUDevice> {
     return this.device as unknown as GPUDevice;
   }
 }

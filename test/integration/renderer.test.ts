@@ -212,6 +212,92 @@ describe('renderer lifecycle', () => {
     })).rejects.toThrow(/mock validation failure/);
   });
 
+  it('requests the adapter workgroup storage limit during renderer initialization', async () => {
+    installChromeMock();
+    const webgpu = installWebGpuMock();
+    const videoHarness = createMockVideo();
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+    const { plan } = createCompiledPlan(webgpu.device as unknown as GPUDevice);
+    compileEffectChain.mockResolvedValue(plan);
+
+    const canvas = document.createElement('canvas');
+    const context = createMockCanvasContext(webgpu.device as unknown as GPUDevice);
+    vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+      if (type === 'webgpu') {
+        return context;
+      }
+      return null;
+    });
+
+    const { Renderer } = await import('../../src/core/renderer');
+    vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+
+    const renderer = await Renderer.create({
+      video: videoHarness.video,
+      canvas,
+      effects: [],
+      effectsSignature: 'test-required-limits',
+      targetDimensions: { width: 320, height: 180 },
+    });
+
+    expect(requestDeviceSpy).toHaveBeenCalledWith(expect.objectContaining({
+      requiredLimits: expect.objectContaining({
+        maxComputeWorkgroupStorageSize: 32768,
+      }),
+    }));
+
+    renderer.destroy();
+  });
+
+  it('includes effect names in GPU validation errors during pipeline build', async () => {
+    installChromeMock();
+    const webgpu = installWebGpuMock();
+    const { outputTexture } = createCompiledPlan(webgpu.device as unknown as GPUDevice);
+    const videoHarness = createMockVideo();
+
+    compileEffectChain.mockImplementation(async ({ device }: { device: GPUDevice }) => {
+      (device as unknown as { emitUncapturedError: (error: { name?: string; message?: string }) => void }).emitUncapturedError({
+        name: 'GPUValidationError',
+        message: 'mock validation failure',
+      });
+
+      return {
+        pipelines: [
+          {
+            pass: vi.fn(),
+            getOutputTexture: () => outputTexture,
+            updateParam: vi.fn(),
+            destroy: vi.fn(),
+          },
+        ],
+        outputTexture,
+        outputDimensions: { width: 320, height: 180 },
+        warmupSteps: 1,
+        requiredModules: ['artcnn:C4F16'],
+      };
+    });
+
+    const canvas = document.createElement('canvas');
+    const context = createMockCanvasContext(webgpu.device as unknown as GPUDevice);
+    vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+      if (type === 'webgpu') {
+        return context;
+      }
+      return null;
+    });
+
+    const { Renderer } = await import('../../src/core/renderer');
+    vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+
+    await expect(Renderer.create({
+      video: videoHarness.video,
+      canvas,
+      effects: [{ id: 'artcnn/Upscale/C4F16', backendId: 'artcnn', key: 'C4F16' }],
+      effectsSignature: 'test-validation-artcnn',
+      targetDimensions: { width: 320, height: 180 },
+    })).rejects.toThrow(/Upscale ArtCNN x2 \(C4F16\)/);
+  });
+
   it('skips frame submission when the video is not ready', async () => {
     const { renderer, webgpu, videoHarness } = await createRendererHarness();
     const queue = webgpu.device.queue as unknown as { submissions: number };

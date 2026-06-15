@@ -9,7 +9,7 @@ import type {
     EnhancementEffect,
     BenchmarkFailureReason,
 } from '../types';
-import { resolveEffectChain } from '../utils/effect-chain-templates';
+import { resolveAnime4kPresetEffectChain } from '../engines/anime4k/preset-resolver';
 import { compileEffectChain } from './effects/chain-compiler';
 import {
     clearGpuResourceCache,
@@ -18,6 +18,7 @@ import {
     type GpuResourceError,
 } from './gpu-resource-cache';
 import { clearTexturePool } from './texture-pool';
+import { getRequiredDeviceLimits } from './gpu-device-limits';
 import { createLogger } from '../utils/logger';
 
 // 测试配置
@@ -196,13 +197,8 @@ export async function runGPUBenchmark(
         throw new Error('No GPU adapter available');
     }
 
-    // 根据适配器支持的限制请求更高的 maxBufferSize，以支持高分辨率测试
-    const adapterLimits = adapter.limits;
     const device = await adapter.requestDevice({
-        requiredLimits: {
-            maxBufferSize: adapterLimits.maxBufferSize,
-            maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize,
-        },
+        requiredLimits: getRequiredDeviceLimits(adapter),
     });
 
     // 监听设备丢失事件（区分主动销毁和意外丢失）
@@ -257,7 +253,7 @@ export async function runGPUBenchmark(
                 );
                 await device.queue.onSubmittedWorkDone();
 
-                const warmupEffects = resolveEffectChain('A+A', 'performance');
+                const warmupEffects = resolveAnime4kPresetEffectChain('A+A', 'performance');
                 await runEffectChainTest(device, warmupTexture, warmupEffects, gpuErrorMonitor);
                 logger.debug('Global warmup complete.');
             } finally {
@@ -304,7 +300,7 @@ export async function runGPUBenchmark(
 
             try {
                 // 获取该档位的 Mode A+A 效果链
-                const effects = resolveEffectChain('A+A', tier);
+                const effects = resolveAnime4kPresetEffectChain('A+A', tier);
 
                 // 运行测试
                 const { avgTime, maxTime } = await runWithTimeout(

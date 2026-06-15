@@ -87,19 +87,19 @@ function buildStageSummary(
   hasValidation: boolean,
   options: ErrorPresentationOptions,
 ): string {
-  if (stage === 'effect compilation') {
+  if (stage?.startsWith('effect compilation')) {
     return hasValidation
       ? options.knownMessages.effectCompilationValidationFailed
       : options.knownMessages.effectCompilationFailed;
   }
 
-  if (stage === 'effect warmup') {
+  if (stage?.startsWith('effect warmup')) {
     return hasValidation
       ? options.knownMessages.effectWarmupValidationFailed
       : options.knownMessages.effectWarmupFailed;
   }
 
-  if (stage === 'frame submission') {
+  if (stage?.startsWith('frame submission')) {
     return hasValidation
       ? options.knownMessages.frameSubmissionValidationFailed
       : options.knownMessages.frameSubmissionFailed;
