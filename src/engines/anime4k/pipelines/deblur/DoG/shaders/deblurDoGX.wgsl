@@ -1,8 +1,9 @@
 @group(0) @binding(0) var tex_in: texture_2d<f32>;
 @group(0) @binding(1) var tex_out: texture_storage_2d<rgba16float, write>;
 
-fn colorAt(x: u32, y: u32) -> vec4f {
-  return textureLoad(tex_in, vec2u(x, y), 0);
+fn colorAt(x: i32, y: i32) -> vec4f {
+  let dim = vec2i(textureDimensions(tex_in));
+  return textureLoad(tex_in, clamp(vec2i(x, y), vec2i(0), dim - vec2i(1)), 0);
 }
 
 fn max3v(a: f32, b: f32, c: f32) -> f32 {
@@ -13,7 +14,7 @@ fn min3v(a: f32, b: f32, c: f32) -> f32 {
     return min(min(a, b), c);
 }
 
-fn minmax3(pos: vec2u) -> vec2<f32> {
+fn minmax3(pos: vec2i) -> vec2<f32> {
     let a: f32 = colorAt(pos.x - 1, pos.y).x;
     let b: f32 = colorAt(pos.x, pos.y).x;
     let c: f32 = colorAt(pos.x + 1, pos.y).x;
@@ -21,7 +22,7 @@ fn minmax3(pos: vec2u) -> vec2<f32> {
     return vec2<f32>(min3v(a, b, c), max3v(a, b, c));
 }
 
-fn lumGaussian7(pos: vec2u) -> f32 {
+fn lumGaussian7(pos: vec2i) -> f32 {
     var g: f32 = (colorAt(pos.x - 2, pos.y).x + colorAt(pos.x + 2, pos.y).x) * 0.06136;
     g += (colorAt(pos.x - 1, pos.y).x + colorAt(pos.x + 1, pos.y).x) * 0.24477;
     g += colorAt(pos.x, pos.y).x * 0.38774;
@@ -39,7 +40,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
     return;
   }
     
-  let pos: vec2u = vec2u(pixel.x, pixel.y);
+  let pos: vec2i = vec2i(pixel.xy);
 
   // Call lumGaussian7 and minmax3_x
   let lum: f32 = lumGaussian7(pos); // directional vector vec2<f32>(1.0, 0.0). Adjust the directional vector as needed based on your texture coordinates and requirements.

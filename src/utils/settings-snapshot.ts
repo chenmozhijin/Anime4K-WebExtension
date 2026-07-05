@@ -24,6 +24,10 @@ const LOCAL_KEYS = new Set([
   'performanceTier',
   'gpuBenchmarkResult',
   'hasCompletedOnboarding',
+  'performanceMonitorMode',
+  'performanceMonitorHudCollapsed',
+  'performanceMonitorHudPosition',
+  'performanceMonitorHudWidth',
 ]);
 
 let currentSnapshot: SettingsSnapshot | null = null;

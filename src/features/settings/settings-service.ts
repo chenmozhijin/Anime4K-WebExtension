@@ -11,6 +11,27 @@ import {
   saveSyncedSettings,
 } from './storage';
 
+export type SettingsStorageArea = 'sync' | 'local';
+
+export interface SettingsSaveFailure {
+  area: SettingsStorageArea;
+  error: unknown;
+}
+
+export class SettingsSaveError extends Error {
+  readonly failures: SettingsSaveFailure[];
+
+  readonly succeededAreas: SettingsStorageArea[];
+
+  constructor(failures: SettingsSaveFailure[], succeededAreas: SettingsStorageArea[]) {
+    const failedAreas = failures.map(failure => failure.area).join(', ');
+    super(`Failed to save settings to ${failedAreas}.`);
+    this.name = 'SettingsSaveError';
+    this.failures = failures;
+    this.succeededAreas = succeededAreas;
+  }
+}
+
 export async function getSettings(): Promise<Anime4KWebExtSettings> {
   const [synced, local] = await Promise.all([
     getSyncedSettings(),
@@ -20,6 +41,10 @@ export async function getSettings(): Promise<Anime4KWebExtSettings> {
   return buildEnhancementSettings({
     ...synced,
     performanceTier: local.performanceTier,
+    performanceMonitorMode: local.performanceMonitorMode,
+    performanceMonitorHudCollapsed: local.performanceMonitorHudCollapsed,
+    performanceMonitorHudPosition: local.performanceMonitorHudPosition,
+    performanceMonitorHudWidth: local.performanceMonitorHudWidth,
   });
 }
 
@@ -38,6 +63,10 @@ export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Pr
     'gpuBenchmarkResult',
     'hasCompletedOnboarding',
     'benchmarkRunState',
+    'performanceMonitorMode',
+    'performanceMonitorHudCollapsed',
+    'performanceMonitorHudPosition',
+    'performanceMonitorHudWidth',
   ];
 
   const syncSettings: Partial<SyncedSettings> = {};
@@ -55,13 +84,32 @@ export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Pr
     }
   }
 
-  const operations: Promise<void>[] = [];
+  const operations: Array<{ area: SettingsStorageArea; promise: Promise<void> }> = [];
   if (Object.keys(syncSettings).length > 0) {
-    operations.push(saveSyncedSettings(syncSettings));
+    operations.push({ area: 'sync', promise: saveSyncedSettings(syncSettings) });
   }
   if (Object.keys(localSettings).length > 0) {
-    operations.push(saveLocalSettings(localSettings));
+    operations.push({ area: 'local', promise: saveLocalSettings(localSettings) });
   }
 
-  await Promise.all(operations);
+  const results = await Promise.allSettled(operations.map(operation => operation.promise));
+  const failures: SettingsSaveFailure[] = [];
+  const succeededAreas: SettingsStorageArea[] = [];
+
+  results.forEach((result, index) => {
+    const area = operations[index].area;
+    if (result.status === 'fulfilled') {
+      succeededAreas.push(area);
+      return;
+    }
+
+    failures.push({
+      area,
+      error: result.reason,
+    });
+  });
+
+  if (failures.length > 0) {
+    throw new SettingsSaveError(failures, succeededAreas);
+  }
 }

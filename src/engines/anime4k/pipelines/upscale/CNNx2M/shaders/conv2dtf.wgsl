@@ -4,9 +4,12 @@
 // Output: conv2d_tf
 @group(0) @binding(0) var MAIN_tex: texture_2d<f32>;
 @group(0) @binding(1) var conv2d_tf_tex: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(2) var anime4kLinearSampler: sampler;
 
 fn go_0(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return textureLoad(MAIN_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0);
+  let dim = vec2f(textureDimensions(MAIN_tex));
+  let uv = (vec2f(pos) + vec2f(0.5, 0.5) + vec2f(f32(x_off), f32(y_off))) / dim;
+  return textureSampleLevel(MAIN_tex, anime4kLinearSampler, uv, 0.0);
 }
 
 @compute

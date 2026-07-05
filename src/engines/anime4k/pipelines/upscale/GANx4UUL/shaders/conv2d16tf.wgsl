@@ -9,56 +9,62 @@
 @group(0) @binding(4) var conv2d_15_tf4_tex: texture_2d<f32>;
 @group(0) @binding(5) var conv2d_15_tf5_tex: texture_2d<f32>;
 @group(0) @binding(6) var conv2d_16_tf_tex: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(7) var anime4kLinearSampler: sampler;
 fn max4(vector: vec4f, value: f32) -> vec4f {
   return max(vector, vec4f(value));
 }
 
+fn anime4kTextureLoadClamped(texture: texture_2d<f32>, pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
+  let dim = vec2f(textureDimensions(texture));
+  let uv = (vec2f(pos) + vec2f(0.5, 0.5) + vec2f(f32(x_off), f32(y_off))) / dim;
+  return textureSampleLevel(texture, anime4kLinearSampler, uv, 0.0);
+}
 fn go_0(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_1(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf1_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf1_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_2(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf2_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf2_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_3(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf3_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf3_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_4(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf4_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf4_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_5(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(textureLoad(conv2d_15_tf5_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(anime4kTextureLoadClamped(conv2d_15_tf5_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_6(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_7(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf1_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf1_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_8(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf2_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf2_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_9(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf3_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf3_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_10(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf4_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf4_tex, pos, x_off, y_off), 0.0);
 }
 
 fn go_11(pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  return max4(-textureLoad(conv2d_15_tf5_tex, vec2i(i32(pos.x) + x_off, i32(pos.y) + y_off), 0), 0.0);
+  return max4(-anime4kTextureLoadClamped(conv2d_15_tf5_tex, pos, x_off, y_off), 0.0);
 }
 
 

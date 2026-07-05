@@ -8,6 +8,9 @@ export {
 export {
   getSettings,
   saveSettings,
+  SettingsSaveError,
+  type SettingsSaveFailure,
+  type SettingsStorageArea,
 } from '../features/settings/settings-service';
 
 export {

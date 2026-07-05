@@ -1,4 +1,4 @@
-import type { PipelinePass } from '../effects/backend-types';
+import type { PipelinePass, PipelineProfileRecorder } from '../effects/backend-types';
 import {
   createBindGroupChecked,
   getOrCreateBindGroupLayout,
@@ -91,6 +91,10 @@ function getDeviceCache(device: GPUDevice): DeviceCache {
 }
 
 export class Downscale implements PipelinePass {
+  readonly profileLabel: string;
+
+  profileGroup?: string;
+
   private readonly outputTexture: GPUTexture;
   private readonly bindGroup: GPUBindGroup;
   private readonly pipeline: GPURenderPipeline;
@@ -103,6 +107,7 @@ export class Downscale implements PipelinePass {
     name = 'downscale',
   }: DownscalePipelineDescriptor) {
     this.name = name;
+    this.profileLabel = name;
 
     const cache = getDeviceCache(device);
     this.pipeline = cache.pipeline;
@@ -138,8 +143,17 @@ export class Downscale implements PipelinePass {
     throw new Error(`${this.name} has no param`);
   }
 
-  pass(encoder: GPUCommandEncoder): void {
-    const pass = encoder.beginRenderPass({
+  pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
+    if (profile) {
+      profile.recordPass(this, () => this.encodePass(encoder, profile));
+      return;
+    }
+
+    this.encodePass(encoder);
+  }
+
+  private encodePass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
+    const descriptor: GPURenderPassDescriptor = {
       colorAttachments: [
         {
           view: this.outputTexture.createView(),
@@ -150,7 +164,8 @@ export class Downscale implements PipelinePass {
           storeOp: 'store',
         },
       ],
-    });
+    };
+    const pass = encoder.beginRenderPass(profile?.createRenderPassDescriptor?.(this, descriptor) ?? descriptor);
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
     pass.draw(6);

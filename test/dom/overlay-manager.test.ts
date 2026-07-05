@@ -13,11 +13,14 @@ class MockMutationObserver {
   public readonly observe = vi.fn();
   public readonly disconnect = vi.fn();
 
-  constructor(public readonly callback: MutationCallback) {}
+  constructor(public readonly callback: MutationCallback) {
+    mutationObservers.push(this);
+  }
 }
 
 let nextFrameId = 1;
 const rafCallbacks = new Map<number, FrameRequestCallback>();
+const mutationObservers: MockMutationObserver[] = [];
 
 function flushAnimationFrames(times = 1): void {
   for (let index = 0; index < times; index += 1) {
@@ -61,6 +64,7 @@ describe('OverlayManager', () => {
     installChromeMock();
     nextFrameId = 1;
     rafCallbacks.clear();
+    mutationObservers.length = 0;
 
     Object.assign(globalThis, {
       ResizeObserver: MockResizeObserver,
@@ -117,6 +121,7 @@ describe('OverlayManager', () => {
     expect(container.querySelectorAll('[data-anime4k-overlay-canvas-host]')).toHaveLength(0);
     expect(document.body.contains(orphanBodyHost)).toBe(false);
 
+    video.style.opacity = '0.42';
     const canvas = manager.getCanvas();
     manager.showCanvas();
     flushAnimationFrames(2);
@@ -128,7 +133,7 @@ describe('OverlayManager', () => {
 
     manager.hideCanvas();
     expect(container.querySelector('[data-anime4k-overlay-canvas-host]')).toBeNull();
-    expect(video.style.opacity).toBe('');
+    expect(video.style.opacity).toBe('0.42');
 
     manager.destroy();
     manager.destroy();
@@ -179,6 +184,7 @@ describe('OverlayManager', () => {
     manager.detach();
     expect(document.querySelector('[data-anime4k-overlay-host]')).toBeNull();
     expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).toBeNull();
+    expect(secondVideo.style.opacity).toBe('');
 
     manager.destroy();
   });
@@ -200,6 +206,28 @@ describe('OverlayManager', () => {
     const overlayHost = shadowRoot.querySelector('[data-anime4k-overlay-host]');
     expect(overlayHost).not.toBeNull();
     expect(overlayHost?.parentNode).toBe(shadowRoot);
+
+    manager.destroy();
+  });
+
+  it('reattaches sibling overlay artifacts when the video moves to a new parent', () => {
+    const firstContainer = document.createElement('div');
+    const secondContainer = document.createElement('div');
+    document.body.append(firstContainer, secondContainer);
+    const video = createVideo(firstContainer);
+
+    const manager = OverlayManager.create(video);
+    const canvas = manager.getCanvas();
+    manager.showCanvas();
+    flushAnimationFrames(2);
+
+    secondContainer.appendChild(video);
+    mutationObservers.forEach(observer => observer.callback([], observer as unknown as MutationObserver));
+    flushAnimationFrames(2);
+
+    expect(secondContainer.querySelector('[data-anime4k-overlay-host]')).not.toBeNull();
+    expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).not.toBeNull();
+    expect(canvas.parentElement?.parentElement).toBe(secondContainer);
 
     manager.destroy();
   });

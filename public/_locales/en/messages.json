@@ -68,6 +68,9 @@
   "whitelistManagement": {
     "message": "Whitelist Management"
   },
+  "whitelistPatternHelp": {
+    "message": "Rules match hostname + path only. Protocol, port, query, and hash are ignored."
+  },
   "addRule": {
     "message": "Add Rule"
   },
@@ -122,6 +125,18 @@
   "addEffect": {
     "message": "Add effect..."
   },
+  "effectSearchPlaceholder": {
+    "message": "Search effects..."
+  },
+  "effectBrowserDone": {
+    "message": "Done"
+  },
+  "effectBrowserAll": {
+    "message": "All"
+  },
+  "noMatchingEffects": {
+    "message": "No matching effects"
+  },
   "newCustomModeName": {
     "message": "New Custom Mode"
   },
@@ -164,6 +179,12 @@
   "sourceCode": {
     "message": "Source Code"
   },
+  "permissionAudit": {
+    "message": "Permissions"
+  },
+  "permissionAuditLink": {
+    "message": "Permission rationale"
+  },
   "reportIssues": {
     "message": "Report Issues"
   },
@@ -193,6 +214,21 @@
   },
   "performanceSettings": {
     "message": "Performance Settings"
+  },
+  "performanceMonitor": {
+    "message": "Performance Monitor"
+  },
+  "performanceMonitorDesc": {
+    "message": "Show a compact in-video performance HUD. GPU diagnostics use low-frequency sampling when supported."
+  },
+  "performanceMonitorOff": {
+    "message": "Off"
+  },
+  "performanceMonitorLite": {
+    "message": "Lite"
+  },
+  "performanceMonitorGpu": {
+    "message": "GPU Diagnostics"
   },
   "gpuPerformance": {
     "message": "GPU Performance"
@@ -417,6 +453,9 @@
   },
   "continue": {
     "message": "Continue"
+  },
+  "getStarted": {
+    "message": "Get Started"
   },
   "setupComplete": {
     "message": "Setup Complete!"

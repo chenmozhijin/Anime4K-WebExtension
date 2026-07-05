@@ -2,9 +2,16 @@ import { buildErrorPresentation, type ErrorPresentationPhase } from '../error-pr
 
 export class EnhancerErrorNotifier {
   private static readonly ERROR_NOTIFICATION_ATTR = 'data-anime4k-error-notification';
+  private notification: HTMLElement | null = null;
+  private autoDismissTimer: number | null = null;
 
   public clear(): void {
-    document.querySelectorAll(`[${EnhancerErrorNotifier.ERROR_NOTIFICATION_ATTR}]`).forEach(node => node.remove());
+    if (this.autoDismissTimer !== null) {
+      clearTimeout(this.autoDismissTimer);
+      this.autoDismissTimer = null;
+    }
+    this.notification?.remove();
+    this.notification = null;
   }
 
   public present(
@@ -137,10 +144,11 @@ export class EnhancerErrorNotifier {
       padding: '6px 10px',
       cursor: 'pointer',
     });
-    dismissButton.onclick = () => notification.remove();
+    dismissButton.onclick = () => this.clear();
     notification.appendChild(dismissButton);
 
     document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), options.details ? 12000 : 8000);
+    this.notification = notification;
+    this.autoDismissTimer = window.setTimeout(() => this.clear(), options.details ? 12000 : 8000);
   }
 }

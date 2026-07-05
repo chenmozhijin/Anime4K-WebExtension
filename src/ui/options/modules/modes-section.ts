@@ -1,7 +1,6 @@
 import type {
   Anime4KWebExtSettings,
   CustomMode,
-  EffectDescriptor,
   EnhancementEffect,
   EnhancementMode,
   PerformanceTier,
@@ -18,6 +17,9 @@ import { getEffectDescriptor, validateEffectChain } from '../../../core/effects/
 import { showNotice } from '../../shared/notice';
 import { createLogger } from '../../../utils/logger';
 import { downloadJSON, openFile } from './helpers';
+import { renderEffectBrowser, type EffectBrowserState } from './effect-browser';
+import { summarizeEffectChain } from './effect-presentation';
+import { runSaveAction } from '../../shared/save-action';
 
 const logger = createLogger('options:modes');
 
@@ -42,6 +44,11 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
   let draggedModeId: string | null = null;
   let draggedEffectIndex: number | null = null;
   let activePromptNotice: HTMLElement | null = null;
+  let effectBrowserState: EffectBrowserState = {
+    modeId: null,
+    backendId: 'all',
+    query: '',
+  };
 
   if (!modesContainer || !addModeBtn || !importModesBtn || !exportModesBtn) {
     throw new Error('Modes section elements not found');
@@ -72,12 +79,50 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
     return validation.valid ? null : validation.errors[0] ?? 'Invalid effect chain';
   };
 
+  type ModesSnapshot = {
+    customModes: CustomMode[];
+    selectedModeId: string;
+    effectBrowserState: EffectBrowserState;
+  };
+
+  const cloneEffect = (effect: EnhancementEffect): EnhancementEffect => ({
+    ...effect,
+    ...(effect.params ? { params: { ...effect.params } } : {}),
+  });
+
+  const cloneCustomMode = (mode: CustomMode): CustomMode => ({
+    ...mode,
+    effects: mode.effects.map(cloneEffect),
+  });
+
+  const captureModesSnapshot = (): ModesSnapshot => {
+    const settingsState = deps.getSettingsState();
+    return {
+      customModes: settingsState.customModes.map(cloneCustomMode),
+      selectedModeId: settingsState.selectedModeId,
+      effectBrowserState: { ...effectBrowserState },
+    };
+  };
+
+  const restoreModesSnapshot = (snapshot: ModesSnapshot): void => {
+    const settingsState = deps.getSettingsState();
+    settingsState.customModes = snapshot.customModes.map(cloneCustomMode);
+    settingsState.enhancementModes = [...BUILTIN_MODES, ...settingsState.customModes];
+    settingsState.selectedModeId = snapshot.selectedModeId;
+    effectBrowserState = { ...snapshot.effectBrowserState };
+    render();
+  };
+
   const isInteractiveModeElement = (target: EventTarget | null): boolean => {
     return target instanceof HTMLElement
       && target.closest('button, input, select, textarea, label, a, [contenteditable="true"]') !== null;
   };
 
-  const persistCustomModes = async (modifiedModeId?: string, persistSelectedModeId = false) => {
+  const persistCustomModes = async (
+    modifiedModeId?: string,
+    persistSelectedModeId = false,
+    rollbackSnapshot?: ModesSnapshot,
+  ) => {
     const settingsState = deps.getSettingsState();
     settingsState.customModes = synchronizeEffectsForCustomModes(settingsState.customModes);
     settingsState.enhancementModes = [...BUILTIN_MODES, ...settingsState.customModes];
@@ -101,8 +146,20 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       settingsToPersist.selectedModeId = settingsState.selectedModeId;
     }
 
-    await saveSettings(settingsToPersist);
-    deps.notifyUpdate(modifiedModeId);
+    const result = await runSaveAction({
+      action: async () => {
+        await saveSettings(settingsToPersist);
+        deps.notifyUpdate(modifiedModeId);
+      },
+      logger,
+      logMessage: 'Failed to persist custom modes.',
+      onError: () => {
+        if (rollbackSnapshot) {
+          restoreModesSnapshot(rollbackSnapshot);
+        }
+      },
+    });
+    return result !== null;
   };
 
   function render(): void {
@@ -176,9 +233,10 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
         const fromIndex = settingsState.customModes.findIndex(item => item.id === draggedModeId);
         const toIndex = settingsState.customModes.findIndex(item => item.id === mode.id);
         if (fromIndex > -1 && toIndex > -1) {
+          const snapshot = captureModesSnapshot();
           const [movedMode] = settingsState.customModes.splice(fromIndex, 1);
           settingsState.customModes.splice(toIndex, 0, movedMode);
-          await persistCustomModes(movedMode.id);
+          await persistCustomModes(movedMode.id, false, snapshot);
         }
       });
 
@@ -205,6 +263,15 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       toggleBtn.appendChild(svg);
       toggleBtn.addEventListener('click', () => {
         card.classList.toggle('collapsed');
+        if (card.classList.contains('collapsed') && effectBrowserState.modeId === mode.id) {
+          effectBrowserState = {
+            modeId: null,
+            backendId: 'all',
+            query: '',
+          };
+          render();
+          return;
+        }
         updateCardDraggableState();
       });
 
@@ -224,8 +291,12 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
         const newName = (event.target as HTMLElement).textContent?.trim() || '';
         const targetMode = settingsState.customModes.find(item => item.id === mode.id);
         if (targetMode && newName && newName !== targetMode.name) {
+          const snapshot = captureModesSnapshot();
           targetMode.name = newName;
-          await persistCustomModes(mode.id);
+          const persisted = await persistCustomModes(mode.id, false, snapshot);
+          if (!persisted) {
+            (event.target as HTMLElement).textContent = snapshot.customModes.find(item => item.id === mode.id)?.name ?? mode.name;
+          }
         } else {
           (event.target as HTMLElement).textContent = mode.name;
         }
@@ -244,13 +315,14 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
             label: chrome.i18n.getMessage('delete'),
             emphasis: 'danger',
             onClick: async () => {
+              const snapshot = captureModesSnapshot();
               const deletedModeId = mode.id;
               settingsState.customModes = settingsState.customModes.filter(item => item.id !== deletedModeId);
               const shouldPersistSelectedModeId = settingsState.selectedModeId === deletedModeId;
               if (shouldPersistSelectedModeId) {
                 settingsState.selectedModeId = 'builtin-mode-a';
               }
-              await persistCustomModes(deletedModeId, shouldPersistSelectedModeId);
+              await persistCustomModes(deletedModeId, shouldPersistSelectedModeId, snapshot);
             },
           }],
         }));
@@ -262,9 +334,8 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       const summary = document.createElement('div');
       summary.className = 'mode-summary';
       const modeEffects = getEffectsForMode(mode, currentTier);
-      summary.textContent = modeEffects.length > 0
-        ? modeEffects.map(effect => getEffectLabel(effect)).join(' > ')
-        : chrome.i18n.getMessage('noEffects');
+      const chainSummary = summarizeEffectChain(modeEffects, getEffectLabel);
+      summary.textContent = chainSummary || chrome.i18n.getMessage('noEffects');
       card.appendChild(summary);
 
       const cardContent = document.createElement('div');
@@ -317,9 +388,10 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
 
             const targetMode = settingsState.customModes.find(item => item.id === mode.id);
             if (targetMode) {
+              const snapshot = captureModesSnapshot();
               const [movedEffect] = targetMode.effects.splice(draggedEffectIndex, 1);
               targetMode.effects.splice(index, 0, movedEffect);
-              await persistCustomModes(mode.id);
+              await persistCustomModes(mode.id, false, snapshot);
             }
           });
 
@@ -345,10 +417,11 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
                 return;
               }
 
+              const snapshot = captureModesSnapshot();
               const newIndex = direction === 'up' ? index - 1 : index + 1;
               const [movedEffect] = targetMode.effects.splice(index, 1);
               targetMode.effects.splice(newIndex, 0, movedEffect);
-              await persistCustomModes(mode.id);
+              await persistCustomModes(mode.id, false, snapshot);
             };
             return btn;
           };
@@ -362,8 +435,9 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
               return;
             }
 
+            const snapshot = captureModesSnapshot();
             targetMode.effects.splice(index, 1);
-            await persistCustomModes(mode.id);
+            await persistCustomModes(mode.id, false, snapshot);
           };
           effectActions.append(createMoveBtn('up'), createMoveBtn('down'), removeEffectBtn);
           effectItem.appendChild(effectActions);
@@ -375,42 +449,45 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       cardContent.appendChild(effectsList);
 
       if (!mode.isBuiltIn) {
-        const addEffectContainer = document.createElement('div');
-        addEffectContainer.className = 'add-effect-container';
-        const effectSelect = document.createElement('select');
-        const defaultOption = document.createElement('option');
-        defaultOption.textContent = chrome.i18n.getMessage('addEffect');
-        defaultOption.disabled = true;
-        defaultOption.selected = true;
-        effectSelect.appendChild(defaultOption);
-
-        AVAILABLE_EFFECTS.forEach(availableEffect => {
-          const option = document.createElement('option');
-          option.value = availableEffect.id;
-          option.textContent = availableEffect.name;
-          effectSelect.appendChild(option);
-        });
-
-        effectSelect.onchange = async event => {
-          const selectedEffectId = (event.target as HTMLSelectElement).value;
-          const effectToAdd = AVAILABLE_EFFECTS.find((effect: EffectDescriptor) => effect.id === selectedEffectId);
-          const targetMode = settingsState.customModes.find(item => item.id === mode.id);
-          if (targetMode && effectToAdd) {
-            targetMode.effects.push(createEffectReference(effectToAdd));
-            const validationError = validateCustomMode(targetMode);
-            if (validationError) {
-              targetMode.effects.pop();
-              showNotice({ kind: 'error', message: validationError });
-              (event.target as HTMLSelectElement).value = defaultOption.value;
-              return;
+        const addEffectContainer = renderEffectBrowser({
+          modeId: mode.id,
+          effects: AVAILABLE_EFFECTS,
+          state: effectBrowserState,
+          onToggle: () => {
+            effectBrowserState = effectBrowserState.modeId === mode.id
+              ? { modeId: null, backendId: 'all', query: '' }
+              : { modeId: mode.id, backendId: 'all', query: '' };
+            render();
+          },
+          onBackendChange: backendId => {
+            effectBrowserState = {
+              ...effectBrowserState,
+              modeId: mode.id,
+              backendId,
+            };
+          },
+          onQueryChange: query => {
+            effectBrowserState = {
+              ...effectBrowserState,
+              modeId: mode.id,
+              query,
+            };
+          },
+          onAddEffect: async effectToAdd => {
+            const targetMode = settingsState.customModes.find(item => item.id === mode.id);
+            if (targetMode && effectToAdd) {
+              const snapshot = captureModesSnapshot();
+              targetMode.effects.push(createEffectReference(effectToAdd));
+              const validationError = validateCustomMode(targetMode);
+              if (validationError) {
+                targetMode.effects.pop();
+                showNotice({ kind: 'error', message: validationError });
+                return;
+              }
+              await persistCustomModes(mode.id, false, snapshot);
             }
-            await persistCustomModes(mode.id);
-          }
-
-          (event.target as HTMLSelectElement).value = defaultOption.value;
-        };
-
-        addEffectContainer.appendChild(effectSelect);
+          },
+        });
         cardContent.appendChild(addEffectContainer);
       }
 
@@ -434,8 +511,9 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
         isBuiltIn: false,
         effects: [],
       };
+      const snapshot = captureModesSnapshot();
       settingsState.customModes.unshift(newMode);
-      await persistCustomModes(newMode.id);
+      await persistCustomModes(newMode.id, false, snapshot);
     });
 
     requiredExportModesBtn.addEventListener('click', () => {
@@ -473,8 +551,14 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
           }
         }
 
-        deps.getSettingsState().customModes = [...deps.getSettingsState().customModes, ...syncedNewModes];
-        await persistCustomModes();
+        const settingsState = deps.getSettingsState();
+        const nextCustomModes = synchronizeEffectsForCustomModes([...settingsState.customModes, ...syncedNewModes]);
+
+        await saveSettings({ customModes: nextCustomModes });
+        settingsState.customModes = nextCustomModes;
+        settingsState.enhancementModes = [...BUILTIN_MODES, ...nextCustomModes];
+        render();
+        deps.notifyUpdate();
         showNotice({ kind: 'success', message: chrome.i18n.getMessage('importSuccess') });
       } catch (error) {
         if (error instanceof Error && error.message === 'No file selected') {

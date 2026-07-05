@@ -1,6 +1,9 @@
-import type { PipelinePass } from '../../../../core/effects/backend-types';
 import type { Dimensions } from '../../../../types';
-import { ArtCNNOutputRecompose, ArtCNNStagePass } from '../helpers';
+import {
+  GeneratedLumaModelPipeline,
+  type GeneratedLumaStageConfig,
+} from '../../../../core/generated-models/luma-model-pipeline';
+import outputRecomposeWGSL from '../helpers/OutputRecompose/shaders/outputRecompose.wgsl';
 
 export interface ArtCNNPipelineDescriptor {
   device: GPUDevice;
@@ -23,83 +26,51 @@ export interface ArtCNNVariantConfig {
   };
 }
 
-export class ArtCNNUpscalePipeline implements PipelinePass {
-  protected readonly pipelines: PipelinePass[] = [];
-
-  constructor(options: ArtCNNPipelineDescriptor, config: ArtCNNVariantConfig) {
-    const { device, inputTexture, nativeDimensions } = options;
-    const packedTextureSize = {
-      width: nativeDimensions.width * config.packedScale.x,
-      height: nativeDimensions.height * config.packedScale.y,
-    };
-
-    const stage0 = new ArtCNNStagePass({
-      device,
-      inputTextures: [inputTexture],
+function createStages(config: ArtCNNVariantConfig): GeneratedLumaStageConfig[] {
+  return [
+    {
+      name: 'stage0',
       shaderWGSL: config.shaders.stage0,
-      outputTextureSize: packedTextureSize,
-      dispatchDimensions: nativeDimensions,
-      name: `${config.name}: stage0`,
-    });
-    this.pipelines.push(stage0);
-
-    let previousTexture = stage0.getOutputTexture();
-    for (const [stageName, shaderWGSL] of [
-      ['stage1', config.shaders.stage1],
-      ['stage2', config.shaders.stage2],
-      ['stage3', config.shaders.stage3],
-      ['stage4', config.shaders.stage4],
-      ['stage5', config.shaders.stage5],
-    ] as const) {
-      const stage = new ArtCNNStagePass({
-        device,
-        inputTextures: [previousTexture],
-        shaderWGSL,
-        outputTextureSize: packedTextureSize,
-        dispatchDimensions: nativeDimensions,
-        name: `${config.name}: ${stageName}`,
-      });
-      this.pipelines.push(stage);
-      previousTexture = stage.getOutputTexture();
-    }
-
-    const stage6 = new ArtCNNStagePass({
-      device,
-      inputTextures: [stage0.getOutputTexture(), previousTexture],
+      bindings: ['LUMA'],
+      outputName: 'stage0',
+      outputScale: config.packedScale,
+      final: false,
+    },
+    ...(['stage1', 'stage2', 'stage3', 'stage4', 'stage5'] as const).map((stageName, index) => ({
+      name: stageName,
+      shaderWGSL: config.shaders[stageName],
+      bindings: [index === 0 ? 'stage0' : `stage${index}`],
+      outputName: stageName,
+      outputScale: config.packedScale,
+      final: false,
+    })),
+    {
+      name: 'stage6',
       shaderWGSL: config.shaders.stage6,
-      outputTextureSize: nativeDimensions,
-      dispatchDimensions: nativeDimensions,
-      name: `${config.name}: stage6`,
-    });
-    this.pipelines.push(stage6);
-
-    const output = new ArtCNNOutputRecompose({
-      device,
-      sourceTexture: inputTexture,
-      lumaTexture: stage6.getOutputTexture(),
-      outputTextureSize: {
-        width: nativeDimensions.width * 2,
-        height: nativeDimensions.height * 2,
-      },
-      name: `${config.name}: output`,
-    });
-    this.pipelines.push(output);
-  }
-
-  updateParam(): void {
-    throw new Error('Method not implemented.');
-  }
-
-  pass(encoder: GPUCommandEncoder): void {
-    this.pipelines.forEach(pipeline => pipeline.pass(encoder));
-  }
-
-  getOutputTexture(): GPUTexture {
-    return this.pipelines[this.pipelines.length - 1].getOutputTexture();
-  }
-
-  destroy(): void {
-    this.pipelines.forEach(pipeline => pipeline.destroy?.());
-  }
+      bindings: ['stage0', 'stage5'],
+      outputName: 'stage6',
+      outputScale: 1,
+      final: true,
+    },
+  ];
 }
 
+export class ArtCNNUpscalePipeline extends GeneratedLumaModelPipeline {
+  constructor(options: ArtCNNPipelineDescriptor, config: ArtCNNVariantConfig) {
+    super({
+      device: options.device,
+      inputTexture: options.inputTexture,
+      nativeDimensions: options.nativeDimensions,
+      model: {
+        key: config.name,
+        name: config.name,
+        stages: createStages(config),
+      },
+      cacheKeyPrefix: 'artcnn',
+      stageDispatchSize: 'native',
+      stageWorkgroupSize: { width: 12, height: 16 },
+      outputRecomposeShaderWGSL: outputRecomposeWGSL,
+      outputRecomposeWorkgroupSize: { width: 12, height: 16 },
+    });
+  }
+}

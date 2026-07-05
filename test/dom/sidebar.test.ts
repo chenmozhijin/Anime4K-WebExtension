@@ -22,17 +22,32 @@ describe('Sidebar', () => {
     const sidebar = new Sidebar();
     sidebar.initialize();
 
+    expect(document.getElementById('sidebar-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-section="general"]')?.getAttribute('aria-current')).toBe('page');
+
     document.getElementById('sidebar-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.getElementById('sidebar')?.classList.contains('open')).toBe(true);
     expect(document.getElementById('sidebar-overlay')?.classList.contains('active')).toBe(true);
+    expect(document.getElementById('sidebar-toggle')?.getAttribute('aria-expanded')).toBe('true');
 
     document.querySelector('[data-section="advanced"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.querySelector('[data-section="advanced"]')?.classList.contains('active')).toBe(true);
+    expect(document.querySelector('[data-section="advanced"]')?.getAttribute('aria-current')).toBe('page');
     expect(document.getElementById('advanced-section')?.classList.contains('active')).toBe(true);
     expect(document.getElementById('sidebar')?.classList.contains('open')).toBe(false);
 
     sidebar.open();
     expect(document.getElementById('sidebar')?.classList.contains('open')).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.getElementById('sidebar')?.classList.contains('open')).toBe(false);
+
+    sidebar.open();
+    document.querySelector('[data-section="general"]')?.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+    }));
+    expect(document.querySelector('[data-section="general"]')?.getAttribute('aria-current')).toBe('page');
 
     sidebar.close();
     expect(document.getElementById('sidebar-overlay')?.classList.contains('active')).toBe(false);

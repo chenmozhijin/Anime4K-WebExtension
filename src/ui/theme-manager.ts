@@ -10,9 +10,10 @@ const logger = createLogger('theme');
 export class ThemeManager {
   private static instance: ThemeManager;
   private currentTheme: ThemeMode = 'auto';
+  private readonly readyPromise: Promise<void>;
 
   private constructor() {
-    this.loadTheme();
+    this.readyPromise = this.loadTheme();
     this.setupSystemThemeListener();
   }
 
@@ -37,6 +38,13 @@ export class ThemeManager {
    */
   public getTheme(): ThemeMode {
     return this.currentTheme;
+  }
+
+  /**
+   * Resolves once the persisted theme has been loaded and applied.
+   */
+  public ready(): Promise<void> {
+    return this.readyPromise;
   }
 
   /**

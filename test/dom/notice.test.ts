@@ -21,12 +21,29 @@ describe('showNotice', () => {
     });
 
     expect(document.querySelector('[data-anime4k-notice-root]')).not.toBeNull();
+    expect(notice.getAttribute('role')).toBe('alert');
+    expect(notice.getAttribute('aria-live')).toBe('assertive');
+    expect(document.activeElement).toBe(notice);
     expect(notice.textContent).toContain('Heads up');
 
     notice.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
 
     expect(action).toHaveBeenCalledTimes(1);
+    expect(notice.isConnected).toBe(false);
+  });
+
+  it('dismisses focused notices with Escape', () => {
+    installChromeMock();
+    const notice = showNotice({
+      kind: 'info',
+      message: 'Info',
+      timeoutMs: 0,
+    });
+
+    expect(notice.getAttribute('role')).toBe('status');
+    notice.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
     expect(notice.isConnected).toBe(false);
   });
 

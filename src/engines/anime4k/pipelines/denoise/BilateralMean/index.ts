@@ -1,17 +1,15 @@
+import type { PipelinePass, PipelineProfileRecorder } from '../../../../../core/effects/backend-types';
 import { Anime4KPipeline, Anime4KPipelineDescriptor } from '../../interfaces';
 import denoiseBilateralMeanWGSL from './shaders/bilateralMean.wgsl';
-import { createBindGroupChecked } from '../../../../../core/gpu-resource-cache';
+import { ComputeTexturePass } from '../../../../../core/gpu-passes/compute-texture-pass';
+
+const DEFAULT_INTENSITY_SIGMA = 0.1;
+const DEFAULT_SPATIAL_SIGMA = 1.0;
 
 export class BilateralMean implements Anime4KPipeline {
   texture: GPUTexture;
 
-  module: GPUShaderModule;
-
-  bindGroupLayout: GPUBindGroupLayout;
-
   bindGroup: GPUBindGroup;
-
-  pipelineLayout: GPUPipelineLayout;
 
   pipeline: GPUComputePipeline;
 
@@ -28,6 +26,8 @@ export class BilateralMean implements Anime4KPipeline {
   // passed in by constructor
   device: GPUDevice;
 
+  private readonly passImpl: ComputeTexturePass;
+
   constructor({
     device,
     inputTexture,
@@ -36,44 +36,6 @@ export class BilateralMean implements Anime4KPipeline {
     this.inputTexWidth = inputTexture.width;
     this.inputTexHeight = inputTexture.height;
     this.inputTexture = inputTexture;
-
-    const denoiseMeanModule = this.device.createShaderModule({
-      label: 'Denoise Bilateral Mean Module',
-      code: denoiseBilateralMeanWGSL,
-    });
-
-    const denoiseMeanBindGroupLayout = device.createBindGroupLayout({
-      label: 'Denoise Bilateral Mean Bind Group Layout',
-      entries: [{
-        binding: 0, // input frame texture
-        visibility: GPUShaderStage.COMPUTE,
-        texture: {},
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          access: 'write-only',
-          format: 'rgba16float',
-        },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: 'uniform' },
-      },
-      {
-        binding: 3,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: 'uniform' },
-      }],
-    });
-
-    const denoiseMeanTexture = this.device.createTexture({
-      size: [this.inputTexWidth, this.inputTexHeight, 1],
-      format: 'rgba16float',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
-    });
 
     this.strengthBuffer = device.createBuffer({
       size: 4,
@@ -84,18 +46,35 @@ export class BilateralMean implements Anime4KPipeline {
       size: 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    this.device.queue.writeBuffer(this.strengthBuffer, 0, new Float32Array([DEFAULT_INTENSITY_SIGMA]));
+    this.device.queue.writeBuffer(this.strengthBuffer2, 0, new Float32Array([DEFAULT_SPATIAL_SIGMA]));
 
-    const denoiseMeanBindGroup = createBindGroupChecked(this.device, 'anime4k/denoise/BilateralMean/bind-group', () => ({
-      layout: denoiseMeanBindGroupLayout,
-      entries: [
+    this.passImpl = new ComputeTexturePass({
+      device,
+      inputTextures: [inputTexture],
+      shaderWGSL: denoiseBilateralMeanWGSL,
+      name: 'Denoise Bilateral Mean',
+      cacheKeyPrefix: 'anime4k/denoise/BilateralMean',
+      outputSize: {
+        width: this.inputTexWidth,
+        height: this.inputTexHeight,
+      },
+      outputUsage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+      entryPoint: 'denoiseMain',
+      extraLayoutKey: 'uniforms-2-3',
+      extraLayoutEntries: [
         {
-          binding: 0,
-          resource: this.inputTexture.createView(),
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: 'uniform' },
         },
         {
-          binding: 1,
-          resource: denoiseMeanTexture.createView(),
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: 'uniform' },
         },
+      ],
+      extraBindGroupEntries: [
         {
           binding: 2,
           resource: {
@@ -109,39 +88,15 @@ export class BilateralMean implements Anime4KPipeline {
           },
         },
       ],
-    }));
-
-    const denoisePipelineLayout = this.device.createPipelineLayout({
-      label: 'Denoise Bilateral Mean Pipeline Layout',
-      bindGroupLayouts: [denoiseMeanBindGroupLayout],
     });
 
-    const denoiseMeanPipeline = device.createComputePipeline({
-      label: 'Denoise Bilateral Mean Compute Pipeline',
-      layout: denoisePipelineLayout,
-      compute: {
-        module: denoiseMeanModule,
-        entryPoint: 'denoiseMain',
-      },
-    });
-
-    this.texture = denoiseMeanTexture;
-    this.module = denoiseMeanModule;
-    this.bindGroupLayout = denoiseMeanBindGroupLayout;
-    this.pipelineLayout = denoisePipelineLayout;
-    this.pipeline = denoiseMeanPipeline;
-    this.bindGroup = denoiseMeanBindGroup;
+    this.texture = this.passImpl.outputTexture;
+    this.pipeline = this.passImpl.pipeline;
+    this.bindGroup = this.passImpl.bindGroup;
   }
 
-  pass(encoder: GPUCommandEncoder) {
-    const denoisePass = encoder.beginComputePass();
-    denoisePass.setPipeline(this.pipeline);
-    denoisePass.setBindGroup(0, this.bindGroup);
-    denoisePass.dispatchWorkgroups(
-      Math.ceil(this.inputTexWidth / 8),
-      Math.ceil(this.inputTexHeight / 8),
-    );
-    denoisePass.end();
+  pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder) {
+    this.passImpl.pass(encoder, profile);
   }
 
   getOutputTexture(): GPUTexture {
@@ -167,11 +122,7 @@ export class BilateralMean implements Anime4KPipeline {
   }
 
   destroy(): void {
-    try {
-      this.texture.destroy();
-    } catch {
-      // Ignore texture destruction errors during teardown.
-    }
+    this.passImpl.destroy();
 
     try {
       this.strengthBuffer.destroy();
@@ -184,6 +135,10 @@ export class BilateralMean implements Anime4KPipeline {
     } catch {
       // Ignore buffer destruction errors during teardown.
     }
+  }
+
+  getProfileChildren(): PipelinePass[] {
+    return [this.passImpl];
   }
 }
 

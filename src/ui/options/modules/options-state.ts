@@ -1,4 +1,4 @@
-import type { Anime4KWebExtSettings, LocalSettings, PerformanceTier } from '../../../types';
+import type { Anime4KWebExtSettings, LocalSettings, PerformanceMonitorMode, PerformanceTier } from '../../../types';
 import {
   BUILTIN_MODES,
   getLocalSettings,
@@ -13,6 +13,8 @@ export interface OptionsStateStore {
   getLocalSettingsState(): LocalSettings;
   getCurrentTier(): PerformanceTier;
   setCurrentTier(tier: PerformanceTier): void;
+  getPerformanceMonitorMode(): PerformanceMonitorMode;
+  setPerformanceMonitorMode(mode: PerformanceMonitorMode): void;
   syncEnhancementModes(): void;
 }
 
@@ -64,6 +66,14 @@ export function createOptionsStateStore(): OptionsStateStore {
     },
     setCurrentTier(tier: PerformanceTier) {
       ensureLocalSettingsState().performanceTier = tier;
+      ensureSettingsState().performanceTier = tier;
+    },
+    getPerformanceMonitorMode() {
+      return ensureLocalSettingsState().performanceMonitorMode;
+    },
+    setPerformanceMonitorMode(mode: PerformanceMonitorMode) {
+      ensureLocalSettingsState().performanceMonitorMode = mode;
+      ensureSettingsState().performanceMonitorMode = mode;
     },
     syncEnhancementModes,
   };

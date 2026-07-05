@@ -16,6 +16,10 @@ describe('settings utilities', () => {
         performanceTier: 'quality',
         gpuBenchmarkResult: null,
         hasCompletedOnboarding: true,
+        performanceMonitorMode: 'lite',
+        performanceMonitorHudCollapsed: true,
+        performanceMonitorHudPosition: 'bottom-right',
+        performanceMonitorHudWidth: 420,
       },
     });
   });
@@ -26,6 +30,10 @@ describe('settings utilities', () => {
 
     expect(settings.selectedModeId).toBe('builtin-mode-aa');
     expect(settings.performanceTier).toBe('quality');
+    expect(settings.performanceMonitorMode).toBe('lite');
+    expect(settings.performanceMonitorHudCollapsed).toBe(true);
+    expect(settings.performanceMonitorHudPosition).toBe('bottom-right');
+    expect(settings.performanceMonitorHudWidth).toBe(420);
     expect(settings.enhancementModes.length).toBeGreaterThan(0);
   });
 
@@ -37,10 +45,44 @@ describe('settings utilities', () => {
       selectedModeId: 'builtin-mode-bb',
       performanceTier: 'ultra',
       enableCrossOriginFix: true,
+      performanceMonitorMode: 'gpu',
+      performanceMonitorHudWidth: 380,
     });
 
     expect(chromeMock.__mock.syncState.selectedModeId).toBe('builtin-mode-bb');
     expect(chromeMock.__mock.syncState.enableCrossOriginFix).toBe(true);
+    expect(chromeMock.__mock.syncState.performanceMonitorMode).toBeUndefined();
     expect(chromeMock.__mock.localState.performanceTier).toBe('ultra');
+    expect(chromeMock.__mock.localState.performanceMonitorMode).toBe('gpu');
+    expect(chromeMock.__mock.localState.performanceMonitorHudWidth).toBe(380);
+  });
+
+  it('reports partial failures when one settings storage area fails', async () => {
+    const chromeMock = installChromeMock();
+    const { saveSettings, SettingsSaveError } = await import('../../src/utils/settings');
+    const syncFailure = new Error('sync quota exceeded');
+
+    chromeMock.__mock.queueStorageSetError('sync', syncFailure);
+
+    await expect(saveSettings({
+      selectedModeId: 'builtin-mode-bb',
+      performanceTier: 'ultra',
+    })).rejects.toMatchObject({
+      name: 'SettingsSaveError',
+      failures: [{ area: 'sync', error: syncFailure }],
+      succeededAreas: ['local'],
+    });
+
+    expect(chromeMock.__mock.localState.performanceTier).toBe('ultra');
+
+    try {
+      await saveSettings({
+        selectedModeId: 'builtin-mode-bb',
+        performanceTier: 'quality',
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(SettingsSaveError);
+      expect((error as InstanceType<typeof SettingsSaveError>).message).toBe('Failed to save settings to sync.');
+    }
   });
 });

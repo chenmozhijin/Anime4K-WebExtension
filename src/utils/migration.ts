@@ -87,6 +87,10 @@ export async function migrateToLatest(): Promise<void> {
     'gpuBenchmarkResult',
     'hasCompletedOnboarding',
     'benchmarkRunState',
+    'performanceMonitorMode',
+    'performanceMonitorHudCollapsed',
+    'performanceMonitorHudPosition',
+    'performanceMonitorHudWidth',
   ]);
   await chrome.storage.local.set({
     performanceTier: (localData.performanceTier || 'balanced') as PerformanceTier,
@@ -96,6 +100,10 @@ export async function migrateToLatest(): Promise<void> {
       status: 'idle',
       fallbackTierApplied: null,
     },
+    performanceMonitorMode: localData.performanceMonitorMode ?? 'off',
+    performanceMonitorHudCollapsed: localData.performanceMonitorHudCollapsed ?? false,
+    performanceMonitorHudPosition: localData.performanceMonitorHudPosition ?? 'top-left',
+    performanceMonitorHudWidth: localData.performanceMonitorHudWidth ?? null,
   });
   await chrome.storage.local.remove('_benchmarkInProgress');
 
@@ -128,6 +136,10 @@ export async function ensureLatestConfig(): Promise<void> {
         status: 'idle',
         fallbackTierApplied: null,
       },
+      performanceMonitorMode: 'off',
+      performanceMonitorHudCollapsed: false,
+      performanceMonitorHudPosition: 'top-left',
+      performanceMonitorHudWidth: null,
     });
 
     logger.info('Initialized new config with defaults.');

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { flushPromises } from '../support/async';
 import { installChromeMock } from '../support/chrome';
 
 const optionsHtml = readFileSync(resolve(process.cwd(), 'src/ui/options/options.html'), 'utf8');
@@ -8,12 +9,6 @@ const optionsHtml = readFileSync(resolve(process.cwd(), 'src/ui/options/options.
 function setDocumentFromHtml(html: string): void {
   const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
   document.body.innerHTML = body;
-}
-
-async function flushPromises(times = 4): Promise<void> {
-  for (let index = 0; index < times; index += 1) {
-    await Promise.resolve();
-  }
 }
 
 describe('options UI', () => {
@@ -78,18 +73,48 @@ describe('options UI', () => {
           backendId: 'anime4k',
           key: 'CNNM',
           name: 'CNNM',
+          category: 'restore',
+          dimensionBehavior: { kind: 'same' },
+          supportsVideoRealtime: true,
         },
         {
           id: 'artcnn/Upscale/C4F16',
           backendId: 'artcnn',
           key: 'C4F16',
           name: 'Upscale ArtCNN x2 (C4F16)',
+          category: 'upscale',
+          dimensionBehavior: { kind: 'scale', scale: 2 },
+          supportsVideoRealtime: true,
+        },
+        {
+          id: 'acnet/Upscale/F8B4',
+          backendId: 'acnet',
+          key: 'ACNET_F8B4',
+          name: 'Upscale ACNet F8B4 x2',
+          category: 'upscale',
+          dimensionBehavior: { kind: 'scale', scale: 2 },
+          supportsVideoRealtime: true,
+        },
+        {
+          id: 'cunny/Upscale/DS/Fast',
+          backendId: 'cunny',
+          key: 'CUNNY_FAST_DS',
+          name: 'Upscale CuNNy fast DS x2',
+          category: 'upscale',
+          dimensionBehavior: { kind: 'scale', scale: 2 },
+          supportsVideoRealtime: true,
+          license: {
+            expression: 'LGPL-3.0-or-later',
+            componentName: 'CuNNy',
+            sourceUrl: 'https://github.com/funnyplanter/CuNNy',
+          },
         },
       ],
     }));
     vi.doMock('../../src/ui/theme-manager', () => ({
       themeManager: {
         getTheme: vi.fn().mockReturnValue('auto'),
+        ready: vi.fn().mockResolvedValue(undefined),
         setTheme: vi.fn(),
       },
     }));
@@ -133,15 +158,46 @@ describe('options UI', () => {
     expect(document.querySelectorAll('#modes-container .mode-card')).toHaveLength(2);
     expect(document.querySelectorAll('#rules-container tr')).toHaveLength(1);
     expect(document.getElementById('version-number')?.textContent).toBe('1.2.3');
+    expect(document.getElementById('about-section')?.textContent).toContain('MIT core');
+    expect(document.getElementById('about-section')?.textContent).toContain('CuNNy LGPL components');
     expect(document.querySelector('[data-mode-id="builtin-mode-a"]')?.textContent).not.toContain('ArtCNN');
 
-    const artcnnEffectSelect = document.querySelector(
-      '[data-mode-id="custom-1"] .add-effect-container select',
-    ) as HTMLSelectElement;
-    expect(Array.from(artcnnEffectSelect.options).map(option => option.value)).toContain('artcnn/Upscale/C4F16');
-    artcnnEffectSelect.value = 'artcnn/Upscale/C4F16';
-    artcnnEffectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    let customModeCard = document.querySelector('[data-mode-id="custom-1"]') as HTMLElement;
+    expect(customModeCard.querySelector('.effect-browser')).toBeNull();
+
+    const toggleEffectBrowserBtn = customModeCard.querySelector('.btn-toggle-effect-browser') as HTMLButtonElement;
+    expect(toggleEffectBrowserBtn.textContent).toBe('+ addEffect');
+    toggleEffectBrowserBtn.click();
     await flushPromises();
+    customModeCard = document.querySelector('[data-mode-id="custom-1"]') as HTMLElement;
+    expect(customModeCard.querySelector('.effect-browser')).not.toBeNull();
+    expect(customModeCard.querySelector('.btn-toggle-effect-browser')?.textContent).toBe('effectBrowserDone');
+    expect((customModeCard.querySelector('.effect-search-input') as HTMLInputElement).placeholder)
+      .toBe('effectSearchPlaceholder');
+    expect(customModeCard.textContent).toContain('Upscale ACNet F8B4 x2');
+    expect(customModeCard.textContent).toContain('Upscale CuNNy fast DS x2');
+    expect(customModeCard.querySelector('.effect-browser')?.textContent).not.toContain('LGPL');
+
+    const acnetTab = Array.from(customModeCard.querySelectorAll('.effect-backend-tab'))
+      .find(button => button.textContent === 'ACNet') as HTMLButtonElement;
+    acnetTab.click();
+    expect(customModeCard.querySelector('.effect-browser')?.textContent).toContain('Upscale ACNet F8B4 x2');
+    expect(customModeCard.querySelector('.effect-browser')?.textContent).not.toContain('Upscale ArtCNN x2 (C4F16)');
+
+    const cunnyTab = Array.from(customModeCard.querySelectorAll('.effect-backend-tab'))
+      .find(button => button.textContent === 'CuNNy') as HTMLButtonElement;
+    cunnyTab.click();
+    expect(customModeCard.querySelector('.effect-browser')?.textContent).toContain('Upscale CuNNy fast DS x2');
+    expect(customModeCard.querySelector('.effect-browser')?.textContent).not.toContain('Upscale ACNet F8B4 x2');
+
+    const artcnnTab = Array.from(customModeCard.querySelectorAll('.effect-backend-tab'))
+      .find(button => button.textContent === 'ArtCNN') as HTMLButtonElement;
+    artcnnTab.click();
+    const artcnnRow = Array.from(customModeCard.querySelectorAll('.effect-result-row'))
+      .find(row => row.textContent?.includes('Upscale ArtCNN x2 (C4F16)')) as HTMLElement;
+    (artcnnRow.querySelector('.effect-result-add') as HTMLButtonElement).click();
+    await flushPromises();
+    customModeCard = document.querySelector('[data-mode-id="custom-1"]') as HTMLElement;
     expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
       customModes: [expect.objectContaining({
         id: 'custom-1',
@@ -154,6 +210,12 @@ describe('options UI', () => {
         ]),
       })],
     }));
+    expect(document.querySelector('[data-mode-id="custom-1"] .effect-browser')).not.toBeNull();
+
+    const doneBtn = document.querySelector('[data-mode-id="custom-1"] .btn-toggle-effect-browser') as HTMLButtonElement;
+    doneBtn.click();
+    await flushPromises();
+    expect(document.querySelector('[data-mode-id="custom-1"] .effect-browser')).toBeNull();
 
     document.getElementById('add-mode-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();

@@ -45,4 +45,27 @@ describe('EnhancerErrorNotifier', () => {
     notifier.clear();
     expect(document.querySelector('[data-anime4k-error-notification]')).toBeNull();
   });
+
+  it('clears only notifications owned by the same notifier instance', () => {
+    installChromeMock();
+    const first = new EnhancerErrorNotifier();
+    const second = new EnhancerErrorNotifier();
+
+    first.present(new Error('first failure'), 'render', {
+      enableCrossOriginFix: false,
+    });
+    second.present(new Error('second failure'), 'render', {
+      enableCrossOriginFix: false,
+    });
+
+    expect(document.querySelectorAll('[data-anime4k-error-notification]')).toHaveLength(2);
+
+    first.clear();
+
+    const remaining = document.querySelectorAll('[data-anime4k-error-notification]');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].textContent).toContain('second failure');
+
+    second.clear();
+  });
 });

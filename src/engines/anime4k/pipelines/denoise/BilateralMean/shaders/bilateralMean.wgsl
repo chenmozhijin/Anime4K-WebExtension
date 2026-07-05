@@ -14,7 +14,9 @@ fn gaussian(x: f32, s: f32, m: f32) -> f32 {
 }
 
 fn colorAt(x: i32, y: i32) -> vec4f { // read from Kernel-Y output texture
-  return textureLoad(tex_in, vec2i(x, y), 0);
+  let dim = vec2i(textureDimensions(tex_in));
+  let sample_pos = clamp(vec2i(x, y), vec2i(0), dim - vec2i(1));
+  return textureLoad(tex_in, sample_pos, 0);
 }
 
 @compute

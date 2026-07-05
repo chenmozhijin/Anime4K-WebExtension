@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EffectReference } from '../../src/types';
 import { createEffectReference } from '../../src/core/effects/reference';
-import { anime4kEffectDescriptors } from '../../src/engines/anime4k/catalog';
+import { anime4kEffectDescriptors, anime4kEffectSourceMetas } from '../../src/engines/anime4k/catalog';
 
 const { bilateralCalls, upscaleCalls } = vi.hoisted(() => ({
   bilateralCalls: [] as any[],
@@ -70,6 +70,12 @@ describe('anime4k backend', () => {
     expect(anime4kBackend.listEffects()).toBe(anime4kEffectDescriptors);
     expect(anime4kBackend.resolvePreset('A+A', 'performance').length).toBeGreaterThan(0);
     expect(anime4kBackend.getBenchmarkProfiles()[0]?.effects.length).toBeGreaterThan(0);
+  });
+
+  it('derives descriptors from Anime4K effect source metadata', () => {
+    expect(anime4kEffectSourceMetas).toHaveLength(19);
+    expect(anime4kEffectDescriptors).toEqual(anime4kEffectSourceMetas.map(meta => meta.descriptor));
+    expect(anime4kEffectSourceMetas.every(meta => meta.backendId === 'anime4k')).toBe(true);
   });
 
   it('compiles same-dimension effects through the cached pipeline factory', async () => {

@@ -15,24 +15,70 @@ export function downloadJSON(data: unknown, filename: string): void {
 export function openFile(): Promise<string> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,application/json';
-    input.onchange = event => {
-      const file = (event.target as HTMLInputElement).files?.[0];
+    let settled = false;
+    let focusCheckTimer: number | undefined;
+
+    const cleanup = () => {
+      if (focusCheckTimer !== undefined) {
+        window.clearTimeout(focusCheckTimer);
+        focusCheckTimer = undefined;
+      }
+      window.removeEventListener('focus', handleWindowFocus);
+      input.removeEventListener('change', handleChange);
+      input.removeEventListener('cancel', handleCancel);
+      input.remove();
+    };
+
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      callback();
+    };
+
+    const rejectNoFileSelected = () => {
+      settle(() => reject(new Error('No file selected')));
+    };
+
+    function handleCancel(): void {
+      rejectNoFileSelected();
+    }
+
+    function handleWindowFocus(): void {
+      focusCheckTimer = window.setTimeout(() => {
+        if (!input.files || input.files.length === 0) {
+          rejectNoFileSelected();
+        }
+      }, 0);
+    }
+
+    function handleChange(): void {
+      const file = input.files?.[0];
       if (!file) {
-        reject(new Error('No file selected'));
+        rejectNoFileSelected();
         return;
       }
 
       const reader = new FileReader();
       reader.onload = loadEvent => {
-        resolve(loadEvent.target?.result as string);
+        settle(() => resolve(loadEvent.target?.result as string));
       };
-      reader.onerror = error => {
-        reject(error);
+      reader.onerror = () => {
+        settle(() => reject(reader.error ?? new Error('Failed to read file')));
       };
       reader.readAsText(file);
-    };
+    }
+
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.hidden = true;
+    input.addEventListener('change', handleChange);
+    input.addEventListener('cancel', handleCancel);
+    window.addEventListener('focus', handleWindowFocus);
+    document.body.appendChild(input);
     input.click();
   });
 }

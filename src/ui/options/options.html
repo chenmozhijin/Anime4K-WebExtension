@@ -149,6 +149,22 @@
               <button id="run-benchmark-btn" class="btn btn-outline" data-i18n="runTest">Run Test</button>
             </div>
           </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <label data-i18n="performanceMonitor">Performance Monitor</label>
+              <p class="setting-description" data-i18n="performanceMonitorDesc">
+                Show a compact in-video performance HUD. GPU diagnostics use low-frequency sampling when supported.
+              </p>
+            </div>
+            <div class="setting-control">
+              <div class="segmented-control" id="performance-monitor-mode" role="radiogroup">
+                <button type="button" class="segment-btn" data-monitor-mode="off" data-i18n="performanceMonitorOff">Off</button>
+                <button type="button" class="segment-btn" data-monitor-mode="lite" data-i18n="performanceMonitorLite">Lite</button>
+                <button type="button" class="segment-btn" data-monitor-mode="gpu" data-i18n="performanceMonitorGpu">GPU</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       <section id="modes-section" class="content-section">
@@ -177,6 +193,9 @@
               <button id="export-btn" class="btn btn-outline" data-i18n="export">Export</button>
             </div>
           </div>
+          <p class="whitelist-help" data-i18n="whitelistPatternHelp">
+            Rules match the hostname and pathname only. Protocol, port, query, and hash are ignored.
+          </p>
           <div class="table-container">
             <table class="whitelist-table">
               <thead>
@@ -217,7 +236,10 @@
                 <div class="info-item">
                   <strong data-i18n="license">License:</strong>
                   <a href="https://github.com/chenmozhijin/Anime4K-WebExtension/blob/main/LICENSE" target="_blank"
-                    rel="noopener noreferrer">MIT</a>
+                    rel="noopener noreferrer">MIT core</a>
+                  <span> + </span>
+                  <a href="https://github.com/chenmozhijin/Anime4K-WebExtension/blob/main/THIRD_PARTY_NOTICES.md"
+                    target="_blank" rel="noopener noreferrer">CuNNy LGPL components</a>
                 </div>
                 <div class="info-item">
                   <strong data-i18n="sourceCode">Source Code:</strong>

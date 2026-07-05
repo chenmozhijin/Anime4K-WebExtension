@@ -4,20 +4,21 @@ import {
   BUILTIN_MODES,
   getLocalSettings,
   getSettings,
-  saveLocalSettings,
   saveSettings,
+  SettingsSaveError,
 } from '../../utils/settings';
 import { addWhitelistRule, setDefaultWhitelist } from '../../utils/whitelist';
 import { themeManager } from '../theme-manager';
 import type { PerformanceTier, EnhancementMode, CustomMode } from '../../types';
 import { showNotice } from '../shared/notice';
+import { runSaveAction } from '../shared/save-action';
 import { createLogger } from '../../utils/logger';
 
 let currentTier: PerformanceTier = 'balanced';
 const logger = createLogger('popup');
 
 document.addEventListener('DOMContentLoaded', async () => {
-  themeManager.getTheme();
+  await themeManager.ready();
   document.documentElement.setAttribute('lang', chrome.i18n.getMessage('@@ui_locale'));
 
   const versionInfo = document.getElementById('version-info');
@@ -110,6 +111,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
+  const refreshControls = async () => {
+    const [settings, localSettings] = await Promise.all([
+      getSettings(),
+      getLocalSettings(),
+    ]);
+    currentSettings = settings;
+    currentTier = localSettings.performanceTier;
+    renderModeSelect(currentSettings);
+    resolutionSelect.value = currentSettings.targetResolutionSetting;
+    whitelistToggle.checked = currentSettings.whitelistEnabled;
+    updateTierButtons(currentTier);
+    updateTierButtonsDisabled(currentSettings.selectedModeId.startsWith('custom-'));
+  };
+
   let currentSettings;
   try {
     const [settings, localSettings] = await Promise.all([
@@ -167,10 +182,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const updatedSettings = {
         selectedModeId: modeSelect.value,
         targetResolutionSetting: resolutionSelect.value,
+        performanceTier: currentTier,
       };
       await saveSettings(updatedSettings);
-      await saveLocalSettings({ performanceTier: currentTier });
-      logger.debug('Settings saved.', { ...updatedSettings, performanceTier: currentTier });
+      logger.debug('Settings saved.', updatedSettings);
 
       const existingStatus = document.querySelector('.save-status');
       existingStatus?.remove();
@@ -212,6 +227,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 1500);
     } catch (error) {
       logger.error('Error saving settings:', error);
+      if (error instanceof SettingsSaveError && error.succeededAreas.length > 0) {
+        await refreshControls();
+        const failedAreas = error.failures.map(failure => failure.area).join(', ');
+        showNotice({
+          kind: 'warning',
+          message: `${chrome.i18n.getMessage('saveFailed')}: ${failedAreas}`,
+        });
+        return;
+      }
+
       showNotice({
         kind: 'error',
         message: chrome.i18n.getMessage('saveFailed'),
@@ -220,56 +245,71 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   whitelistToggle.addEventListener('change', async () => {
-    try {
-      await saveSettings({ whitelistEnabled: whitelistToggle.checked });
-      logger.debug('Whitelist enabled:', whitelistToggle.checked);
-    } catch (error) {
-      logger.error('Error saving whitelist toggle:', error);
-    }
+    const nextEnabled = whitelistToggle.checked;
+    await runSaveAction({
+      action: async () => {
+        await saveSettings({ whitelistEnabled: nextEnabled });
+        logger.debug('Whitelist enabled:', nextEnabled);
+      },
+      logger,
+      logMessage: 'Error saving whitelist toggle:',
+      onError: () => {
+        whitelistToggle.checked = !nextEnabled;
+      },
+    });
   });
 
   addCurrentPageBtn.addEventListener('click', async () => {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs.length > 0 && tabs[0].url) {
-        const url = new URL(tabs[0].url);
-        await addWhitelistRule(url.hostname + url.pathname);
-        showNotice({ kind: 'success', message: chrome.i18n.getMessage('pageAdded') });
-      }
-    } catch (error) {
-      logger.error('Error adding current URL:', error);
-      showNotice({ kind: 'error', message: chrome.i18n.getMessage('whitelistAddFailed') });
-    }
+    await runSaveAction({
+      action: async () => {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0 && tabs[0].url) {
+          const url = new URL(tabs[0].url);
+          await addWhitelistRule(url.hostname + url.pathname);
+          showNotice({ kind: 'success', message: chrome.i18n.getMessage('pageAdded') });
+        }
+      },
+      controls: [addCurrentPageBtn],
+      logger,
+      errorMessage: chrome.i18n.getMessage('whitelistAddFailed'),
+      logMessage: 'Error adding current URL:',
+    });
   });
 
   addCurrentDomainBtn.addEventListener('click', async () => {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs.length > 0 && tabs[0].url) {
-        const url = new URL(tabs[0].url);
-        await addWhitelistRule(`${url.hostname}/*`);
-        showNotice({ kind: 'success', message: chrome.i18n.getMessage('domainAdded') });
-      }
-    } catch (error) {
-      logger.error('Error adding current domain:', error);
-      showNotice({ kind: 'error', message: chrome.i18n.getMessage('whitelistAddFailed') });
-    }
+    await runSaveAction({
+      action: async () => {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0 && tabs[0].url) {
+          const url = new URL(tabs[0].url);
+          await addWhitelistRule(`${url.hostname}/*`);
+          showNotice({ kind: 'success', message: chrome.i18n.getMessage('domainAdded') });
+        }
+      },
+      controls: [addCurrentDomainBtn],
+      logger,
+      errorMessage: chrome.i18n.getMessage('whitelistAddFailed'),
+      logMessage: 'Error adding current domain:',
+    });
   });
 
   addParentPathBtn.addEventListener('click', async () => {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs.length > 0 && tabs[0].url) {
-        const url = new URL(tabs[0].url);
-        const pathParts = url.pathname.split('/').filter(Boolean);
-        const parentPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
-        await addWhitelistRule(`${url.hostname}/${parentPath}/*`);
-        showNotice({ kind: 'success', message: chrome.i18n.getMessage('parentPathAdded') });
-      }
-    } catch (error) {
-      logger.error('Error adding parent path:', error);
-      showNotice({ kind: 'error', message: chrome.i18n.getMessage('whitelistAddFailed') });
-    }
+    await runSaveAction({
+      action: async () => {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0 && tabs[0].url) {
+          const url = new URL(tabs[0].url);
+          const pathParts = url.pathname.split('/').filter(Boolean);
+          const parentPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+          await addWhitelistRule(`${url.hostname}/${parentPath}/*`);
+          showNotice({ kind: 'success', message: chrome.i18n.getMessage('parentPathAdded') });
+        }
+      },
+      controls: [addParentPathBtn],
+      logger,
+      errorMessage: chrome.i18n.getMessage('whitelistAddFailed'),
+      logMessage: 'Error adding parent path:',
+    });
   });
 
   openSettingsBtn.addEventListener('click', () => {

@@ -1,4 +1,7 @@
 export type PerformanceTier = 'performance' | 'balanced' | 'quality' | 'ultra';
+export type PerformanceMonitorMode = 'off' | 'lite' | 'gpu';
+export type PerformanceMonitorHudPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type PerformanceTimingSource = 'cpu' | 'gpu' | 'mixed' | 'unavailable';
 
 // Anime4K preset ids are kept for backward compatibility with existing built-in modes.
 export type Anime4KPresetId = 'A' | 'B' | 'C' | 'A+A' | 'B+B' | 'C+A';
@@ -45,6 +48,11 @@ export interface EffectDescriptor {
   dimensionBehavior: DimensionBehavior;
   supportsVideoRealtime: boolean;
   hidden?: boolean;
+  license?: {
+    expression: string;
+    componentName: string;
+    sourceUrl: string;
+  };
 }
 
 export interface EffectReference {
@@ -107,14 +115,57 @@ export interface LocalSettings {
   gpuBenchmarkResult: GPUBenchmarkResult | null;
   hasCompletedOnboarding: boolean;
   benchmarkRunState: BenchmarkRunState;
+  performanceMonitorMode: PerformanceMonitorMode;
+  performanceMonitorHudCollapsed: boolean;
+  performanceMonitorHudPosition: PerformanceMonitorHudPosition;
+  performanceMonitorHudWidth: number | null;
 }
 
 export interface Anime4KWebExtSettings extends SyncedSettings {
   performanceTier: PerformanceTier;
   enhancementModes: EnhancementMode[];
+  performanceMonitorMode: PerformanceMonitorMode;
+  performanceMonitorHudCollapsed: boolean;
+  performanceMonitorHudPosition: PerformanceMonitorHudPosition;
+  performanceMonitorHudWidth: number | null;
 }
 
 export interface Dimensions {
   width: number;
   height: number;
+}
+
+export interface PassTimingEntry {
+  label: string;
+  group: string;
+  cpuMs: number;
+  gpuMs?: number;
+  source: PerformanceTimingSource;
+}
+
+export interface PerformanceMonitorOptions {
+  mode: PerformanceMonitorMode;
+  hudCollapsed: boolean;
+  hudPosition: PerformanceMonitorHudPosition;
+}
+
+export interface FramePerformanceSnapshot {
+  mode: PerformanceMonitorMode;
+  timingSource: PerformanceTimingSource;
+  gpuName: string;
+  uploadMethod: string;
+  modeName: string;
+  tier: PerformanceTier;
+  sourceDimensions: Dimensions;
+  targetDimensions: Dimensions;
+  fps: number;
+  droppedFrameRate: number;
+  frameMs: number;
+  uploadMs: number;
+  encodeMs: number;
+  submitMs: number;
+  passEntries: PassTimingEntry[];
+  groupEntries: PassTimingEntry[];
+  budgetMs: number;
+  timestampAvailable: boolean;
 }

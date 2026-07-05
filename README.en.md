@@ -10,7 +10,7 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 
 - 🚀 **Real-time Super-Resolution:** Leverage advanced WebGPU technology to achieve low-latency, high-performance real-time video super-resolution enhancement directly in the browser.
 - ⚡ **Multiple Performance Tiers:** Offers four preset modes: Fast/Balanced/Quality/Ultra, and supports Custom Modes to flexibly balance image quality improvement and hardware load.
-- 🧪 **Advanced Custom Effects:** Custom Modes can use ArtCNN effects; in this release, ArtCNN is not used for automatic recommendations and does not appear as a built-in mode.
+- 🧪 **Advanced Custom Effects:** Custom Modes can use ArtCNN, ACNet, CuNNy, and other effects; these effects are not used for automatic recommendations and do not appear as built-in modes.
 - 📊 **Hardware Performance Evaluation:** Built-in GPU benchmark test to recommend the best super-resolution tier for your hardware.
 - 📏 **Flexible Resolution Control:** Supports 2x/4x/8x upscaling factors, or can lock to target resolutions like 2K/4K to meet diverse viewing needs.
 - ✨ **One-Click Enhance:** A purple "✨ Enhance" button automatically appears on the video player for one-click image quality boost.
@@ -53,8 +53,8 @@ Significantly improve the image quality of anime videos with the Anime4K real-ti
 2. Run `npm install` to install dependencies
 3. Run `npm run build` to build the project
 4. Load the built extension in your browser:
-   - Chrome: Open extensions page (`chrome://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
-   - Edge: Open extensions page (`edge://extensions`) → Enable "Developer mode" → "Load unpacked" → Select the `dist` directory in the project
+   - Chrome/Edge: Open the extensions page (`chrome://extensions` or `edge://extensions`) → enable Developer mode → Load unpacked → select the `dist-chrome` directory
+   - Firefox: Open `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → select `dist-firefox/manifest.json`
 
 ### I. First Run (Onboarding)
 
@@ -102,15 +102,25 @@ Click the **"Settings"** button at the bottom of the panel to access the detaile
 
 #### 3. Enhancement Modes
 *   **Visual Editor**: Create brand new custom modes.
-*   **ArtCNN Advanced Effects**: Add them manually in Custom Modes for high-load experimental configurations; this release does not recommend them through GPU Benchmark and does not expose them as built-in modes.
+*   **Advanced Effects**: Add ArtCNN, ACNet, and CuNNy manually in Custom Modes for high-load experimental configurations; this release does not recommend them through GPU Benchmark and does not expose them as built-in modes.
 *   **Drag & Drop Sorting**: Adjust the order of applied shaders or the mode list itself.
 *   **Share Config**: Import/Export your custom mode configurations (JSON format).
 
 #### 4. Whitelist Management
 *   **Rule Management**: View, edit, or delete added URL rules.
 *   **Wildcard Support**: Use `*` to match multiple pages (e.g., `*.bilibili.com/*`).
+*   **Match Scope**: Whitelist rules match `hostname + pathname` only. Protocol, port, query, and hash are ignored. For example, `example.com/watch/*` matches `https://example.com:8443/watch/1?from=home`.
+
 
 ## Acknowledgments
 
 - [bloc97/Anime4K](https://github.com/bloc97/Anime4K)
 - [Anime4K-WebGPU](https://github.com/Anime4KWebBoost/Anime4K-WebGPU)
+- [CuNNy](https://github.com/funnyplanter/CuNNy)
+
+## License
+
+The project core is licensed under MIT. The CuNNy generated components bundled
+with the default extension package are licensed under LGPL-3.0-or-later; see
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for notices and
+corresponding-source details.

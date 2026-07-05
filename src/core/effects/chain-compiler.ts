@@ -6,9 +6,10 @@ import { internalResizeEffectReference } from '../../engines/core/catalog';
 
 function createPassthroughPlan(inputTexture: GPUTexture, dimensions: Dimensions): CompiledEffectPlan {
   const passthroughPipeline: PipelinePass = {
+    profileLabel: 'Passthrough',
+    profileGroup: 'Passthrough',
     pass: () => { },
     getOutputTexture: () => inputTexture,
-    updateParam: () => { },
   };
 
   return {
@@ -18,6 +19,14 @@ function createPassthroughPlan(inputTexture: GPUTexture, dimensions: Dimensions)
     requiredModules: [],
     warmupSteps: 0,
   };
+}
+
+function assignProfileGroup(pipeline: PipelinePass, group: string): void {
+  pipeline.profileGroup = group;
+  const children = pipeline.getProfileChildren?.()
+    ?? (pipeline as PipelinePass & { pipelines?: PipelinePass[] }).pipelines
+    ?? [];
+  children.forEach(child => assignProfileGroup(child, group));
 }
 
 function getEffectScale(effect: EffectReference): number {
@@ -50,55 +59,68 @@ export async function compileEffectChain(options: {
   const remainingUpscaleFactors = upscaleFactors.map((_, index) =>
     upscaleFactors.slice(index + 1).reduce((acc, value) => acc * value, 1));
 
-  for (const [index, effect] of effects.entries()) {
-    const descriptor = getEffectDescriptor(effect);
-    if (!descriptor) {
-      throw new Error(`Effect not found: ${effect.id}`);
-    }
+  try {
+    for (const [index, effect] of effects.entries()) {
+      const descriptor = getEffectDescriptor(effect);
+      if (!descriptor) {
+        throw new Error(`Effect not found: ${effect.id}`);
+      }
 
-    const backend = await getRuntimeBackend(effect.backendId);
-    const compiled = await backend.compileEffect(effect, {
-      device,
-      inputTexture: currentTexture,
-      sourceDimensions,
-      currentDimensions,
-      targetDimensions,
-    });
+      const backend = await getRuntimeBackend(effect.backendId);
+      const compiled = await backend.compileEffect(effect, {
+        device,
+        inputTexture: currentTexture,
+        sourceDimensions,
+        currentDimensions,
+        targetDimensions,
+      });
 
-    pipelines.push(...compiled.pipelines);
-    compiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
-    warmupSteps += compiled.warmupSteps;
-    currentTexture = compiled.outputTexture;
-    currentDimensions = compiled.outputDimensions;
+      compiled.pipelines.forEach(pipeline => assignProfileGroup(pipeline, descriptor.name));
+      pipelines.push(...compiled.pipelines);
+      compiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
+      warmupSteps += compiled.warmupSteps;
+      currentTexture = compiled.outputTexture;
+      currentDimensions = compiled.outputDimensions;
 
-    const remainingFactor = remainingUpscaleFactors[index];
-    if ((descriptor.dimensionBehavior.scale ?? 1) > 1 && remainingFactor > 1) {
-      const idealIntermediateWidth = targetDimensions.width / remainingFactor;
-      const idealIntermediateHeight = targetDimensions.height / remainingFactor;
+      const remainingFactor = remainingUpscaleFactors[index];
+      if ((descriptor.dimensionBehavior.scale ?? 1) > 1 && remainingFactor > 1) {
+        const idealIntermediateWidth = targetDimensions.width / remainingFactor;
+        const idealIntermediateHeight = targetDimensions.height / remainingFactor;
 
-      if (
-        currentDimensions.width > idealIntermediateWidth * 1.1
-        || currentDimensions.height > idealIntermediateHeight * 1.1
-      ) {
-        const resizeTarget = {
-          width: Math.ceil(idealIntermediateWidth),
-          height: Math.ceil(idealIntermediateHeight),
-        };
-        const resizeBackend = await getRuntimeBackend(internalResizeEffectReference.backendId);
-        const resizeCompiled = await resizeBackend.compileEffect(internalResizeEffectReference, {
-          device,
-          inputTexture: currentTexture,
-          sourceDimensions,
-          currentDimensions,
-          targetDimensions: resizeTarget,
-        });
-        pipelines.push(...resizeCompiled.pipelines);
-        resizeCompiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
-        warmupSteps += resizeCompiled.warmupSteps;
-        currentTexture = resizeCompiled.outputTexture;
-        currentDimensions = resizeCompiled.outputDimensions;
+        if (
+          currentDimensions.width > idealIntermediateWidth * 1.1
+          || currentDimensions.height > idealIntermediateHeight * 1.1
+        ) {
+          const resizeTarget = {
+            width: Math.ceil(idealIntermediateWidth),
+            height: Math.ceil(idealIntermediateHeight),
+          };
+          const resizeBackend = await getRuntimeBackend(internalResizeEffectReference.backendId);
+          const resizeCompiled = await resizeBackend.compileEffect(internalResizeEffectReference, {
+            device,
+            inputTexture: currentTexture,
+            sourceDimensions,
+            currentDimensions,
+            targetDimensions: resizeTarget,
+          });
+          resizeCompiled.pipelines.forEach(pipeline => assignProfileGroup(pipeline, 'Downscale'));
+          pipelines.push(...resizeCompiled.pipelines);
+          resizeCompiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
+          warmupSteps += resizeCompiled.warmupSteps;
+          currentTexture = resizeCompiled.outputTexture;
+          currentDimensions = resizeCompiled.outputDimensions;
+        }
       }
     }
+  } catch (error) {
+    for (const pipeline of pipelines) {
+      try {
+        pipeline.destroy?.();
+      } catch {
+        // Ignore cleanup failures from a rejected effect chain.
+      }
+    }
+    throw error;
   }
 
   return {

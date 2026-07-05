@@ -1,25 +1,13 @@
-import type { Dimensions } from '../../types';
-import type { AlgorithmBackend, CompileEffectContext, CompiledEffectNode, PipelinePass } from '../../core/effects/backend-types';
+import type { PipelinePass } from '../../core/effects/backend-types';
+import { createEffectBackend, createPipelineConstructorLoader } from '../../core/effects/backend-factory';
 import { artcnnBackendId, artcnnEffectDescriptors } from './catalog';
 
 type PipelineConstructor = new (options: any) => PipelinePass;
-type EffectFactory = (context: CompileEffectContext) => Promise<CompiledEffectNode>;
 type PipelineModule = Record<string, PipelineConstructor>;
 type EffectLoader = () => Promise<PipelineConstructor>;
 
-const effectDescriptorByKey = new Map(artcnnEffectDescriptors.map(descriptor => [descriptor.key, descriptor]));
-const pipelineConstructorCache = new Map<string, Promise<PipelineConstructor>>();
-
 function createLoader<T extends PipelineModule>(moduleImporter: () => Promise<T>, exportName: keyof T & string): EffectLoader {
-  return async () => {
-    let constructorPromise = pipelineConstructorCache.get(exportName);
-    if (!constructorPromise) {
-      constructorPromise = moduleImporter().then(module => module[exportName]);
-      pipelineConstructorCache.set(exportName, constructorPromise);
-    }
-
-    return constructorPromise;
-  };
+  return createPipelineConstructorLoader(moduleImporter, exportName);
 }
 
 const loaders: Record<string, EffectLoader> = {
@@ -49,57 +37,17 @@ const loaders: Record<string, EffectLoader> = {
   ),
 };
 
-function createFactory(
-  descriptorKey: string,
-  loadPipelineClass: EffectLoader,
-): EffectFactory {
-  return async (context) => {
-    const PipelineClass = await loadPipelineClass();
-    const pipeline = new PipelineClass({
+export const artcnnBackend = createEffectBackend({
+  backendId: artcnnBackendId,
+  backendDisplayName: 'ArtCNN',
+  descriptors: artcnnEffectDescriptors,
+  loaders,
+  createPipeline(PipelineClass, context) {
+    return new PipelineClass({
       device: context.device,
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       targetDimensions: context.targetDimensions,
     });
-    const descriptor = effectDescriptorByKey.get(descriptorKey);
-    const scale = descriptor?.dimensionBehavior.scale ?? 1;
-    const outputDimensions: Dimensions = {
-      width: Math.ceil(context.currentDimensions.width * scale),
-      height: Math.ceil(context.currentDimensions.height * scale),
-    };
-
-    return {
-      pipelines: [pipeline],
-      outputTexture: pipeline.getOutputTexture(),
-      outputDimensions,
-      requiredModules: [`${artcnnBackendId}:${descriptorKey}`],
-      warmupSteps: 1,
-    };
-  };
-}
-
-const factories: Record<string, EffectFactory> = Object.fromEntries(
-  Object.entries(loaders).map(([key, loader]) => [key, createFactory(key, loader)]),
-);
-
-export const artcnnBackend: AlgorithmBackend = {
-  backendId: artcnnBackendId,
-  listEffects() {
-    return artcnnEffectDescriptors;
   },
-  resolvePreset() {
-    return [];
-  },
-  async compileEffect(effect, context) {
-    const factory = factories[effect.key];
-    if (!factory) {
-      throw new Error(`Unsupported ArtCNN effect: ${effect.key}`);
-    }
-
-    return factory(context);
-  },
-  getBenchmarkProfiles() {
-    return [];
-  },
-};
-
+});

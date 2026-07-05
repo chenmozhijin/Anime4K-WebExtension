@@ -1,9 +1,18 @@
 import type { Anime4KPresetId, EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
 import { createEffectReference } from '../../core/effects/reference';
+import type { EffectSourceMeta } from '../../core/effects/source-meta';
 
 export const anime4kBackendId = 'anime4k';
 
-export const anime4kEffectDescriptors: EffectDescriptor[] = [
+function effectSourceMeta(descriptor: EffectDescriptor): EffectSourceMeta {
+  return {
+    backendId: anime4kBackendId,
+    descriptor,
+  };
+}
+
+export const anime4kEffectSourceMetas: EffectSourceMeta[] = [
+  effectSourceMeta(
   {
     id: 'anime4k/Deblur/DoG',
     backendId: anime4kBackendId,
@@ -13,6 +22,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Denoise/BilateralMean',
     backendId: anime4kBackendId,
@@ -22,6 +33,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/CNNM',
     backendId: anime4kBackendId,
@@ -31,6 +44,30 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
+  {
+    id: 'anime4k/Restore/CNNS',
+    backendId: anime4kBackendId,
+    key: 'CNNS',
+    name: 'Restore CNN (S)',
+    category: 'restore',
+    dimensionBehavior: { kind: 'same' },
+    supportsVideoRealtime: true,
+  },
+  ),
+  effectSourceMeta(
+  {
+    id: 'anime4k/Restore/CNNL',
+    backendId: anime4kBackendId,
+    key: 'CNNL',
+    name: 'Restore CNN (L)',
+    category: 'restore',
+    dimensionBehavior: { kind: 'same' },
+    supportsVideoRealtime: true,
+  },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/CNNSoftM',
     backendId: anime4kBackendId,
@@ -40,6 +77,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/CNNSoftVL',
     backendId: anime4kBackendId,
@@ -49,6 +88,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/CNNVL',
     backendId: anime4kBackendId,
@@ -58,6 +99,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/CNNUL',
     backendId: anime4kBackendId,
@@ -67,6 +110,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Restore/GANUUL',
     backendId: anime4kBackendId,
@@ -76,6 +121,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/CNNx2M',
     backendId: anime4kBackendId,
@@ -85,6 +132,30 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
+  {
+    id: 'anime4k/Upscale/CNNx2S',
+    backendId: anime4kBackendId,
+    key: 'CNNx2S',
+    name: 'Upscale CNN x2 (S)',
+    category: 'upscale',
+    dimensionBehavior: { kind: 'scale', scale: 2 },
+    supportsVideoRealtime: true,
+  },
+  ),
+  effectSourceMeta(
+  {
+    id: 'anime4k/Upscale/CNNx2L',
+    backendId: anime4kBackendId,
+    key: 'CNNx2L',
+    name: 'Upscale CNN x2 (L)',
+    category: 'upscale',
+    dimensionBehavior: { kind: 'scale', scale: 2 },
+    supportsVideoRealtime: true,
+  },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/CNNx2VL',
     backendId: anime4kBackendId,
@@ -94,6 +165,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/DenoiseCNNx2VL',
     backendId: anime4kBackendId,
@@ -103,6 +176,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/CNNx2UL',
     backendId: anime4kBackendId,
@@ -112,6 +187,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/GANx3L',
     backendId: anime4kBackendId,
@@ -121,6 +198,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 3 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Upscale/GANx4UUL',
     backendId: anime4kBackendId,
@@ -130,6 +209,8 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 4 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'anime4k/Helper/ClampHighlights',
     backendId: anime4kBackendId,
@@ -138,8 +219,12 @@ export const anime4kEffectDescriptors: EffectDescriptor[] = [
     category: 'helper',
     dimensionBehavior: { kind: 'same' },
     supportsVideoRealtime: true,
+    hidden: true,
   },
+  ),
 ];
+
+export const anime4kEffectDescriptors: EffectDescriptor[] = anime4kEffectSourceMetas.map(meta => meta.descriptor);
 
 const effectDescriptorByKey = new Map(anime4kEffectDescriptors.map(descriptor => [descriptor.key, descriptor]));
 

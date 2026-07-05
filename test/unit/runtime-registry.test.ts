@@ -15,6 +15,16 @@ describe('runtime registry', () => {
     expect(backend.backendId).toBe('artcnn');
   });
 
+  it('loads the ACNetGLSL backend', async () => {
+    const backend = await getRuntimeBackend('acnet');
+    expect(backend.backendId).toBe('acnet');
+  });
+
+  it('loads the CuNNy backend', async () => {
+    const backend = await getRuntimeBackend('cunny');
+    expect(backend.backendId).toBe('cunny');
+  });
+
   it('throws for unknown runtime backends', async () => {
     await expect(getRuntimeBackend('missing')).rejects.toThrow('Unknown runtime backend');
   });

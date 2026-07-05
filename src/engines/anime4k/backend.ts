@@ -1,26 +1,13 @@
-import type { Dimensions } from '../../types';
-import type { AlgorithmBackend, CompileEffectContext, CompiledEffectNode, PipelinePass } from '../../core/effects/backend-types';
+import type { PipelinePass } from '../../core/effects/backend-types';
+import { createEffectBackend, createPipelineConstructorLoader } from '../../core/effects/backend-factory';
 import { anime4kBackendId, anime4kEffectDescriptors, resolveAnime4kPreset } from './catalog';
 
 type PipelineConstructor = new (options: any) => PipelinePass;
-type EffectFactory = (context: CompileEffectContext) => Promise<CompiledEffectNode>;
 type PipelineModule = Record<string, PipelineConstructor>;
 type EffectLoader = () => Promise<PipelineConstructor>;
 
-const effectDescriptorByKey = new Map(anime4kEffectDescriptors.map(descriptor => [descriptor.key, descriptor]));
-
-const pipelineConstructorCache = new Map<string, Promise<PipelineConstructor>>();
-
 function createLoader<T extends PipelineModule>(moduleImporter: () => Promise<T>, exportName: keyof T & string): EffectLoader {
-  return async () => {
-    let constructorPromise = pipelineConstructorCache.get(exportName);
-    if (!constructorPromise) {
-      constructorPromise = moduleImporter().then(module => module[exportName]);
-      pipelineConstructorCache.set(exportName, constructorPromise);
-    }
-
-    return constructorPromise;
-  };
+  return createPipelineConstructorLoader(moduleImporter, exportName);
 }
 
 const loaders: Record<string, EffectLoader> = {
@@ -35,6 +22,14 @@ const loaders: Record<string, EffectLoader> = {
   CNNM: createLoader(
     () => import(/* webpackChunkName: "anime4k-effect-cnnm" */ './pipelines/restore/CNNM'),
     'CNNM',
+  ),
+  CNNS: createLoader(
+    () => import(/* webpackChunkName: "anime4k-effect-cnns" */ './pipelines/restore/CNNS'),
+    'CNNS',
+  ),
+  CNNL: createLoader(
+    () => import(/* webpackChunkName: "anime4k-effect-cnnl" */ './pipelines/restore/CNNL'),
+    'CNNL',
   ),
   CNNSoftM: createLoader(
     () => import(/* webpackChunkName: "anime4k-effect-cnnsoftm" */ './pipelines/restore/CNNSoftM'),
@@ -55,6 +50,14 @@ const loaders: Record<string, EffectLoader> = {
   CNNx2M: createLoader(
     () => import(/* webpackChunkName: "anime4k-effect-cnnx2m" */ './pipelines/upscale/CNNx2M'),
     'CNNx2M',
+  ),
+  CNNx2S: createLoader(
+    () => import(/* webpackChunkName: "anime4k-effect-cnnx2s" */ './pipelines/upscale/CNNx2S'),
+    'CNNx2S',
+  ),
+  CNNx2L: createLoader(
+    () => import(/* webpackChunkName: "anime4k-effect-cnnx2l" */ './pipelines/upscale/CNNx2L'),
+    'CNNx2L',
   ),
   CNNx2UL: createLoader(
     () => import(/* webpackChunkName: "anime4k-effect-cnnx2ul" */ './pipelines/upscale/CNNx2UL'),
@@ -86,55 +89,19 @@ const loaders: Record<string, EffectLoader> = {
   ),
 };
 
-function createFactory(
-  descriptorKey: string,
-  loadPipelineClass: EffectLoader,
-): EffectFactory {
-  return async (context) => {
-    const PipelineClass = await loadPipelineClass();
-    const pipeline = new PipelineClass({
+export const anime4kBackend = createEffectBackend({
+  backendId: anime4kBackendId,
+  backendDisplayName: 'Anime4K',
+  descriptors: anime4kEffectDescriptors,
+  loaders,
+  resolvePreset: resolveAnime4kPreset,
+  createPipeline(PipelineClass, context) {
+    return new PipelineClass({
       device: context.device,
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       targetDimensions: context.targetDimensions,
     });
-    const descriptor = effectDescriptorByKey.get(descriptorKey);
-    const scale = descriptor?.dimensionBehavior.scale ?? 1;
-    const outputDimensions: Dimensions = descriptor?.dimensionBehavior.kind === 'scale'
-      ? {
-        width: Math.ceil(context.currentDimensions.width * scale),
-        height: Math.ceil(context.currentDimensions.height * scale),
-      }
-      : { ...context.currentDimensions };
-
-    return {
-      pipelines: [pipeline],
-      outputTexture: pipeline.getOutputTexture(),
-      outputDimensions,
-      requiredModules: [`${anime4kBackendId}:${descriptorKey}`],
-      warmupSteps: 1,
-    };
-  };
-}
-
-const factories: Record<string, EffectFactory> = Object.fromEntries(
-  Object.entries(loaders).map(([key, loader]) => [key, createFactory(key, loader)]),
-);
-
-export const anime4kBackend: AlgorithmBackend = {
-  backendId: anime4kBackendId,
-  listEffects() {
-    return anime4kEffectDescriptors;
-  },
-  resolvePreset(modeId, tier) {
-    return resolveAnime4kPreset(modeId, tier);
-  },
-  async compileEffect(effect, context) {
-    const factory = factories[effect.key];
-    if (!factory) {
-      throw new Error(`Unsupported Anime4K effect: ${effect.key}`);
-    }
-    return factory(context);
   },
   getBenchmarkProfiles() {
     return [
@@ -145,4 +112,4 @@ export const anime4kBackend: AlgorithmBackend = {
       },
     ];
   },
-};
+});

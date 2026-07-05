@@ -6,6 +6,7 @@ import type { PerformanceTier, GPUBenchmarkResult } from '../../types';
 import type { BenchmarkProgress } from '../../core/gpu-benchmark';
 import { showNotice } from '../shared/notice';
 import { createLogger } from '../../utils/logger';
+import { runSaveAction } from '../shared/save-action';
 
 const logger = createLogger('onboarding');
 
@@ -20,7 +21,7 @@ let selectedTier: PerformanceTier = 'balanced';
 let benchmarkResult: GPUBenchmarkResult | null = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  themeManager.getTheme();
+  await themeManager.ready();
   applyI18n();
 
   const localSettings = await getLocalSettings();
@@ -82,10 +83,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       selectedTier = benchmarkResult.tier;
-      await saveLocalSettings({
-        performanceTier: selectedTier,
-        gpuBenchmarkResult: benchmarkResult,
+      const saved = await runSaveAction({
+        action: () => saveLocalSettings({
+          performanceTier: selectedTier,
+          gpuBenchmarkResult: benchmarkResult,
+        }),
+        controls: [startTestBtn],
+        logger,
+        logMessage: 'Failed to save onboarding benchmark result.',
       });
+      if (saved === null) {
+        return;
+      }
 
       updateResultDisplay();
       goToStep(2);
@@ -95,7 +104,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         progressText.textContent = chrome.i18n.getMessage('testFailedDefault');
       }
       selectedTier = 'balanced';
-      await saveLocalSettings({ performanceTier: selectedTier });
+      const saved = await runSaveAction({
+        action: () => saveLocalSettings({ performanceTier: selectedTier }),
+        controls: [startTestBtn],
+        logger,
+        logMessage: 'Failed to save onboarding fallback tier.',
+      });
+      if (saved === null) {
+        return;
+      }
 
       showNotice({
         kind: 'warning',
@@ -112,7 +129,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   skipTestBtn.addEventListener('click', async () => {
     selectedTier = 'balanced';
-    await saveLocalSettings({ performanceTier: selectedTier });
+    const saved = await runSaveAction({
+      action: () => saveLocalSettings({ performanceTier: selectedTier }),
+      controls: [skipTestBtn],
+      logger,
+      logMessage: 'Failed to save skipped onboarding tier.',
+    });
+    if (saved === null) {
+      return;
+    }
     goToStep(2);
   });
 
@@ -124,10 +149,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   confirmTierBtn.addEventListener('click', async () => {
-    await saveLocalSettings({
-      performanceTier: selectedTier,
-      hasCompletedOnboarding: true,
+    const saved = await runSaveAction({
+      action: () => saveLocalSettings({
+        performanceTier: selectedTier,
+        hasCompletedOnboarding: true,
+      }),
+      controls: [confirmTierBtn],
+      logger,
+      logMessage: 'Failed to save onboarding completion.',
     });
+    if (saved === null) {
+      return;
+    }
     chrome.runtime.sendMessage({ type: 'SETTINGS_UPDATED' });
     goToStep(3);
   });
@@ -140,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.openOptionsPage();
     window.close();
   });
-});
+}, { once: true });
 
 function applyI18n(): void {
   document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {

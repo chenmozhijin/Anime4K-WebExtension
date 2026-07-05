@@ -1,4 +1,10 @@
-import type { Dimensions, EnhancementEffect } from '../../types';
+import type {
+  Dimensions,
+  EnhancementEffect,
+  FramePerformanceSnapshot,
+  PerformanceMonitorMode,
+  PerformanceTier,
+} from '../../types';
 import type { PipelinePass } from '../effects/backend-types';
 import { compileEffectChain } from '../effects/chain-compiler';
 import { getEffectDescriptor } from '../effects/registry';
@@ -17,6 +23,8 @@ import { RendererGpuErrorMonitor } from './gpu-error-monitor';
 import { clearTexturePool, getTexturePoolStats } from '../texture-pool';
 import { VideoFrameUploader } from './frame-uploader';
 import { createLogger } from '../../utils/logger';
+import { waitForMediaReady } from '../media-wait';
+import { PerformanceFrameProfiler, type PerformanceProfilerMetadata } from '../performance-monitor/profiler';
 
 const logger = createLogger('renderer');
 
@@ -92,6 +100,10 @@ export interface RendererOptions {
   onFirstFrameRendered?: () => void;
   /** 初始化进度回调函数 */
   onProgress?: (stage: string, current?: number, total?: number) => void;
+  performanceMonitorMode?: PerformanceMonitorMode;
+  performanceModeName?: string;
+  performanceTier?: PerformanceTier;
+  onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
 }
 
 /**
@@ -108,6 +120,19 @@ export class Renderer {
   private onError?: (error: Error) => void;
   private onFirstFrameRendered?: () => void;
   private onProgress?: (stage: string, current?: number, total?: number) => void;
+  private performanceMonitorMode: PerformanceMonitorMode;
+  private performanceModeName: string;
+  private performanceTier: PerformanceTier;
+  private onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
+  private performanceProfiler: PerformanceFrameProfiler | null = null;
+  private gpuName = 'Unknown GPU';
+  private timestampQueryAvailable = false;
+  private readonly finalBlitProfilePass: PipelinePass = {
+    profileLabel: 'Final Blit',
+    profileGroup: 'Final Blit',
+    pass: () => undefined,
+    getOutputTexture: () => this.finalOutputTexture,
+  };
 
   // --- 状态标志 ---
   private destroyed = false;
@@ -119,6 +144,9 @@ export class Renderer {
   /** 是否正在恢复设备（设备丢失后的自动恢复） */
   private isRecovering = false;
   private gpuErrorMonitor: RendererGpuErrorMonitor | null = null;
+  private reconfigurationTail: Promise<void> = Promise.resolve();
+  private sourceResizeInFlight: Promise<void> | null = null;
+  private reconfigurationRunning = false;
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
@@ -152,6 +180,10 @@ export class Renderer {
     this.onError = options.onError;
     this.onFirstFrameRendered = options.onFirstFrameRendered;
     this.onProgress = options.onProgress;
+    this.performanceMonitorMode = options.performanceMonitorMode ?? 'off';
+    this.performanceModeName = options.performanceModeName ?? 'Unknown';
+    this.performanceTier = options.performanceTier ?? 'balanced';
+    this.onPerformanceSnapshot = options.onPerformanceSnapshot;
   }
 
   /**
@@ -172,11 +204,10 @@ export class Renderer {
   private async initialize(): Promise<void> {
     try {
       // 等待视频数据加载完成
-      if (this.video.readyState < this.video.HAVE_FUTURE_DATA) {
-        await new Promise((resolve) => {
-          this.video.onloadeddata = resolve;
-        });
-      }
+      await waitForMediaReady(this.video, this.video.HAVE_FUTURE_DATA, {
+        readinessEvents: ['loadeddata', 'canplay'],
+        interruptionEvents: ['error', 'abort', 'emptied'],
+      });
 
       // 请求 GPU 适配器，并根据平台设置能效偏好
       this.onProgress?.(chrome.i18n.getMessage('initGpu'));
@@ -189,11 +220,15 @@ export class Renderer {
       if (!adapter) {
         throw new RendererInitializationError('WebGPU not supported: No adapter found.');
       }
+      this.gpuName = this.describeAdapter(adapter);
+      this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
+        && Boolean(adapter.features?.has('timestamp-query'));
 
       // 请求 GPU 设备并配置 Canvas 上下文
       // 根据适配器支持的限制请求更高的缓冲区和 workgroup storage 上限，
       // 以支持高分辨率视频处理和更重的 ArtCNN C4F32 shader。
       this.device = await adapter.requestDevice({
+        ...(this.timestampQueryAvailable ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] } : {}),
         requiredLimits: getRequiredDeviceLimits(adapter),
       });
       this.setupGpuErrorMonitoring(this.device);
@@ -218,6 +253,7 @@ export class Renderer {
       if (this.frameUploader.isFallbackEnabled()) {
         logger.info('Using fallback uploader for copying video frames.');
       }
+      this.configurePerformanceProfiler();
 
       this.context = this.canvas.getContext('webgpu')!;
       if (!this.context) {
@@ -352,44 +388,64 @@ export class Renderer {
       targetDimensions: this.targetDimensions,
     });
     const compileTime = performance.now() - compileStartedAt;
-    await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect compilation', effectChainLabel));
+    let compiledPlanAccepted = false;
 
-    this.pipelines = compiledPlan.pipelines;
-    this.finalOutputTexture = compiledPlan.outputTexture;
-
-    const warmupStartedAt = performance.now();
-    let warmupError: unknown = null;
     try {
+      await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect compilation', effectChainLabel));
+
+      this.pipelines = compiledPlan.pipelines;
+      this.finalOutputTexture = compiledPlan.outputTexture;
+      compiledPlanAccepted = true;
+
+      const warmupStartedAt = performance.now();
+      let warmupError: unknown = null;
+      try {
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
       this.device.queue.submit([commandEncoder.finish()]);
       await this.device.queue.onSubmittedWorkDone();
+      } catch (error) {
+        warmupError = error;
+      }
+      await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect warmup', effectChainLabel));
+      if (warmupError) {
+        throw new RendererRuntimeError('Failed to warmup compiled effect plan.', { cause: warmupError as Error });
+      }
+      const warmupTime = performance.now() - warmupStartedAt;
+
+      // 通知预热完成
+      this.onProgress?.(null as unknown as string);
+
+      const cacheStats = getGpuResourceCacheStats(this.device);
+      const texturePoolStats = getTexturePoolStats(this.device);
+      logger.debug(
+        `Built ${this.pipelines.length} pipelines `
+        + `(warmupSteps=${compiledPlan.warmupSteps}, modules=${compiledPlan.requiredModules.join(', ') || 'none'})`
+      );
+      logger.debug(
+        `buildPipelines stats: compile=${compileTime.toFixed(2)}ms, `
+        + `warmup=${warmupTime.toFixed(2)}ms, `
+        + `cache(shader h/m=${cacheStats.shaderHits}/${cacheStats.shaderMisses}, `
+        + `pipeline h/m=${cacheStats.pipelineHits}/${cacheStats.pipelineMisses}), `
+        + `texturePool(h/m=${texturePoolStats.hits}/${texturePoolStats.misses}, `
+        + `active=${texturePoolStats.active}, available=${texturePoolStats.available}, `
+        + `cachedBytes=${texturePoolStats.cachedBytes})`
+      );
     } catch (error) {
-      warmupError = error;
+      if (compiledPlanAccepted) {
+        this.destroyPipelines();
+      } else {
+        for (const pipeline of compiledPlan.pipelines) {
+          try {
+            pipeline.destroy?.();
+          } catch {
+            // Ignore teardown failures from a rejected compiled plan.
+          }
+        }
+      }
+      clearGpuResourceCache(this.device);
+      throw error;
     }
-    await this.throwIfCapturedGpuErrors(this.buildGpuStageLabel('effect warmup', effectChainLabel));
-    if (warmupError) {
-      throw new RendererRuntimeError('Failed to warmup compiled effect plan.', { cause: warmupError as Error });
-    }
-    const warmupTime = performance.now() - warmupStartedAt;
-
-    // 通知预热完成
-    this.onProgress?.(null as unknown as string);
-
-    const cacheStats = getGpuResourceCacheStats(this.device);
-    const texturePoolStats = getTexturePoolStats(this.device);
-    logger.debug(
-      `Built ${this.pipelines.length} pipelines `
-      + `(warmupSteps=${compiledPlan.warmupSteps}, modules=${compiledPlan.requiredModules.join(', ') || 'none'})`
-    );
-    logger.debug(
-      `buildPipelines stats: compile=${compileTime.toFixed(2)}ms, `
-      + `warmup=${warmupTime.toFixed(2)}ms, `
-      + `cache(shader h/m=${cacheStats.shaderHits}/${cacheStats.shaderMisses}, `
-      + `pipeline h/m=${cacheStats.pipelineHits}/${cacheStats.pipelineMisses}), `
-      + `texturePool(h/m=${texturePoolStats.hits}/${texturePoolStats.misses}, `
-      + `active=${texturePoolStats.active}, available=${texturePoolStats.available})`
-    );
   }
 
   /**
@@ -523,10 +579,18 @@ export class Renderer {
    * 处理单帧渲染的核心逻辑。
    * @returns {boolean} 如果成功渲染了一帧则返回 true，否则返回 false。
    */
-  private async processFrame(): Promise<boolean> {
+  private async processFrame(videoFrameMetadata?: VideoFrameCallbackMetadata): Promise<boolean> {
     if (this.destroyed) return false;
 
     try {
+      const frameStartedAt = performance.now();
+      const profiler = this.performanceProfiler;
+      profiler?.beginFrame(videoFrameMetadata);
+
+      if (this.reconfigurationRunning) {
+        return false;
+      }
+
       if (this.video.readyState < this.video.HAVE_CURRENT_DATA) {
         return false; // 视频未准备好，跳过此帧
       }
@@ -534,29 +598,55 @@ export class Renderer {
       // 检查分辨率是否变化
       if (this.video.videoWidth !== this.videoFrameTexture.width || this.video.videoHeight !== this.videoFrameTexture.height) {
         logger.debug(`Resolution changed: ${this.videoFrameTexture.width}x${this.videoFrameTexture.height} -> ${this.video.videoWidth}x${this.video.videoHeight}`);
-        this.handleSourceResize();
+        void this.handleSourceResize();
         return false; // 分辨率已变，跳过此帧的渲染，等待下一帧
       }
 
       // 将视频帧复制到纹理
+      const uploadStartedAt = performance.now();
       await this.copyVideoFrameToTexture();
+      const uploadMs = performance.now() - uploadStartedAt;
+      profiler?.addInstantEntry('Upload', 'Upload', uploadMs);
 
+      const encodeStartedAt = performance.now();
       const commandEncoder = this.device.createCommandEncoder();
-      this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [{
-          view: this.context.getCurrentTexture().createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        }],
-      });
-      passEncoder.setPipeline(this.renderPipeline);
-      passEncoder.setBindGroup(0, this.renderBindGroup);
-      passEncoder.draw(6);
-      passEncoder.end();
-      this.device.queue.submit([commandEncoder.finish()]);
+      this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder, profiler ?? undefined));
+      const encodeFinalBlit = () => {
+        const descriptor: GPURenderPassDescriptor = {
+          colorAttachments: [{
+            view: this.context.getCurrentTexture().createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          }],
+        };
+        const passEncoder = commandEncoder.beginRenderPass(
+          profiler?.createRenderPassDescriptor?.(this.finalBlitProfilePass, descriptor) ?? descriptor,
+        );
+        passEncoder.setPipeline(this.renderPipeline);
+        passEncoder.setBindGroup(0, this.renderBindGroup);
+        passEncoder.draw(6);
+        passEncoder.end();
+      };
+      if (profiler) {
+        profiler.recordNamedPass('Final Blit', 'Final Blit', encodeFinalBlit);
+      } else {
+        encodeFinalBlit();
+      }
+      profiler?.resolveGpuQueries?.(commandEncoder);
+      const commandBuffer = commandEncoder.finish();
+      const encodeMs = performance.now() - encodeStartedAt;
+      const submitStartedAt = performance.now();
+      this.device.queue.submit([commandBuffer]);
+      profiler?.collectGpuResultsAsync?.();
+      const submitMs = performance.now() - submitStartedAt;
       this.throwIfKnownGpuErrors('frame submission');
+      profiler?.completeFrame({
+        frameMs: performance.now() - frameStartedAt,
+        uploadMs,
+        encodeMs,
+        submitMs,
+      });
 
       return true; // 成功渲染
 
@@ -570,7 +660,7 @@ export class Renderer {
         // 仅在第一次尝试时进行修复
         if (!this.fixAttempted) {
           logger.warn('Caught out-of-bounds error. Attempting to recover by resizing resources.');
-          this.handleSourceResize();
+          void this.handleSourceResize();
         }
       } else {
         // 对于所有其他错误，视为不可恢复，并包含原始错误信息
@@ -586,10 +676,10 @@ export class Renderer {
    * 尝试渲染第一帧。成功后，调用回调并切换到常规渲染循环。
    * 如果不成功（例如视频暂停），则重新调度自身。
    */
-  private renderFirstFrameAndStartLoop = async (): Promise<void> => {
+  private renderFirstFrameAndStartLoop = async (_now?: DOMHighResTimeStamp, metadata?: VideoFrameCallbackMetadata): Promise<void> => {
     if (this.destroyed) return;
 
-    if (await this.processFrame()) {
+    if (await this.processFrame(metadata)) {
       // 第一帧成功渲染
       this.onFirstFrameRendered?.();
       this.fixAttempted = false;
@@ -624,10 +714,10 @@ export class Renderer {
   /**
    * 常规渲染循环，处理第一帧之后的所有帧。
    */
-  private renderLoop = async (): Promise<void> => {
+  private renderLoop = async (_now?: DOMHighResTimeStamp, metadata?: VideoFrameCallbackMetadata): Promise<void> => {
     if (this.destroyed) return;
 
-    if (await this.processFrame()) {
+    if (await this.processFrame(metadata)) {
       // 帧渲染成功
       this.fixAttempted = false;
       this.lastError = null;
@@ -661,8 +751,29 @@ export class Renderer {
    */
   public async handleSourceResize(): Promise<void> {
     if (this.destroyed) return;
+    if (this.sourceResizeInFlight) {
+      return this.sourceResizeInFlight;
+    }
+
+    this.sourceResizeInFlight = this.enqueueReconfiguration(async () => {
+      await this.performSourceResize();
+    }).finally(() => {
+      this.sourceResizeInFlight = null;
+    });
+
+    return this.sourceResizeInFlight;
+  }
+
+  private async performSourceResize(): Promise<void> {
+    if (this.destroyed) return;
+    if (this.video.videoWidth <= 0 || this.video.videoHeight <= 0) {
+      logger.debug('Skipping source resize because metadata is not ready.');
+      return;
+    }
+
     logger.debug('Resizing renderer due to video source dimension change.');
     this.createResources();
+    this.configurePerformanceProfiler();
     await this.buildPipelines();
     this.createRenderBindGroup();
     this.logGeometryState('Renderer source resized');
@@ -674,6 +785,43 @@ export class Renderer {
    * @param options 包含新效果和目标尺寸的对象
    */
   public async updateConfiguration(options: {
+    effects: EnhancementEffect[];
+    effectsSignature: string;
+    targetDimensions: Dimensions;
+    sourceDimensions: Dimensions;
+  }): Promise<void> {
+    if (this.destroyed) return;
+
+    return this.enqueueReconfiguration(async () => {
+      await this.performUpdateConfiguration(options);
+    });
+  }
+
+  public updatePerformanceMonitor(options: {
+    mode: PerformanceMonitorMode;
+    modeName: string;
+    tier: PerformanceTier;
+    sourceDimensions: Dimensions;
+    targetDimensions: Dimensions;
+    onSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
+  }): boolean {
+    this.performanceMonitorMode = options.mode;
+    this.performanceModeName = options.modeName;
+    this.performanceTier = options.tier;
+    this.targetDimensions = options.targetDimensions;
+    this.onPerformanceSnapshot = options.onSnapshot;
+
+    if (options.mode === 'off' || !options.onSnapshot) {
+      this.performanceProfiler?.destroy();
+      this.performanceProfiler = null;
+      return true;
+    }
+
+    this.configurePerformanceProfiler(options.sourceDimensions);
+    return options.mode !== 'gpu' || this.timestampQueryAvailable;
+  }
+
+  private async performUpdateConfiguration(options: {
     effects: EnhancementEffect[];
     effectsSignature: string;
     targetDimensions: Dimensions;
@@ -737,6 +885,25 @@ export class Renderer {
     }
   }
 
+  private enqueueReconfiguration(task: () => Promise<void>): Promise<void> {
+    const run = this.reconfigurationTail
+      .catch(() => undefined)
+      .then(async () => {
+        if (this.destroyed) {
+          return;
+        }
+
+        this.reconfigurationRunning = true;
+        try {
+          await task();
+        } finally {
+          this.reconfigurationRunning = false;
+        }
+      });
+    this.reconfigurationTail = run;
+    return run;
+  }
+
   /**
    * 从设备丢失中恢复
    * 尝试重新初始化 GPU 资源并恢复渲染
@@ -768,8 +935,14 @@ export class Renderer {
       }
 
       this.device = await adapter.requestDevice({
+        ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
+          ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
+          : {}),
         requiredLimits: getRequiredDeviceLimits(adapter),
       });
+      this.gpuName = this.describeAdapter(adapter);
+      this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
+        && Boolean(adapter.features?.has('timestamp-query'));
       this.setupGpuErrorMonitoring(this.device);
 
       // 设置新设备的丢失监听
@@ -790,6 +963,7 @@ export class Renderer {
 
       // 重建资源和管道
       this.createResources();
+      this.configurePerformanceProfiler();
       await this.buildPipelines();
       await this.createRenderPipeline();
       this.createRenderBindGroup();
@@ -831,6 +1005,8 @@ export class Renderer {
       this.videoFrameTexture?.destroy();
       this.teardownGpuErrorMonitoring();
       this.clearDeviceScopedCaches(currentDevice);
+      this.performanceProfiler?.destroy();
+      this.performanceProfiler = null;
       // 解除画布与GPU设备的关联，这对于后续重新初始化至关重要
       this.context?.unconfigure();
       // 主动销毁设备，这将触发 device.lost Promise
@@ -870,5 +1046,51 @@ export class Renderer {
 
   private buildGpuStageLabel(stage: string, effectChainLabel: string | null): string {
     return effectChainLabel ? `${stage} (${effectChainLabel})` : stage;
+  }
+
+  private configurePerformanceProfiler(sourceDimensions = {
+    width: this.video.videoWidth,
+    height: this.video.videoHeight,
+  }): void {
+    if (this.performanceMonitorMode === 'off' || !this.onPerformanceSnapshot) {
+      this.performanceProfiler?.destroy();
+      this.performanceProfiler = null;
+      return;
+    }
+
+    const metadata: PerformanceProfilerMetadata = {
+      mode: this.performanceMonitorMode,
+      gpuName: this.gpuName,
+      uploadMethod: this.frameUploader.isFallbackEnabled() ? 'Fallback canvas' : 'VideoFrame direct',
+      modeName: this.performanceModeName,
+      tier: this.performanceTier,
+      sourceDimensions,
+      targetDimensions: this.targetDimensions,
+      timestampAvailable: this.performanceMonitorMode === 'gpu' && this.timestampQueryAvailable,
+    };
+
+    if (!this.performanceProfiler) {
+      this.performanceProfiler = new PerformanceFrameProfiler(metadata, this.onPerformanceSnapshot, {
+        device: this.device,
+      });
+      return;
+    }
+
+    this.performanceProfiler.updateMetadata(metadata, {
+      device: this.device,
+    });
+  }
+
+  private describeAdapter(adapter: GPUAdapter): string {
+    const info = adapter.info;
+    const description = info?.description?.trim();
+    if (description) {
+      return description;
+    }
+
+    const parts = [info?.vendor, info?.architecture, info?.device]
+      .map(part => part?.trim())
+      .filter((part): part is string => Boolean(part));
+    return parts.join(' ') || 'Unknown GPU';
   }
 }

@@ -10,6 +10,10 @@ import type { Anime4KWebExtSettings } from '../../src/types';
 const baseSettings: Anime4KWebExtSettings = {
   selectedModeId: 'custom-a',
   performanceTier: 'balanced',
+  performanceMonitorMode: 'off',
+  performanceMonitorHudCollapsed: false,
+  performanceMonitorHudPosition: 'top-left',
+  performanceMonitorHudWidth: null,
   targetResolutionSetting: 'x2',
   whitelistEnabled: true,
   whitelist: [],

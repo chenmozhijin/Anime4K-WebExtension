@@ -4,6 +4,13 @@ import {
   shouldAttemptCrossOriginRecovery,
 } from '../../src/core/video-enhancer/cross-origin-recovery';
 
+function setReadyState(video: HTMLVideoElement, readyState: number): void {
+  Object.defineProperty(video, 'readyState', {
+    configurable: true,
+    value: readyState,
+  });
+}
+
 describe('cross-origin recovery', () => {
   it('detects when recovery should be attempted', () => {
     const video = document.createElement('video');
@@ -71,6 +78,7 @@ describe('cross-origin recovery', () => {
 
     expect(video.crossOrigin).toBe('anonymous');
     expect(load).toHaveBeenCalledTimes(1);
+    setReadyState(video, video.HAVE_FUTURE_DATA);
     video.dispatchEvent(new Event('canplay'));
 
     await expect(recoveryPromise).resolves.toEqual({ status: 'recovered' });
@@ -111,6 +119,7 @@ describe('cross-origin recovery', () => {
 
     expect(video.src).toBe('https://cdn.example.com/stream.m3u8');
     expect(load).toHaveBeenCalledTimes(1);
+    setReadyState(video, video.HAVE_FUTURE_DATA);
     video.dispatchEvent(new Event('canplay'));
 
     await expect(recoveryPromise).resolves.toEqual({ status: 'recovered' });

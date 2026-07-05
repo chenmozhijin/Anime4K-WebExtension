@@ -25,13 +25,48 @@ class MockTexture {
 
 class MockBuffer {
   destroyed = false;
+  readonly data: ArrayBuffer;
+  mapped = false;
 
-  constructor(public readonly size: number) {}
+  constructor(public readonly size: number) {
+    this.data = new ArrayBuffer(size);
+  }
+
+  async mapAsync(): Promise<void> {
+    this.mapped = true;
+  }
+
+  getMappedRange(offset = 0, size = this.size - offset): ArrayBuffer {
+    return this.data.slice(offset, offset + size);
+  }
+
+  unmap(): void {
+    this.mapped = false;
+  }
 
   destroy(): void {
     this.destroyed = true;
   }
 }
+
+class MockQuerySet {
+  destroyed = false;
+  readonly values: bigint[];
+
+  constructor(public readonly count: number) {
+    this.values = Array.from({ length: count }, () => 0n);
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+type MockPassTimestampWrites = {
+  querySet: GPUQuerySet;
+  beginningOfPassWriteIndex?: number;
+  endOfPassWriteIndex?: number;
+};
 
 class MockQueue {
   submissions = 0;
@@ -69,16 +104,66 @@ class MockPassEncoder {
 }
 
 class MockCommandEncoder {
-  beginRenderPass(): GPURenderPassEncoder {
+  private timestamp = 1_000_000n;
+
+  beginRenderPass(descriptor?: GPURenderPassDescriptor): GPURenderPassEncoder {
+    this.writePassTimestamps(descriptor?.timestampWrites);
     return new MockPassEncoder() as unknown as GPURenderPassEncoder;
   }
 
-  beginComputePass(): GPUComputePassEncoder {
+  beginComputePass(descriptor?: GPUComputePassDescriptor): GPUComputePassEncoder {
+    this.writePassTimestamps(descriptor?.timestampWrites);
     return new MockPassEncoder() as unknown as GPUComputePassEncoder;
+  }
+
+  resolveQuerySet(
+    querySet: GPUQuerySet,
+    firstQuery: number,
+    queryCount: number,
+    destination: GPUBuffer,
+    destinationOffset: number,
+  ): void {
+    const mockQuerySet = querySet as unknown as MockQuerySet;
+    const mockDestination = destination as unknown as MockBuffer;
+    const view = new DataView(mockDestination.data);
+    for (let index = 0; index < queryCount; index += 1) {
+      view.setBigUint64(destinationOffset + index * 8, mockQuerySet.values[firstQuery + index] ?? 0n, true);
+    }
+  }
+
+  copyBufferToBuffer(
+    source: GPUBuffer,
+    sourceOffset: number,
+    destination: GPUBuffer,
+    destinationOffset: number,
+    size: number,
+  ): void {
+    const sourceBuffer = source as unknown as MockBuffer;
+    const destinationBuffer = destination as unknown as MockBuffer;
+    new Uint8Array(destinationBuffer.data, destinationOffset, size)
+      .set(new Uint8Array(sourceBuffer.data, sourceOffset, size));
   }
 
   finish(): GPUCommandBuffer {
     return {} as GPUCommandBuffer;
+  }
+
+  private writePassTimestamps(timestampWrites?: MockPassTimestampWrites): void {
+    if (!timestampWrites) {
+      return;
+    }
+
+    const querySet = timestampWrites.querySet as unknown as MockQuerySet;
+    const beginIndex = timestampWrites.beginningOfPassWriteIndex;
+    const endIndex = timestampWrites.endOfPassWriteIndex;
+    if (typeof beginIndex === 'number') {
+      querySet.values[beginIndex] = this.timestamp;
+      this.timestamp += 1_000_000n;
+    }
+    if (typeof endIndex === 'number') {
+      querySet.values[endIndex] = this.timestamp;
+      this.timestamp += 1_000_000n;
+    }
   }
 }
 
@@ -147,6 +232,10 @@ class MockDevice {
     return buffer as unknown as GPUBuffer;
   }
 
+  createQuerySet(descriptor: GPUQuerySetDescriptor): GPUQuerySet {
+    return new MockQuerySet(descriptor.count) as unknown as GPUQuerySet;
+  }
+
   createCommandEncoder(): GPUCommandEncoder {
     return new MockCommandEncoder() as unknown as GPUCommandEncoder;
   }
@@ -198,22 +287,33 @@ class MockDevice {
 }
 
 class MockAdapter {
+  readonly features: GPUSupportedFeatures;
+
+  readonly info = {
+    vendor: 'MockVendor',
+    architecture: 'MockArchitecture',
+    device: 'MockDevice',
+    description: 'Mock GPU',
+  } as GPUAdapterInfo;
+
   readonly limits = {
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
     maxComputeWorkgroupStorageSize: 32768,
   } as GPUSupportedLimits;
 
-  constructor(public readonly device: MockDevice) {}
+  constructor(public readonly device: MockDevice, features: GPUFeatureName[] = []) {
+    this.features = new Set(features) as unknown as GPUSupportedFeatures;
+  }
 
   async requestDevice(_descriptor?: GPUDeviceDescriptor): Promise<GPUDevice> {
     return this.device as unknown as GPUDevice;
   }
 }
 
-export function createWebGpuMock() {
+export function createWebGpuMock(options: { features?: GPUFeatureName[] } = {}) {
   const device = new MockDevice();
-  const adapter = new MockAdapter(device);
+  const adapter = new MockAdapter(device, options.features);
 
   return {
     adapter,
@@ -229,8 +329,8 @@ export function createWebGpuMock() {
   };
 }
 
-export function installWebGpuMock() {
-  const mock = createWebGpuMock();
+export function installWebGpuMock(options: { features?: GPUFeatureName[] } = {}) {
+  const mock = createWebGpuMock(options);
   Object.defineProperty(globalThis.navigator, 'gpu', {
     configurable: true,
     writable: true,

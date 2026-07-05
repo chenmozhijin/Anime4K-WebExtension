@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EffectReference } from '../../src/types';
 import { createEffectReference } from '../../src/core/effects/reference';
-import { artcnnEffectDescriptors } from '../../src/engines/artcnn/catalog';
+import { artcnnEffectDescriptors, artcnnEffectSourceMetas } from '../../src/engines/artcnn/catalog';
 
 const { c4f16Calls, c4f32Calls } = vi.hoisted(() => ({
   c4f16Calls: [] as any[],
@@ -72,6 +72,12 @@ describe('artcnn backend', () => {
     expect(artcnnBackend.getBenchmarkProfiles()).toEqual([]);
   });
 
+  it('derives descriptors from ArtCNN effect source metadata', () => {
+    expect(artcnnEffectSourceMetas).toHaveLength(6);
+    expect(artcnnEffectDescriptors).toEqual(artcnnEffectSourceMetas.map(meta => meta.descriptor));
+    expect(artcnnEffectSourceMetas.every(meta => meta.backendId === 'artcnn')).toBe(true);
+  });
+
   it('compiles C4F16 with x2 output dimensions', async () => {
     const descriptor = artcnnEffectDescriptors.find(effect => effect.key === 'C4F16');
     const effect = createEffectReference(descriptor!);
@@ -112,4 +118,3 @@ describe('artcnn backend', () => {
     );
   });
 });
-

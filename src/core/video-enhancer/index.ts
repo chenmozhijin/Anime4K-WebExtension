@@ -1,7 +1,8 @@
 import { getSettingsSnapshot } from '../../utils/settings-snapshot';
+import { saveSettings } from '../../utils/settings';
 import { Renderer } from '../renderer';
 import { ANIME4K_APPLIED_ATTR } from '../../constants';
-import type { Dimensions, Anime4KWebExtSettings } from '../../types';
+import type { Dimensions, Anime4KWebExtSettings, EnhancementMode, FramePerformanceSnapshot } from '../../types';
 import { EnhancerErrorNotifier } from './error-notifier';
 import { OverlayManager } from '../overlay-manager';
 import { VideoEnhancerGeometryController } from './geometry-controller';
@@ -16,6 +17,7 @@ import {
   shouldAttemptCrossOriginRecovery,
 } from './cross-origin-recovery';
 import { createLogger } from '../../utils/logger';
+import { waitForMediaReady } from '../media-wait';
 
 const logger = createLogger('video-enhancer');
 
@@ -33,6 +35,7 @@ export class VideoEnhancer {
   private fixAttempted = false;
   private readonly geometryController: VideoEnhancerGeometryController;
   private appliedRendererState: AppliedRendererState | null = null;
+  private readonly lifecycleAbortController = new AbortController();
 
   private constructor(private video: HTMLVideoElement) {
     this.overlay = OverlayManager.create(this.video);
@@ -71,6 +74,7 @@ export class VideoEnhancer {
     this.fixAttempted = true;
     const result = await attemptCrossOriginRecovery(this.video, {
       isDestroyed: () => this.destroyed,
+      signal: this.lifecycleAbortController.signal,
     });
 
     if (result.status === 'recovered') {
@@ -117,6 +121,10 @@ export class VideoEnhancer {
       this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
+      if (this.destroyed) {
+        return;
+      }
+
       const currentError = error as Error;
       const isCrossOriginError = currentError.name === 'SecurityError' && currentError.message.includes('tainted');
 
@@ -180,6 +188,10 @@ export class VideoEnhancer {
       effects,
       effectsSignature,
       targetDimensions,
+      performanceMonitorMode: settings.performanceMonitorMode,
+      performanceModeName: selectedMode.name,
+      performanceTier: settings.performanceTier,
+      onPerformanceSnapshot: snapshot => this.presentPerformanceSnapshot(snapshot),
       onError: async (error: Error) => {
         if (this.destroyed) {
           return;
@@ -291,6 +303,7 @@ export class VideoEnhancer {
     }
 
     this.destroyed = true;
+    this.lifecycleAbortController.abort();
     this.geometryController.clearPending();
     logger.debug('Destroying enhancer instance.');
     this.disableEnhancement();
@@ -303,6 +316,7 @@ export class VideoEnhancer {
     this.geometryController.detach();
     this.releaseWebGPUResources();
     this.overlay.hideCanvas();
+    this.overlay.hidePerformanceHud();
     this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
     this.button.innerText = chrome.i18n.getMessage('enhanceButton');
     this.currentModeId = null;
@@ -324,13 +338,11 @@ export class VideoEnhancer {
   }
 
   private async waitForVideoMetadata(): Promise<void> {
-    if (this.video.readyState >= this.video.HAVE_METADATA) {
-      return;
-    }
-
     this.button.innerText = chrome.i18n.getMessage('waitingVideoLoad');
-    await new Promise<void>(resolve => {
-      this.video.addEventListener('loadedmetadata', () => resolve(), { once: true });
+    await waitForMediaReady(this.video, this.video.HAVE_METADATA, {
+      signal: this.lifecycleAbortController.signal,
+      readinessEvents: ['loadedmetadata'],
+      interruptionEvents: ['error', 'abort', 'emptied'],
     });
   }
 
@@ -384,6 +396,7 @@ export class VideoEnhancer {
     } = getAppliedRendererStateChanges(previousState, nextAppliedState);
 
     if (!sourceChanged && !targetChanged && !effectsChanged && !modeChanged && !tierChanged && !resolutionChanged) {
+      await this.updatePerformanceMonitor(settings, selectedMode, sourceDimensions, targetDimensions);
       this.overlay.updateLayout();
       return;
     }
@@ -401,6 +414,8 @@ export class VideoEnhancer {
       });
     }
 
+    await this.updatePerformanceMonitor(settings, selectedMode, sourceDimensions, targetDimensions);
+
     if (this.destroyed) {
       return;
     }
@@ -408,5 +423,86 @@ export class VideoEnhancer {
     this.currentModeId = selectedMode.id;
     this.appliedRendererState = nextAppliedState;
     logger.debug(`Renderer updated to mode: ${selectedMode.name}`);
+  }
+
+  private async updatePerformanceMonitor(
+    settings: Anime4KWebExtSettings,
+    selectedMode: EnhancementMode,
+    sourceDimensions: Dimensions,
+    targetDimensions: Dimensions,
+  ): Promise<void> {
+    if (!this.renderer) {
+      this.overlay.hidePerformanceHud();
+      return;
+    }
+
+    const monitorReady = this.renderer.updatePerformanceMonitor({
+      mode: settings.performanceMonitorMode,
+      modeName: selectedMode.name,
+      tier: settings.performanceTier,
+      sourceDimensions,
+      targetDimensions,
+      onSnapshot: settings.performanceMonitorMode === 'off'
+        ? undefined
+        : snapshot => this.presentPerformanceSnapshot(snapshot),
+    });
+
+    if (settings.performanceMonitorMode === 'off') {
+      this.overlay.hidePerformanceHud();
+      return;
+    }
+
+    if (!monitorReady && settings.performanceMonitorMode === 'gpu') {
+      logger.debug('Reinitializing renderer to request timestamp-query for GPU diagnostics.');
+      this.releaseWebGPUResources();
+      await this.initRenderer(settings);
+    }
+  }
+
+  private presentPerformanceSnapshot(snapshot: FramePerformanceSnapshot): void {
+    if (this.destroyed || snapshot.mode === 'off') {
+      return;
+    }
+
+    const settings = this.getCurrentSettings();
+    this.overlay.showPerformanceHud(snapshot, {
+      collapsed: settings.performanceMonitorHudCollapsed,
+      position: settings.performanceMonitorHudPosition,
+      width: settings.performanceMonitorHudWidth,
+      onClose: () => {
+        this.overlay.hidePerformanceHud();
+        this.renderer?.updatePerformanceMonitor({
+          mode: 'off',
+          modeName: snapshot.modeName,
+          tier: snapshot.tier,
+          sourceDimensions: snapshot.sourceDimensions,
+          targetDimensions: snapshot.targetDimensions,
+        });
+        void saveSettings({ performanceMonitorMode: 'off' }).catch(error => {
+          logger.error('Failed to save performance monitor close action.', error);
+        });
+      },
+      onToggleCollapsed: collapsed => {
+        void saveSettings({ performanceMonitorHudCollapsed: collapsed }).catch(error => {
+          logger.error('Failed to save performance HUD collapsed state.', error);
+        });
+      },
+      onPositionChange: position => {
+        void saveSettings({ performanceMonitorHudPosition: position }).catch(error => {
+          logger.error('Failed to save performance HUD position.', error);
+        });
+      },
+      onWidthChange: width => {
+        void saveSettings({ performanceMonitorHudWidth: width }).catch(error => {
+          logger.error('Failed to save performance HUD width.', error);
+        });
+      },
+      onCopy: text => {
+        const copyPromise = navigator.clipboard?.writeText(text);
+        void copyPromise?.catch(error => {
+          logger.error('Failed to copy performance snapshot.', error);
+        });
+      },
+    });
   }
 }

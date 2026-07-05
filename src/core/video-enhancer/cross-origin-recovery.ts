@@ -1,3 +1,5 @@
+import { waitForMediaReady } from '../media-wait';
+
 export type CrossOriginRecoveryReason = 'not-http' | 'same-origin' | 'already-configured' | 'destroyed' | 'reload-failed';
 export type CrossOriginRecoveryStatus = 'recovered' | 'skipped' | 'failed';
 
@@ -27,6 +29,7 @@ export async function attemptCrossOriginRecovery(
   video: HTMLVideoElement,
   options: {
     isDestroyed: () => boolean;
+    signal?: AbortSignal;
   },
 ): Promise<CrossOriginRecoveryResult> {
   if (options.isDestroyed()) {
@@ -59,36 +62,31 @@ export async function attemptCrossOriginRecovery(
   const originalSrc = currentSrc;
   const isPaused = video.paused;
 
-  return new Promise<CrossOriginRecoveryResult>((resolve) => {
-    const handleCanPlay = () => {
-      cleanup();
-      if (options.isDestroyed()) {
-        resolve({ status: 'failed', reason: 'destroyed' });
-        return;
-      }
+  video.src = '';
+  video.src = originalSrc;
+  video.load();
 
-      video.currentTime = currentTime;
-      if (!isPaused) {
-        void video.play().catch(() => undefined);
-      }
-      resolve({ status: 'recovered' });
+  try {
+    await waitForMediaReady(video, video.HAVE_FUTURE_DATA, {
+      signal: options.signal,
+      readinessEvents: ['canplay', 'loadeddata'],
+      interruptionEvents: ['error', 'abort', 'emptied'],
+      isReady: () => options.isDestroyed(),
+    });
+  } catch {
+    return {
+      status: 'failed',
+      reason: options.isDestroyed() ? 'destroyed' : 'reload-failed',
     };
+  }
 
-    const handleError = () => {
-      cleanup();
-      resolve({ status: 'failed', reason: 'reload-failed' });
-    };
+  if (options.isDestroyed()) {
+    return { status: 'failed', reason: 'destroyed' };
+  }
 
-    const cleanup = () => {
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('error', handleError);
-    };
-
-    video.addEventListener('canplay', handleCanPlay, { once: true });
-    video.addEventListener('error', handleError, { once: true });
-
-    video.src = '';
-    video.src = originalSrc;
-    video.load();
-  });
+  video.currentTime = currentTime;
+  if (!isPaused) {
+    void video.play().catch(() => undefined);
+  }
+  return { status: 'recovered' };
 }

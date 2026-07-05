@@ -50,6 +50,15 @@ describe('whitelist utilities', () => {
     expect(isUrlWhitelisted('https://sub.example.com/watch/1', rules)).toBe(true);
   });
 
+  it('matches whitelist rules against hostname and pathname only', () => {
+    const rules = compileWhitelistRules([{ pattern: 'example.com/watch/*', enabled: true }]);
+
+    expect(isUrlWhitelisted('http://example.com:8080/watch/1?episode=2', rules)).toBe(true);
+    expect(isUrlWhitelisted('https://example.com:443/watch/1#comments', rules)).toBe(true);
+    expect(isUrlWhitelisted('https://example.com:443/watch', rules)).toBe(false);
+    expect(isUrlWhitelisted('https://example.com:443/other/1?path=/watch/1', rules)).toBe(false);
+  });
+
   it('returns false for invalid URLs', () => {
     const rules = compileWhitelistRules([{ pattern: 'example.com/*', enabled: true }]);
     expect(isUrlWhitelisted('not-a-url', rules)).toBe(false);
@@ -57,7 +66,7 @@ describe('whitelist utilities', () => {
 
   it('adds, updates and removes persisted whitelist rules', async () => {
     await addWhitelistRule('example.com/*');
-    await addWhitelistRule('example.com/*');
+    await addWhitelistRule(' example.com/* ', false);
     await updateWhitelistRule('example.com/*', false);
     await updateWhitelistRule('example.com/*', 'sub.example.com/*');
 
@@ -67,6 +76,13 @@ describe('whitelist utilities', () => {
     await removeWhitelistRule('sub.example.com/*');
     rules = await getWhitelistRules();
     expect(rules).toEqual([]);
+  });
+
+  it('updates enabled when adding a duplicate persisted whitelist rule', async () => {
+    await addWhitelistRule('example.com/*', false);
+    await addWhitelistRule('example.com/*', true);
+
+    expect(await getWhitelistRules()).toEqual([{ pattern: 'example.com/*', enabled: true }]);
   });
 
   it('applies the default whitelist preset', async () => {

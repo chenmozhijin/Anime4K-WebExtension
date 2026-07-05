@@ -16,6 +16,28 @@ export function hasRenderableParent(video: HTMLVideoElement): boolean {
   return getRenderableParent(video) !== null;
 }
 
+export function isLikelyVisibleVideo(video: HTMLVideoElement): boolean {
+  if (!video.isConnected || video.hidden || video.getAttribute('aria-hidden') === 'true') {
+    return false;
+  }
+
+  const inlineDisplay = video.style.display;
+  const inlineVisibility = video.style.visibility;
+  if (inlineDisplay === 'none' || inlineVisibility === 'hidden' || inlineVisibility === 'collapse') {
+    return false;
+  }
+
+  const parent = getRenderableParent(video);
+  if (parent instanceof Element) {
+    const parentStyle = window.getComputedStyle(parent);
+    if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden' || parentStyle.visibility === 'collapse') {
+      return false;
+    }
+  }
+
+  return hasRenderableParent(video);
+}
+
 /**
  * Walks only DOM that is visible to the content script.
  * Closed shadow roots are intentionally excluded because `element.shadowRoot`

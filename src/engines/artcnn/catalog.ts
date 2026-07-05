@@ -1,8 +1,17 @@
 import type { EffectDescriptor } from '../../types';
+import type { EffectSourceMeta } from '../../core/effects/source-meta';
 
 export const artcnnBackendId = 'artcnn';
 
-export const artcnnEffectDescriptors: EffectDescriptor[] = [
+function effectSourceMeta(descriptor: EffectDescriptor): EffectSourceMeta {
+  return {
+    backendId: artcnnBackendId,
+    descriptor,
+  };
+}
+
+export const artcnnEffectSourceMetas: EffectSourceMeta[] = [
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F16',
     backendId: artcnnBackendId,
@@ -12,6 +21,8 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F16_DS',
     backendId: artcnnBackendId,
@@ -21,6 +32,8 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F16_DN',
     backendId: artcnnBackendId,
@@ -30,6 +43,8 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F32',
     backendId: artcnnBackendId,
@@ -39,6 +54,8 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F32_DS',
     backendId: artcnnBackendId,
@@ -48,6 +65,8 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
+  effectSourceMeta(
   {
     id: 'artcnn/Upscale/C4F32_DN',
     backendId: artcnnBackendId,
@@ -57,5 +76,7 @@ export const artcnnEffectDescriptors: EffectDescriptor[] = [
     dimensionBehavior: { kind: 'scale', scale: 2 },
     supportsVideoRealtime: true,
   },
+  ),
 ];
 
+export const artcnnEffectDescriptors: EffectDescriptor[] = artcnnEffectSourceMetas.map(meta => meta.descriptor);

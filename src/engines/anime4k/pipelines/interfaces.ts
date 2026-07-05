@@ -1,3 +1,5 @@
+import type { PipelinePass, PipelineProfileRecorder } from '../../../core/effects/backend-types';
+
 export interface Anime4KPipeline {
   /**
    * Update the controllable parameter managed by the pipeline
@@ -5,19 +7,24 @@ export interface Anime4KPipeline {
    * @param param  - name of the parameter
    * @param value  - value of the parameter
    */
-  updateParam(param: string, value: any): void;
+  updateParam?(param: string, value: any): void;
 
   /**
    * write compute commands into the encoder
    *
    * @param encoder - encoder to record commands into
    */
-  pass(encoder: GPUCommandEncoder): void;
+  readonly profileLabel?: string;
+  profileGroup?: string;
+
+  pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;
 
   /**
    * get the output texture of this pipeline
    */
   getOutputTexture(): GPUTexture;
+
+  getProfileChildren?(): PipelinePass[];
 
   destroy?(): void;
 }

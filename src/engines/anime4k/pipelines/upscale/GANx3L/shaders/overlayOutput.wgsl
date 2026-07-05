@@ -10,28 +10,28 @@ fn max4(vector: vec4f, value: f32) -> vec4f {
 fn go_0(fragUV: vec2<f32>, x_off: f32, y_off: f32) -> vec4f {
     var uv = fragUV;
     var dim: vec2f = vec2f(textureDimensions(tex_0));
-    uv += vec2f(x_off / dim.x, y_off / dim.y) * 0.66666666666666;
+    uv += vec2f(x_off / dim.x, y_off / dim.y);
     return max4(textureSample(tex_0, mySampler, uv), 0.0);
 }
 
 fn go_1(fragUV: vec2<f32>, x_off: f32, y_off: f32) -> vec4f {
     var uv = fragUV;
     var dim: vec2f = vec2f(textureDimensions(tex_1));
-    uv += vec2f(x_off / dim.x, y_off / dim.y) * 0.66666666666666;
+    uv += vec2f(x_off / dim.x, y_off / dim.y);
     return max4(textureSample(tex_1, mySampler, uv), 0.0);
 }
 
 fn go_2(fragUV: vec2<f32>, x_off: f32, y_off: f32) -> vec4f {
     var uv = fragUV;
     var dim: vec2f = vec2f(textureDimensions(tex_0));
-    uv += vec2f(x_off / dim.x, y_off / dim.y) * 0.66666666666666;
+    uv += vec2f(x_off / dim.x, y_off / dim.y);
     return max4(-textureSample(tex_0, mySampler, uv), 0.0);
 }
 
 fn go_3(fragUV: vec2<f32>, x_off: f32, y_off: f32) -> vec4f {
     var uv = fragUV;
     var dim: vec2f = vec2f(textureDimensions(tex_1));
-    uv += vec2f(x_off / dim.x, y_off / dim.y) * 0.66666666666666;
+    uv += vec2f(x_off / dim.x, y_off / dim.y);
     return max4(-textureSample(tex_1, mySampler, uv), 0.0);
 }
 
@@ -80,5 +80,5 @@ fn main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
   result += vec4f(-0.0007544955, -0.0007692414, 0.00032997545, 0.0);
   result += colorAt(fragUV);
 
-  return clamp(result, vec4<f32>(0., 0., 0., 0.), vec4<f32>(1., 1., 1., 1.));
+  return vec4f(result.rgb, 1.0);
 }

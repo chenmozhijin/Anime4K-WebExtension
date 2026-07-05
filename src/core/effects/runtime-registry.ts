@@ -3,6 +3,8 @@ import type { AlgorithmBackend } from './backend-types';
 const runtimeBackendLoaders: Record<string, () => Promise<AlgorithmBackend>> = {
   anime4k: async () => (await import('../../engines/anime4k/backend')).anime4kBackend,
   artcnn: async () => (await import('../../engines/artcnn/backend')).artcnnBackend,
+  acnet: async () => (await import('../../engines/acnet/backend')).acnetBackend,
+  cunny: async () => (await import('../../engines/cunny/backend')).cunnyBackend,
   core: async () => (await import('../../engines/core/backend')).coreBackend,
 };
 

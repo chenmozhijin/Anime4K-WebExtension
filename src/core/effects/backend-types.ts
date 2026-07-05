@@ -1,10 +1,22 @@
 import type { Dimensions, EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
 
 export interface PipelinePass {
-  updateParam(param: string, value: any): void;
-  pass(encoder: GPUCommandEncoder): void;
+  updateParam?(param: string, value: any): void;
+  readonly profileLabel?: string;
+  profileGroup?: string;
+  pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;
   getOutputTexture(): GPUTexture;
+  getProfileChildren?(): PipelinePass[];
   destroy?(): void;
+}
+
+export interface PipelineProfileRecorder {
+  recordPass(pass: PipelinePass, encode: () => void): void;
+  recordNamedPass(label: string, group: string, encode: () => void): void;
+  createComputePassDescriptor?(pass: PipelinePass): GPUComputePassDescriptor | undefined;
+  createRenderPassDescriptor?(pass: PipelinePass, descriptor: GPURenderPassDescriptor): GPURenderPassDescriptor;
+  resolveGpuQueries?(encoder: GPUCommandEncoder): void;
+  collectGpuResultsAsync?(): void;
 }
 
 export interface CompileEffectContext {

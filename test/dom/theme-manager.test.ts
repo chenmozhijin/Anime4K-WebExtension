@@ -28,7 +28,7 @@ describe('theme manager', () => {
     });
 
     const { themeManager } = await import('../../src/ui/theme-manager');
-    await Promise.resolve();
+    await themeManager.ready();
 
     expect(themeManager.getTheme()).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);

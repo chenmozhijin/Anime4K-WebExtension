@@ -1,4 +1,4 @@
-import type { GPUBenchmarkResult, PerformanceTier } from '../../../types';
+import type { GPUBenchmarkResult, PerformanceMonitorMode, PerformanceTier } from '../../../types';
 import { saveLocalSettings, saveSettings } from '../../../utils/settings';
 import { themeManager } from '../../theme-manager';
 import { showNotice } from '../../shared/notice';
@@ -13,6 +13,8 @@ type GeneralSectionDeps = {
   getCurrentTier(): PerformanceTier;
   setCurrentTier(tier: PerformanceTier): void;
   setBenchmarkResult(result: GPUBenchmarkResult): void;
+  getPerformanceMonitorMode(): PerformanceMonitorMode;
+  setPerformanceMonitorMode(mode: PerformanceMonitorMode): void;
   notifyUpdate(modifiedModeId?: string): void;
   renderModes(): void;
 };
@@ -28,8 +30,9 @@ export function createGeneralSection(deps: GeneralSectionDeps): GeneralSectionCo
   const versionNumberSpan = document.getElementById('version-number') as HTMLSpanElement | null;
   const runBenchmarkBtn = document.getElementById('run-benchmark-btn') as HTMLButtonElement | null;
   const gpuTierDisplay = document.getElementById('gpu-tier-display') as HTMLSpanElement | null;
+  const performanceMonitorModeGroup = document.getElementById('performance-monitor-mode') as HTMLDivElement | null;
 
-  if (!crossOriginFixToggle || !themeSelect || !versionNumberSpan || !runBenchmarkBtn || !gpuTierDisplay) {
+  if (!crossOriginFixToggle || !themeSelect || !versionNumberSpan || !runBenchmarkBtn || !gpuTierDisplay || !performanceMonitorModeGroup) {
     throw new Error('General section elements not found');
   }
 
@@ -38,11 +41,23 @@ export function createGeneralSection(deps: GeneralSectionDeps): GeneralSectionCo
   const requiredVersionNumberSpan = versionNumberSpan;
   const requiredRunBenchmarkBtn = runBenchmarkBtn;
   const requiredGpuTierDisplay = gpuTierDisplay;
+  const requiredPerformanceMonitorModeGroup = performanceMonitorModeGroup;
+
+  function renderPerformanceMonitorMode(): void {
+    const mode = deps.getPerformanceMonitorMode();
+    requiredPerformanceMonitorModeGroup.querySelectorAll<HTMLButtonElement>('[data-monitor-mode]').forEach(button => {
+      const isActive = button.dataset.monitorMode === mode;
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-checked', String(isActive));
+      button.setAttribute('role', 'radio');
+    });
+  }
 
   async function render(): Promise<void> {
     requiredCrossOriginFixToggle.checked = deps.getCrossOriginFixEnabled();
     requiredThemeSelect.value = themeManager.getTheme();
     requiredVersionNumberSpan.textContent = chrome.runtime.getManifest().version;
+    renderPerformanceMonitorMode();
 
     const tierIcons: Record<PerformanceTier, string> = {
       performance: `🚀 ${chrome.i18n.getMessage('tierPerformance')}`,
@@ -57,13 +72,54 @@ export function createGeneralSection(deps: GeneralSectionDeps): GeneralSectionCo
   function bindEvents(): void {
     requiredCrossOriginFixToggle.addEventListener('change', async event => {
       const enabled = (event.target as HTMLInputElement).checked;
+      const previousEnabled = deps.getCrossOriginFixEnabled();
       deps.setCrossOriginFixEnabled(enabled);
-      await saveSettings({ enableCrossOriginFix: enabled });
-      deps.notifyUpdate();
+      try {
+        await saveSettings({ enableCrossOriginFix: enabled });
+        deps.notifyUpdate();
+      } catch (error) {
+        logger.error('Failed to save cross-origin compatibility setting:', error);
+        deps.setCrossOriginFixEnabled(previousEnabled);
+        requiredCrossOriginFixToggle.checked = previousEnabled;
+        showNotice({
+          kind: 'error',
+          message: chrome.i18n.getMessage('saveFailed'),
+        });
+      }
     });
 
     requiredThemeSelect.addEventListener('change', event => {
       themeManager.setTheme((event.target as HTMLSelectElement).value as 'light' | 'dark' | 'auto');
+    });
+
+    requiredPerformanceMonitorModeGroup.addEventListener('click', async event => {
+      const target = event.target as HTMLElement;
+      const button = target.closest<HTMLButtonElement>('[data-monitor-mode]');
+      if (!button) {
+        return;
+      }
+
+      const nextMode = button.dataset.monitorMode as PerformanceMonitorMode;
+      if (!nextMode || nextMode === deps.getPerformanceMonitorMode()) {
+        return;
+      }
+
+      const previousMode = deps.getPerformanceMonitorMode();
+      deps.setPerformanceMonitorMode(nextMode);
+      renderPerformanceMonitorMode();
+
+      try {
+        await saveSettings({ performanceMonitorMode: nextMode });
+        deps.notifyUpdate();
+      } catch (error) {
+        logger.error('Failed to save performance monitor setting:', error);
+        deps.setPerformanceMonitorMode(previousMode);
+        renderPerformanceMonitorMode();
+        showNotice({
+          kind: 'error',
+          message: chrome.i18n.getMessage('saveFailed'),
+        });
+      }
     });
 
     requiredRunBenchmarkBtn.addEventListener('click', async () => {
@@ -113,19 +169,27 @@ export function createGeneralSection(deps: GeneralSectionDeps): GeneralSectionCo
               label: chrome.i18n.getMessage('benchmarkApplyNow'),
               emphasis: 'primary',
               onClick: async () => {
-                await saveLocalSettings({
-                  performanceTier: result.tier,
-                  gpuBenchmarkResult: result,
-                });
-                deps.setCurrentTier(result.tier);
-                deps.setBenchmarkResult(result);
-                await render();
-                deps.renderModes();
-                deps.notifyUpdate();
-                showNotice({
-                  kind: 'success',
-                  message: chrome.i18n.getMessage('benchmarkRecommendationApplied', [tierNames[result.tier]]),
-                });
+                try {
+                  await saveLocalSettings({
+                    performanceTier: result.tier,
+                    gpuBenchmarkResult: result,
+                  });
+                  deps.setCurrentTier(result.tier);
+                  deps.setBenchmarkResult(result);
+                  await render();
+                  deps.renderModes();
+                  deps.notifyUpdate();
+                  showNotice({
+                    kind: 'success',
+                    message: chrome.i18n.getMessage('benchmarkRecommendationApplied', [tierNames[result.tier]]),
+                  });
+                } catch (error) {
+                  logger.error('Failed to save benchmark recommendation:', error);
+                  showNotice({
+                    kind: 'error',
+                    message: chrome.i18n.getMessage('saveFailed'),
+                  });
+                }
               },
             },
             {

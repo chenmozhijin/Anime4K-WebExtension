@@ -73,6 +73,60 @@ describe('compileEffectChain', () => {
     })).rejects.toThrow('Effect not found: missing-effect');
   });
 
+  it('destroys already compiled passes when a later effect fails to compile', async () => {
+    const firstEffect: EffectReference = {
+      id: 'effect-a',
+      backendId: 'backend-a',
+      key: 'effect-a',
+    };
+    const failingEffect: EffectReference = {
+      id: 'effect-b',
+      backendId: 'backend-b',
+      key: 'effect-b',
+    };
+    const destroyFirst = vi.fn();
+    const descriptors = new Map<string, EffectDescriptor>([
+      [firstEffect.id, createDescriptor({ ...firstEffect })],
+      [failingEffect.id, createDescriptor({ ...failingEffect })],
+    ]);
+
+    mockGetEffectDescriptor.mockImplementation((effect: EffectReference) => descriptors.get(effect.id) ?? null);
+    mockGetRuntimeBackend.mockImplementation(async (backendId: string) => {
+      if (backendId === 'backend-a') {
+        return {
+          compileEffect: async () => ({
+            pipelines: [{
+              pass: vi.fn(),
+              getOutputTexture: () => ({ label: 'first-output' } as GPUTexture),
+              updateParam: vi.fn(),
+              destroy: destroyFirst,
+            }],
+            outputTexture: { label: 'first-output' } as GPUTexture,
+            outputDimensions: { width: 640, height: 360 },
+            requiredModules: ['module-a'],
+            warmupSteps: 1,
+          }),
+        };
+      }
+
+      return {
+        compileEffect: async () => {
+          throw new Error('backend compile failed');
+        },
+      };
+    });
+
+    await expect(compileEffectChain({
+      device,
+      inputTexture,
+      effects: [firstEffect, failingEffect],
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 1280, height: 720 },
+    })).rejects.toThrow('backend compile failed');
+
+    expect(destroyFirst).toHaveBeenCalledOnce();
+  });
+
   it('aggregates modules, warmup steps, and pipelines across multiple effects', async () => {
     const firstEffect: EffectReference = {
       id: 'effect-a',

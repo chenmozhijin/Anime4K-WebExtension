@@ -18,6 +18,10 @@ type NoticeOptions = {
 const GLOBAL_NOTICE_CONTAINER_ATTR = 'data-anime4k-notice-root';
 const NOTICE_ATTR = 'data-anime4k-notice';
 
+function isAssertiveNotice(kind: NoticeKind): boolean {
+  return kind === 'error' || kind === 'warning';
+}
+
 function getOrCreateGlobalContainer(): HTMLElement {
   const existing = document.querySelector<HTMLElement>(`[${GLOBAL_NOTICE_CONTAINER_ATTR}]`);
   if (existing) {
@@ -26,6 +30,8 @@ function getOrCreateGlobalContainer(): HTMLElement {
 
   const container = document.createElement('div');
   container.setAttribute(GLOBAL_NOTICE_CONTAINER_ATTR, '');
+  container.setAttribute('aria-live', 'polite');
+  container.setAttribute('aria-relevant', 'additions');
   Object.assign(container.style, {
     position: 'fixed',
     top: '20px',
@@ -83,6 +89,10 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   const palette = getPalette(options.kind);
   const notice = document.createElement('div');
   notice.setAttribute(NOTICE_ATTR, '');
+  notice.setAttribute('role', isAssertiveNotice(options.kind) ? 'alert' : 'status');
+  notice.setAttribute('aria-live', isAssertiveNotice(options.kind) ? 'assertive' : 'polite');
+  notice.setAttribute('aria-atomic', 'true');
+  notice.tabIndex = -1;
   Object.assign(notice.style, {
     border: `1px solid ${palette.border}`,
     background: palette.background,
@@ -152,6 +162,7 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   const dismissButton = document.createElement('button');
   dismissButton.type = 'button';
   dismissButton.textContent = chrome.i18n.getMessage('dismiss');
+  dismissButton.setAttribute('aria-label', chrome.i18n.getMessage('dismiss'));
   Object.assign(dismissButton.style, {
     marginTop: '10px',
     border: 'none',
@@ -163,8 +174,17 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   });
   dismissButton.addEventListener('click', () => notice.remove());
   notice.appendChild(dismissButton);
+  notice.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      notice.remove();
+    }
+  });
 
   root.appendChild(notice);
+  if (options.timeoutMs === 0 || options.actions?.length) {
+    notice.focus({ preventScroll: true });
+  }
 
   if (options.timeoutMs !== 0) {
     window.setTimeout(() => notice.remove(), options.timeoutMs ?? 4000);

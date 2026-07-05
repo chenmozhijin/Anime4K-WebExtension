@@ -9,6 +9,7 @@ import {
 import { showNotice } from '../../shared/notice';
 import { createLogger } from '../../../utils/logger';
 import { downloadJSON, openFile } from './helpers';
+import { runSaveAction } from '../../shared/save-action';
 
 const logger = createLogger('options:whitelist');
 
@@ -49,15 +50,25 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
       patternInput.value = rule.pattern;
       patternInput.className = 'pattern-input';
       patternInput.addEventListener('change', async event => {
-        const newPattern = (event.target as HTMLInputElement).value;
+        const input = event.target as HTMLInputElement;
+        const newPattern = input.value;
         if (!validateRulePattern(newPattern)) {
           showNotice({ kind: 'error', message: chrome.i18n.getMessage('invalidPattern') });
-          (event.target as HTMLInputElement).value = rule.pattern;
+          input.value = rule.pattern;
           return;
         }
 
-        await updateWhitelistRule(rule.pattern, newPattern);
-        rule.pattern = newPattern;
+        await runSaveAction({
+          action: async () => {
+            await updateWhitelistRule(rule.pattern, newPattern);
+            rule.pattern = newPattern;
+          },
+          logger,
+          logMessage: 'Failed to update whitelist rule pattern.',
+          onError: () => {
+            input.value = rule.pattern;
+          },
+        });
       });
       patternCell.appendChild(patternInput);
 
@@ -69,9 +80,19 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
       enabledCheckbox.type = 'checkbox';
       enabledCheckbox.checked = rule.enabled;
       enabledCheckbox.addEventListener('change', async event => {
-        const enabled = (event.target as HTMLInputElement).checked;
-        await updateWhitelistRule(rule.pattern, enabled);
-        rule.enabled = enabled;
+        const checkbox = event.target as HTMLInputElement;
+        const enabled = checkbox.checked;
+        await runSaveAction({
+          action: async () => {
+            await updateWhitelistRule(rule.pattern, enabled);
+            rule.enabled = enabled;
+          },
+          logger,
+          logMessage: 'Failed to update whitelist rule enabled state.',
+          onError: () => {
+            checkbox.checked = rule.enabled;
+          },
+        });
       });
       const sliderSpan = document.createElement('span');
       sliderSpan.className = 'slider round';
@@ -83,9 +104,16 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
       deleteBtn.textContent = chrome.i18n.getMessage('delete');
       deleteBtn.className = 'action-btn';
       deleteBtn.addEventListener('click', async () => {
-        await removeWhitelistRule(rule.pattern);
-        deps.setWhitelistRules(deps.getWhitelistRules().filter(item => item.pattern !== rule.pattern));
-        render();
+        await runSaveAction({
+          action: async () => {
+            await removeWhitelistRule(rule.pattern);
+            deps.setWhitelistRules(deps.getWhitelistRules().filter(item => item.pattern !== rule.pattern));
+            render();
+          },
+          controls: [deleteBtn],
+          logger,
+          logMessage: 'Failed to remove whitelist rule.',
+        });
       });
       actionsCell.appendChild(deleteBtn);
 
@@ -102,8 +130,15 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
         return;
       }
 
-      await addWhitelistRule(newPattern, true);
-      await deps.refreshAll();
+      await runSaveAction({
+        action: async () => {
+          await addWhitelistRule(newPattern, true);
+          await deps.refreshAll();
+        },
+        controls: [requiredAddRuleBtn],
+        logger,
+        logMessage: 'Failed to add whitelist rule.',
+      });
     });
 
     requiredExportBtn.addEventListener('click', () => {
@@ -132,8 +167,8 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
           }
         }
 
-        deps.setWhitelistRules(validRules);
         await saveSettings({ whitelist: validRules });
+        deps.setWhitelistRules(validRules);
         render();
         showNotice({ kind: 'success', message: chrome.i18n.getMessage('importSuccess') });
       } catch (error) {

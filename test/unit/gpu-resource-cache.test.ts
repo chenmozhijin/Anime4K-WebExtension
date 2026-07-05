@@ -95,4 +95,26 @@ describe('gpu resource cache', () => {
     unsubscribe();
     clearGpuResourceCache(device as unknown as GPUDevice);
   });
+
+  it('evicts cached resources that later report async validation errors', async () => {
+    const { device } = createWebGpuMock();
+    const gpuDevice = device as unknown as GPUDevice;
+
+    (device as unknown as { queueScopedError: (error: { name?: string; message?: string } | null) => void }).queueScopedError({
+      name: 'GPUValidationError',
+      message: 'bad shader',
+    });
+
+    const first = getOrCreateShaderModule(gpuDevice, 'shader/evict', () => ({
+      code: 'bad shader',
+    }));
+    await flushGpuResourceErrors(gpuDevice);
+
+    const second = getOrCreateShaderModule(gpuDevice, 'shader/evict', () => ({
+      code: 'replacement shader',
+    }));
+
+    expect(second).not.toBe(first);
+    clearGpuResourceCache(gpuDevice);
+  });
 });

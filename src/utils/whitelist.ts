@@ -65,6 +65,19 @@ export function dedupeWhitelistRules(rules: WhitelistRule[]): WhitelistRule[] {
   return Array.from(dedupedRules.values());
 }
 
+function areWhitelistRulesEqual(left: WhitelistRule[], right: WhitelistRule[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((leftRule, index) => {
+    const rightRule = right[index];
+    return rightRule !== undefined
+      && normalizeWhitelistPattern(leftRule.pattern) === normalizeWhitelistPattern(rightRule.pattern)
+      && leftRule.enabled === rightRule.enabled;
+  });
+}
+
 export function compileWhitelistRules(rules: WhitelistRule[]): CompiledWhitelistRule[] {
   return dedupeWhitelistRules(rules)
     .filter(rule => validateRulePattern(rule.pattern))
@@ -118,13 +131,20 @@ export async function addWhitelistRule(pattern: string, enabled: boolean = true)
   }
 
   const { whitelist } = await getSettings();
-  const existingWhitelist = whitelist || [];
-  const nextWhitelist = dedupeWhitelistRules([
-    ...existingWhitelist,
-    { pattern: normalizedPattern, enabled },
-  ]);
+  const existingWhitelist = dedupeWhitelistRules(whitelist || []);
+  const nextWhitelist = existingWhitelist.map(rule => ({ ...rule }));
+  const existingIndex = nextWhitelist.findIndex(rule => normalizeWhitelistPattern(rule.pattern) === normalizedPattern);
 
-  if (nextWhitelist.length !== existingWhitelist.length) {
+  if (existingIndex === -1) {
+    nextWhitelist.push({ pattern: normalizedPattern, enabled });
+  } else {
+    nextWhitelist[existingIndex] = {
+      pattern: normalizedPattern,
+      enabled,
+    };
+  }
+
+  if (!areWhitelistRulesEqual(existingWhitelist, nextWhitelist)) {
     await saveSettings({ whitelist: nextWhitelist });
   }
 }

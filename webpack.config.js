@@ -71,6 +71,9 @@ module.exports = (env, argv) => {
           { from: '*.png', context: 'public/icons', to: 'icons' },
           { from: 'public/_locales', to: '_locales' },
           { from: 'rules.json' },
+          { from: 'LICENSE' },
+          { from: 'licenses', to: 'licenses' },
+          { from: 'THIRD_PARTY_NOTICES.md' },
         ],
       }),
       new HtmlWebpackPlugin({

@@ -94,6 +94,7 @@ function createWithValidationScope<T>(
   device: GPUDevice,
   source: string,
   factory: () => T,
+  onValidationError?: () => void,
 ): T {
   const errorScopedDevice = device as GPUDevice & {
     pushErrorScope?: (filter: GPUErrorFilter) => void;
@@ -117,6 +118,7 @@ function createWithValidationScope<T>(
         message: error.message ?? 'Unknown GPU validation error',
         kind: inferGpuErrorKind(error),
       });
+      onValidationError?.();
     })
     .catch((error) => {
       reportGpuResourceError(device, {
@@ -124,6 +126,7 @@ function createWithValidationScope<T>(
         message: error instanceof Error ? error.message : String(error),
         kind: 'unknown',
       });
+      onValidationError?.();
     });
 
   trackPendingErrorScope(device, pendingScope);
@@ -143,7 +146,12 @@ export function getOrCreateShaderModule(
   }
 
   deviceCache.stats.shaderMisses += 1;
-  const shaderModule = createWithValidationScope(device, `shader:${key}`, () => device.createShaderModule(descriptorFactory()));
+  const shaderModule = createWithValidationScope(
+    device,
+    `shader:${key}`,
+    () => device.createShaderModule(descriptorFactory()),
+    () => deviceCache.shaderModules.delete(key),
+  );
   deviceCache.shaderModules.set(key, shaderModule);
   return shaderModule;
 }
@@ -163,6 +171,7 @@ export function getOrCreateBindGroupLayout(
     device,
     `bind-group-layout:${key}`,
     () => device.createBindGroupLayout(descriptorFactory()),
+    () => deviceCache.bindGroupLayouts.delete(key),
   );
   deviceCache.bindGroupLayouts.set(key, bindGroupLayout);
   return bindGroupLayout;
@@ -181,7 +190,12 @@ export function getOrCreateRenderPipeline(
   }
 
   deviceCache.stats.pipelineMisses += 1;
-  const pipeline = createWithValidationScope(device, `render-pipeline:${key}`, () => device.createRenderPipeline(descriptorFactory()));
+  const pipeline = createWithValidationScope(
+    device,
+    `render-pipeline:${key}`,
+    () => device.createRenderPipeline(descriptorFactory()),
+    () => deviceCache.renderPipelines.delete(key),
+  );
   deviceCache.renderPipelines.set(key, pipeline);
   return pipeline;
 }
@@ -199,7 +213,12 @@ export function getOrCreateComputePipeline(
   }
 
   deviceCache.stats.pipelineMisses += 1;
-  const pipeline = createWithValidationScope(device, `compute-pipeline:${key}`, () => device.createComputePipeline(descriptorFactory()));
+  const pipeline = createWithValidationScope(
+    device,
+    `compute-pipeline:${key}`,
+    () => device.createComputePipeline(descriptorFactory()),
+    () => deviceCache.computePipelines.delete(key),
+  );
   deviceCache.computePipelines.set(key, pipeline);
   return pipeline;
 }
@@ -215,7 +234,12 @@ export function getOrCreateSampler(
     return cached;
   }
 
-  const sampler = createWithValidationScope(device, `sampler:${key}`, () => device.createSampler(descriptorFactory()));
+  const sampler = createWithValidationScope(
+    device,
+    `sampler:${key}`,
+    () => device.createSampler(descriptorFactory()),
+    () => deviceCache.samplers.delete(key),
+  );
   deviceCache.samplers.set(key, sampler);
   return sampler;
 }

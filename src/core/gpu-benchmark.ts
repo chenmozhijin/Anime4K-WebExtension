@@ -163,6 +163,13 @@ function classifyBenchmarkFailure(error: unknown): BenchmarkFailureReason {
     return 'crash';
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) {
+        return;
+    }
+    throw new Error('Benchmark aborted');
+}
+
 /**
  * 运行 GPU 性能测试
  * 使用真实 Anime4K 效果测试各档位的处理时间
@@ -303,9 +310,11 @@ export async function runGPUBenchmark(
                 const effects = resolveAnime4kPresetEffectChain('A+A', tier);
 
                 // 运行测试
+                const testAbortController = new AbortController();
                 const { avgTime, maxTime } = await runWithTimeout(
-                    runEffectChainTest(device, inputTexture, effects, gpuErrorMonitor),
-                    TEST_TIMEOUT_MS
+                    runEffectChainTest(device, inputTexture, effects, gpuErrorMonitor, testAbortController.signal),
+                    TEST_TIMEOUT_MS,
+                    testAbortController,
                 );
 
                 scores[tier] = avgTime;
@@ -416,7 +425,9 @@ async function runEffectChainTest(
     inputTexture: GPUTexture,
     effects: EnhancementEffect[],
     gpuErrorMonitor: BenchmarkGpuErrorMonitor,
+    signal?: AbortSignal,
 ): Promise<{ avgTime: number; maxTime: number }> {
+    throwIfAborted(signal);
     gpuErrorMonitor.reset();
     const compiledPlan = await compileEffectChain({
         device,
@@ -425,6 +436,7 @@ async function runEffectChainTest(
         sourceDimensions: { width: TEST_WIDTH, height: TEST_HEIGHT },
         targetDimensions: { width: TARGET_WIDTH, height: TARGET_HEIGHT },
     });
+    throwIfAborted(signal);
     await gpuErrorMonitor.throwIfCaptured('effect compilation');
     const pipelines: any[] = compiledPlan.pipelines;
 
@@ -435,16 +447,19 @@ async function runEffectChainTest(
     try {
         // 预热：逐个效果进行预热，避免同时运行整个管道链导致内存压力过大
         for (let pipelineIdx = 0; pipelineIdx < pipelines.length; pipelineIdx++) {
+            throwIfAborted(signal);
             const pipeline = pipelines[pipelineIdx];
             const commandEncoder = device.createCommandEncoder();
             pipeline.pass(commandEncoder);
             device.queue.submit([commandEncoder.finish()]);
             await device.queue.onSubmittedWorkDone();
         }
+        throwIfAborted(signal);
         await gpuErrorMonitor.throwIfCaptured('effect warmup');
 
         // 整体预热：运行完整管道链 4 帧
         for (let warmup = 0; warmup < 4; warmup++) {
+            throwIfAborted(signal);
             const commandEncoder = device.createCommandEncoder();
             for (const pipeline of pipelines) {
                 pipeline.pass(commandEncoder);
@@ -452,6 +467,7 @@ async function runEffectChainTest(
             device.queue.submit([commandEncoder.finish()]);
             await device.queue.onSubmittedWorkDone();
         }
+        throwIfAborted(signal);
         await gpuErrorMonitor.throwIfCaptured('effect warmup');
 
         // 正式测试：运行 120 帧，记录每帧时间
@@ -464,6 +480,7 @@ async function runEffectChainTest(
         const BATCH_SIZE = 6;
 
         for (let frame = 0; frame < testFrames; frame += BATCH_SIZE) {
+            throwIfAborted(signal);
             const batchStart = performance.now();
             const framesInBatch = Math.min(BATCH_SIZE, testFrames - frame);
 
@@ -477,6 +494,7 @@ async function runEffectChainTest(
 
             // 等待当前批次完成
             await device.queue.onSubmittedWorkDone();
+            throwIfAborted(signal);
 
             const batchDuration = performance.now() - batchStart;
             await gpuErrorMonitor.throwIfCaptured(`benchmark batch ${frame / BATCH_SIZE + 1}`);
@@ -530,11 +548,15 @@ async function getGPUAdapterInfo(): Promise<string> {
 /**
  * 带超时的 Promise
  */
-function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number, abortController: AbortController): Promise<T> {
     return Promise.race([
         promise,
-        new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout')), timeoutMs)
-        ),
+        new Promise<T>((_, reject) => {
+            const timeoutId = setTimeout(() => {
+                abortController.abort();
+                reject(new Error('Timeout'));
+            }, timeoutMs);
+            promise.finally(() => clearTimeout(timeoutId));
+        }),
     ]);
 }

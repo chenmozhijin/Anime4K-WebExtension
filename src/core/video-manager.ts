@@ -4,7 +4,7 @@ import type { Anime4KWebExtSettings } from '../types';
 import { stashEnhancer, findAndunstashEnhancer } from './enhancer-stash';
 import * as EnhancerMap from './enhancer-map';
 import { createLogger } from '../utils/logger';
-import { hasRenderableParent as hasRenderableVideoParent, walkVisibleVideos } from './video-discovery';
+import { isLikelyVisibleVideo, walkVisibleVideos } from './video-discovery';
 
 type SettingsUpdateMessage = {
   type: string;
@@ -28,7 +28,7 @@ let beforeUnloadRegistered = false;
 const logger = createLogger('video-manager');
 
 function hasRenderableParent(videoEl: HTMLVideoElement): boolean {
-  return hasRenderableVideoParent(videoEl);
+  return isLikelyVisibleVideo(videoEl);
 }
 
 function shouldSkipRemovalCleanup(video: HTMLVideoElement, addedVideos: ReadonlySet<HTMLVideoElement>): boolean {

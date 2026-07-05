@@ -29,6 +29,10 @@ beforeEach(() => {
       FRAGMENT: 2,
       COMPUTE: 4,
     },
+    GPUMapMode: globalThis.GPUMapMode ?? {
+      READ: 1,
+      WRITE: 2,
+    },
   });
 });
 

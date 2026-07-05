@@ -39,6 +39,7 @@
   /* Material Design 3 尺寸和形状 */
   --border-radius: 12px; /* Material Design 3 rounded corners */
   --border-radius-sm: 8px;
+  --border-radius-md: var(--border-radius);
   --border-radius-lg: 16px;
   --border-radius-xl: 24px;
   

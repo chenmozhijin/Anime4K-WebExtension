@@ -217,6 +217,17 @@ describe('video manager', () => {
     expect(createEnhancerMock).toHaveBeenCalledWith(video);
   });
 
+  it('does not create enhancers for clearly hidden preload videos', async () => {
+    const video = createDomVideo('https://example.com/preload.mp4');
+    video.hidden = true;
+    document.body.appendChild(video);
+
+    const { initializeOnPage } = await import('../../src/core/video-manager');
+    initializeOnPage();
+
+    expect(createEnhancerMock).not.toHaveBeenCalledWith(video);
+  });
+
   it('stashes removed videos before processing replacements so reattach can reuse the old enhancer', async () => {
     const oldVideo = createDomVideo('https://example.com/reuse.mp4');
     oldVideo.setAttribute(ANIME4K_APPLIED_ATTR, 'true');

@@ -8,6 +8,7 @@ import { createOptionsStateStore } from './modules/options-state';
 import { createModesSection } from './modules/modes-section';
 import { createWhitelistSection } from './modules/whitelist-section';
 import { createGeneralSection } from './modules/general-section';
+import { themeManager } from '../theme-manager';
 
 const logger = createLogger('options');
 
@@ -75,6 +76,9 @@ function bindRuntimeRefresh(): void {
       'enableCrossOriginFix',
       'performanceTier',
       'gpuBenchmarkResult',
+      'performanceMonitorMode',
+      'performanceMonitorHudCollapsed',
+      'performanceMonitorHudPosition',
     ];
 
     if (!Object.keys(changes).some(key => relevantKeys.includes(key))) {
@@ -86,6 +90,7 @@ function bindRuntimeRefresh(): void {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await themeManager.ready();
   setupInternationalization();
 
   try {
@@ -121,6 +126,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       setBenchmarkResult: result => {
         store.getLocalSettingsState().gpuBenchmarkResult = result;
+      },
+      getPerformanceMonitorMode: () => store.getPerformanceMonitorMode(),
+      setPerformanceMonitorMode: mode => {
+        store.setPerformanceMonitorMode(mode);
       },
       notifyUpdate,
       renderModes: () => {

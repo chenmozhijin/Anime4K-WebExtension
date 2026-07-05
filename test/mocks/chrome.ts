@@ -29,7 +29,9 @@ class MockChromeEvent<TArgs extends any[] = any[]> {
 }
 
 type StorageAreaName = 'sync' | 'local';
+type StorageOperation = 'get' | 'set' | 'remove' | 'clear';
 type StorageState = Record<string, any>;
+type FailureQueueMap = Record<StorageAreaName, Record<StorageOperation, Error[]>>;
 
 function pickKeys(source: StorageState, keys?: string[] | string | Record<string, any> | null): StorageState {
   if (keys === undefined || keys === null) {
@@ -53,14 +55,45 @@ function buildStorageArea(
   areaName: StorageAreaName,
   state: StorageState,
   onChanged: MockChromeEvent<[Record<string, chrome.storage.StorageChange>, StorageAreaName]>,
+  takeFailure: (areaName: StorageAreaName, operation: StorageOperation) => Error | undefined,
 ) {
+  const rejectOrReportFailure = async <T>(
+    operation: StorageOperation,
+    callback: (() => void) | ((items: StorageState) => void) | undefined,
+    callbackValue?: T,
+  ): Promise<{ failed: boolean; value?: T }> => {
+    const failure = takeFailure(areaName, operation);
+    if (!failure) {
+      return { failed: false };
+    }
+
+    if (callback) {
+      chrome.runtime.lastError = failure as chrome.runtime.LastError;
+      (callback as (value?: T) => void)(callbackValue);
+      chrome.runtime.lastError = undefined;
+      return { failed: true, value: callbackValue };
+    }
+
+    throw failure;
+  };
+
   return {
     async get(keys?: string[] | string | Record<string, any> | null, callback?: (items: StorageState) => void): Promise<StorageState> {
+      const failure = await rejectOrReportFailure<StorageState>('get', callback, {});
+      if (failure.failed) {
+        return failure.value ?? {};
+      }
+
       const result = pickKeys(state, keys);
       callback?.(result);
       return result;
     },
     async set(items: StorageState, callback?: () => void): Promise<void> {
+      const failure = await rejectOrReportFailure('set', callback);
+      if (failure.failed) {
+        return;
+      }
+
       const changes: Record<string, chrome.storage.StorageChange> = {};
       Object.entries(items).forEach(([key, value]) => {
         changes[key] = {
@@ -73,6 +106,11 @@ function buildStorageArea(
       await onChanged.trigger(changes, areaName);
     },
     async remove(keys: string[] | string, callback?: () => void): Promise<void> {
+      const failure = await rejectOrReportFailure('remove', callback);
+      if (failure.failed) {
+        return;
+      }
+
       const keyList = Array.isArray(keys) ? keys : [keys];
       const changes: Record<string, chrome.storage.StorageChange> = {};
       keyList.forEach(key => {
@@ -86,6 +124,11 @@ function buildStorageArea(
       await onChanged.trigger(changes, areaName);
     },
     async clear(callback?: () => void): Promise<void> {
+      const failure = await rejectOrReportFailure('clear', callback);
+      if (failure.failed) {
+        return;
+      }
+
       const changes: Record<string, chrome.storage.StorageChange> = {};
       Object.keys(state).forEach(key => {
         changes[key] = {
@@ -121,6 +164,17 @@ export function createChromeMock(options: ChromeMockOptions = {}) {
   const dnrUpdates: chrome.declarativeNetRequest.UpdateRulesetOptions[] = [];
   const openOptionsPageCalls: Array<{ openedAt: number }> = [];
   const tabSendMessageErrors: Error[] = [];
+  const runtimeSendMessageErrors: Error[] = [];
+  const storageFailures: FailureQueueMap = {
+    sync: { get: [], set: [], remove: [], clear: [] },
+    local: { get: [], set: [], remove: [], clear: [] },
+  };
+  const queueError = (queue: Error[], error: string | Error) => {
+    queue.push(error instanceof Error ? error : new Error(error));
+  };
+  const takeStorageFailure = (areaName: StorageAreaName, operation: StorageOperation): Error | undefined => (
+    storageFailures[areaName][operation].shift()
+  );
   const activeTab = (options.activeTab ?? {
     id: 1,
     active: true,
@@ -139,6 +193,11 @@ export function createChromeMock(options: ChromeMockOptions = {}) {
         openOptionsPageCalls.push({ openedAt: Date.now() });
       },
       async sendMessage(message: any): Promise<any> {
+        const nextError = runtimeSendMessageErrors.shift();
+        if (nextError) {
+          throw nextError;
+        }
+
         runtimeMessages.push(message);
         let responsePayload: any;
         let responseResolved = false;
@@ -188,8 +247,8 @@ export function createChromeMock(options: ChromeMockOptions = {}) {
     },
     storage: {
       onChanged: storageOnChanged,
-      sync: buildStorageArea('sync', syncState, storageOnChanged),
-      local: buildStorageArea('local', localState, storageOnChanged),
+      sync: buildStorageArea('sync', syncState, storageOnChanged, takeStorageFailure),
+      local: buildStorageArea('local', localState, storageOnChanged, takeStorageFailure),
     },
     declarativeNetRequest: {
       async updateEnabledRulesets(update: chrome.declarativeNetRequest.UpdateRulesetOptions): Promise<void> {
@@ -207,8 +266,17 @@ export function createChromeMock(options: ChromeMockOptions = {}) {
       sentTabMessages,
       dnrUpdates,
       openOptionsPageCalls,
+      queueRuntimeSendMessageError: (error: string | Error) => {
+        queueError(runtimeSendMessageErrors, error);
+      },
+      queueStorageError: (areaName: StorageAreaName, operation: StorageOperation, error: string | Error) => {
+        queueError(storageFailures[areaName][operation], error);
+      },
+      queueStorageSetError: (areaName: StorageAreaName, error: string | Error) => {
+        queueError(storageFailures[areaName].set, error);
+      },
       queueTabSendMessageError: (error: string | Error) => {
-        tabSendMessageErrors.push(error instanceof Error ? error : new Error(error));
+        queueError(tabSendMessageErrors, error);
       },
       runtimeOnInstalled,
       runtimeOnStartup,

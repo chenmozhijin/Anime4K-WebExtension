@@ -110,9 +110,12 @@ function createCompiledPlan(device: GPUDevice) {
 async function createRendererHarness(options: {
   onError?: (error: Error) => void;
   video?: MockVideoHarness;
+  performanceMonitorMode?: 'off' | 'lite' | 'gpu';
+  onPerformanceSnapshot?: ReturnType<typeof vi.fn>;
+  webgpuFeatures?: GPUFeatureName[];
 } = {}) {
   installChromeMock();
-  const webgpu = installWebGpuMock();
+  const webgpu = installWebGpuMock({ features: options.webgpuFeatures });
   const videoHarness = options.video ?? createMockVideo();
   const { plan, destroySpy } = createCompiledPlan(webgpu.device as unknown as GPUDevice);
   compileEffectChain.mockResolvedValue(plan);
@@ -136,6 +139,10 @@ async function createRendererHarness(options: {
     effectsSignature: 'test',
     targetDimensions: { width: 320, height: 180 },
     onError: options.onError,
+    performanceMonitorMode: options.performanceMonitorMode,
+    performanceModeName: 'Test Mode',
+    performanceTier: 'balanced',
+    onPerformanceSnapshot: options.onPerformanceSnapshot,
   });
 
   return {
@@ -249,6 +256,112 @@ describe('renderer lifecycle', () => {
     renderer.destroy();
   });
 
+  it('keeps performance monitoring cold when disabled', async () => {
+    const onPerformanceSnapshot = vi.fn();
+    const { renderer, webgpu } = await createRendererHarness({ onPerformanceSnapshot });
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+
+    expect((renderer as any).performanceProfiler).toBeNull();
+    expect(requestDeviceSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      requiredFeatures: expect.arrayContaining(['timestamp-query']),
+    }));
+
+    await (renderer as any).processFrame();
+    expect(onPerformanceSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('collects lightweight performance snapshots when enabled', async () => {
+    const onPerformanceSnapshot = vi.fn();
+    const { renderer } = await createRendererHarness({
+      performanceMonitorMode: 'lite',
+      onPerformanceSnapshot,
+    });
+
+    (renderer as any).performanceProfiler.lastSnapshotAt = -1000;
+    await (renderer as any).processFrame({ presentedFrames: 2 });
+
+    expect(onPerformanceSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'lite',
+      timingSource: 'cpu',
+      gpuName: 'Mock GPU',
+      uploadMethod: 'VideoFrame direct',
+      modeName: 'Test Mode',
+      frameMs: expect.any(Number),
+      uploadMs: expect.any(Number),
+      encodeMs: expect.any(Number),
+      submitMs: expect.any(Number),
+    }));
+  });
+
+  it('requests timestamp-query for GPU diagnostics when supported', async () => {
+    installChromeMock();
+    const webgpu = installWebGpuMock({ features: ['timestamp-query'] });
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+    const videoHarness = createMockVideo();
+    const { plan } = createCompiledPlan(webgpu.device as unknown as GPUDevice);
+    compileEffectChain.mockResolvedValue(plan);
+
+    const canvas = document.createElement('canvas');
+    const context = createMockCanvasContext(webgpu.device as unknown as GPUDevice);
+    vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+      if (type === 'webgpu') {
+        return context;
+      }
+      return null;
+    });
+
+    const { Renderer } = await import('../../src/core/renderer');
+    vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+
+    const renderer = await Renderer.create({
+      video: videoHarness.video,
+      canvas,
+      effects: [],
+      effectsSignature: 'test-gpu-monitor',
+      targetDimensions: { width: 320, height: 180 },
+      performanceMonitorMode: 'gpu',
+      performanceModeName: 'Test Mode',
+      performanceTier: 'balanced',
+      onPerformanceSnapshot: vi.fn(),
+    });
+
+    expect(requestDeviceSpy).toHaveBeenCalledWith(expect.objectContaining({
+      requiredFeatures: ['timestamp-query'],
+    }));
+
+    renderer.destroy();
+  });
+
+  it('adds asynchronous GPU timings to later diagnostics snapshots', async () => {
+    const onPerformanceSnapshot = vi.fn();
+    const { renderer } = await createRendererHarness({
+      performanceMonitorMode: 'gpu',
+      onPerformanceSnapshot,
+      webgpuFeatures: ['timestamp-query'],
+    });
+
+    await (renderer as any).processFrame({ presentedFrames: 1 });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    (renderer as any).performanceProfiler.lastSnapshotAt = -1000;
+    await (renderer as any).processFrame({ presentedFrames: 2 });
+
+    expect(onPerformanceSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'gpu',
+      timingSource: 'mixed',
+      timestampAvailable: true,
+      groupEntries: expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Final Blit',
+          gpuMs: expect.any(Number),
+          source: 'mixed',
+        }),
+      ]),
+    }));
+
+    renderer.destroy();
+  });
+
   it('includes effect names in GPU validation errors during pipeline build', async () => {
     installChromeMock();
     const webgpu = installWebGpuMock();
@@ -320,6 +433,30 @@ describe('renderer lifecycle', () => {
     await expect((renderer as any).processFrame()).resolves.toBe(false);
     expect(resizeSpy).toHaveBeenCalledOnce();
     expect(queue.submissions).toBe(initialSubmissions);
+  });
+
+  it('coalesces concurrent source resize requests into one rebuild', async () => {
+    const { renderer, videoHarness } = await createRendererHarness();
+    let finishRebuild!: () => void;
+    const buildPipelinesSpy = vi.spyOn(renderer as any, 'buildPipelines').mockImplementation(() =>
+      new Promise<void>(resolve => {
+        finishRebuild = resolve;
+      }));
+    const createResourcesSpy = vi.spyOn(renderer as any, 'createResources').mockImplementation(() => undefined);
+    const createRenderBindGroupSpy = vi.spyOn(renderer as any, 'createRenderBindGroup').mockImplementation(() => undefined);
+
+    videoHarness.setDimensions(640, 360);
+    const firstResize = renderer.handleSourceResize();
+    const secondResize = renderer.handleSourceResize();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(buildPipelinesSpy).toHaveBeenCalledOnce();
+
+    finishRebuild();
+    await Promise.all([firstResize, secondResize]);
+
+    expect(createResourcesSpy).toHaveBeenCalledOnce();
+    expect(createRenderBindGroupSpy).toHaveBeenCalledOnce();
   });
 
   it('skips rebuilds when updateConfiguration receives the same configuration', async () => {

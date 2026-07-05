@@ -10,7 +10,7 @@
 
 - 🚀 WebGPU 实时超分: 依托先进的 WebGPU 技术，在浏览器端实现低延迟、高性能的视频实时超分辨率增强。
 - ⚡ 多档性能预设: 提供 快速/均衡/质量/极致 四种预设模式，并支持自定义模式，灵活平衡画质提升与硬件负载。
-- 🧪 高级自定义效果: 自定义模式可选择 ArtCNN 效果；当前发布版本中 ArtCNN 不参与自动推荐，也不会出现在内置模式中。
+- 🧪 高级自定义效果: 自定义模式可选择 ArtCNN、ACNet、CuNNy 等效果；这些效果不参与自动推荐，也不会出现在内置模式中。
 - 📊 硬件性能评估: 内置 GPU 基准测试，为您推荐最适合您的硬件的超分档位。
 - 📏 灵活分辨率控制: 支持 2x/4x/8x 倍率放大，亦可锁定 2K/4K 等目标分辨率，满足多样化观影需求。
 - ✨ 一键增强: 视频播放器自动浮现紫色「✨ 超分」按钮，一键开启画质飞跃。
@@ -53,8 +53,8 @@
 2. 运行 `npm install` 安装依赖
 3. 运行 `npm run build` 构建项目
 4. 在浏览器中加载构建好的扩展：
-   - Chrome: 打开拓展页面(`chrome://extensions`) → 启用"开发者模式" → "加载已解压的扩展程序" → 选择项目中的 `dist` 目录
-   - Edge: 打开拓展页面(`edge://extensions`) → 启用"开发人员模式" → "加载解压缩的扩展" → 选择项目中的 `dist` 目录
+   - Chrome/Edge: 打开拓展页面(`chrome://extensions` 或 `edge://extensions`) → 启用开发者模式 → 加载已解压的扩展 → 选择项目中的 `dist-chrome` 目录
+   - Firefox: 打开 `about:debugging#/runtime/this-firefox` → 临时载入附加组件 → 选择项目中 `dist-firefox/manifest.json`
 
 ### 一、初次设置 (Onboarding)
 
@@ -103,15 +103,23 @@
 
 #### 3. 增强模式 (Enhancement Modes)
 *   **可视化编辑器**: 创建全新的自定义模式。
-*   **ArtCNN 高级效果**: 可在自定义模式中手动添加，适合高负载实验性配置；当前版本不会由 GPU 基准测试自动推荐，也不会作为内置模式提供。
+*   **高级效果**: ArtCNN、ACNet、CuNNy 可在自定义模式中手动添加，适合高负载实验性配置；当前版本不会由 GPU 基准测试自动推荐，也不会作为内置模式提供。
 *   **拖拽排序**: 调整着色器 (Shader) 的应用顺序，或调整模式列表顺序。
 *   **分享配置**: 导入/导出您的自定义模式配置 (JSON 格式)。
 
 #### 4. 白名单管理 (Whitelist)
 *   **规则管理**: 查看、编辑或删除已添加的网址规则。
 *   **支持通配符**: 使用 `*` 匹配多个页面（如 `*.bilibili.com/*`）。
+*   **匹配范围**: 白名单规则只匹配 `hostname + pathname`，不会匹配协议、端口、查询参数或 hash。例如 `example.com/watch/*` 可匹配 `https://example.com:8443/watch/1?from=home`。
 
 ## 致谢
 
 - [bloc97/Anime4K](https://github.com/bloc97/Anime4K)
 - [Anime4K-WebGPU](https://github.com/Anime4KWebBoost/Anime4K-WebGPU)
+- [CuNNy](https://github.com/funnyplanter/CuNNy)
+
+## 许可证
+
+主项目核心代码使用 MIT 许可证。随默认扩展包提供的 CuNNy 生成组件使用
+LGPL-3.0-or-later；对应源码说明详见
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。

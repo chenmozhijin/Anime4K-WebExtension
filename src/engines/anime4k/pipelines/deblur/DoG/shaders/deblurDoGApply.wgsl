@@ -25,7 +25,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
   let pos: vec2u = vec2u(pixel.x, pixel.y);
 
 
-  let BLUR_CURVE: f32 = strength;
+  let BLUR_CURVE: f32 = 0.6;
   let BLUR_THRESHOLD: f32 = 0.1;
   let NOISE_THRESHOLD: f32 = 0.001;
 
@@ -49,5 +49,6 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
 
   let cc: f32 = clamp(c_t + luma.x, color.y, color.z) - luma.x;
 
-  textureStore(tex_out, vec2u(pixel.x, pixel.y), cc + textureLoad(tex_original, vec2u(pos.x, pos.y), 0));
+  let sharpened = cc + textureLoad(tex_original, vec2u(pos.x, pos.y), 0);
+  textureStore(tex_out, vec2u(pixel.x, pixel.y), vec4f(sharpened.rgb, 1.0));
 }

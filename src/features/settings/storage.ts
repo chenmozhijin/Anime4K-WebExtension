@@ -1,6 +1,8 @@
 import type {
   BenchmarkRunState,
   LocalSettings,
+  PerformanceMonitorHudPosition,
+  PerformanceMonitorMode,
   SyncedSettings,
 } from '../../types';
 
@@ -21,7 +23,35 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
     status: 'idle',
     fallbackTierApplied: null,
   },
+  performanceMonitorMode: 'off',
+  performanceMonitorHudCollapsed: false,
+  performanceMonitorHudPosition: 'top-left',
+  performanceMonitorHudWidth: null,
 };
+
+function normalizePerformanceMonitorMode(value: unknown): PerformanceMonitorMode {
+  return value === 'lite' || value === 'gpu' ? value : DEFAULT_LOCAL_SETTINGS.performanceMonitorMode;
+}
+
+function normalizePerformanceMonitorHudPosition(value: unknown): PerformanceMonitorHudPosition {
+  switch (value) {
+    case 'top-right':
+    case 'bottom-left':
+    case 'bottom-right':
+      return value;
+    case 'top-left':
+    default:
+      return DEFAULT_LOCAL_SETTINGS.performanceMonitorHudPosition;
+  }
+}
+
+function normalizePerformanceMonitorHudWidth(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_LOCAL_SETTINGS.performanceMonitorHudWidth;
+  }
+
+  return Math.round(Math.min(640, Math.max(260, value)));
+}
 
 export function normalizeBenchmarkRunState(state: unknown): BenchmarkRunState {
   if (!state || typeof state !== 'object') {
@@ -68,12 +98,20 @@ export async function getLocalSettings(): Promise<LocalSettings> {
       'gpuAdapterInfo',
       'hasCompletedOnboarding',
       'benchmarkRunState',
+      'performanceMonitorMode',
+      'performanceMonitorHudCollapsed',
+      'performanceMonitorHudPosition',
+      'performanceMonitorHudWidth',
     ], data => {
       resolve({
         performanceTier: data.performanceTier ?? DEFAULT_LOCAL_SETTINGS.performanceTier,
         gpuBenchmarkResult: data.gpuBenchmarkResult ?? DEFAULT_LOCAL_SETTINGS.gpuBenchmarkResult,
         hasCompletedOnboarding: data.hasCompletedOnboarding ?? DEFAULT_LOCAL_SETTINGS.hasCompletedOnboarding,
         benchmarkRunState: normalizeBenchmarkRunState(data.benchmarkRunState),
+        performanceMonitorMode: normalizePerformanceMonitorMode(data.performanceMonitorMode),
+        performanceMonitorHudCollapsed: data.performanceMonitorHudCollapsed ?? DEFAULT_LOCAL_SETTINGS.performanceMonitorHudCollapsed,
+        performanceMonitorHudPosition: normalizePerformanceMonitorHudPosition(data.performanceMonitorHudPosition),
+        performanceMonitorHudWidth: normalizePerformanceMonitorHudWidth(data.performanceMonitorHudWidth),
       });
     });
   });

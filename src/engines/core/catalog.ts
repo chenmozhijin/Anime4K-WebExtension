@@ -11,6 +11,7 @@ export const resizeToTargetDescriptor: EffectDescriptor = {
   category: 'resize',
   dimensionBehavior: { kind: 'target' },
   supportsVideoRealtime: true,
+  hidden: true,
 };
 
 export const internalResizeDescriptor: EffectDescriptor = {

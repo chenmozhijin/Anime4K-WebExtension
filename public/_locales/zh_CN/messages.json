@@ -68,6 +68,9 @@
   "whitelistManagement": {
     "message": "白名单管理"
   },
+  "whitelistPatternHelp": {
+    "message": "规则只匹配域名 + 路径，协议、端口、查询参数和 hash 会被忽略。"
+  },
   "addRule": {
     "message": "添加规则"
   },
@@ -122,6 +125,18 @@
   "addEffect": {
     "message": "添加效果..."
   },
+  "effectSearchPlaceholder": {
+    "message": "搜索效果..."
+  },
+  "effectBrowserDone": {
+    "message": "完成"
+  },
+  "effectBrowserAll": {
+    "message": "全部"
+  },
+  "noMatchingEffects": {
+    "message": "没有匹配的效果"
+  },
   "newCustomModeName": {
     "message": "新自定义模式"
   },
@@ -164,6 +179,12 @@
   "sourceCode": {
     "message": "源代码"
   },
+  "permissionAudit": {
+    "message": "权限"
+  },
+  "permissionAuditLink": {
+    "message": "权限说明"
+  },
   "reportIssues": {
     "message": "报告问题"
   },
@@ -193,6 +214,21 @@
   },
   "performanceSettings": {
     "message": "性能设置"
+  },
+  "performanceMonitor": {
+    "message": "性能分析器"
+  },
+  "performanceMonitorDesc": {
+    "message": "在视频上显示紧凑性能 HUD。GPU 诊断会在支持时低频采样。"
+  },
+  "performanceMonitorOff": {
+    "message": "关闭"
+  },
+  "performanceMonitorLite": {
+    "message": "轻量"
+  },
+  "performanceMonitorGpu": {
+    "message": "GPU 诊断"
   },
   "gpuPerformance": {
     "message": "GPU性能"
@@ -417,6 +453,9 @@
   },
   "continue": {
     "message": "继续"
+  },
+  "getStarted": {
+    "message": "开始使用"
   },
   "setupComplete": {
     "message": "设置完成！"

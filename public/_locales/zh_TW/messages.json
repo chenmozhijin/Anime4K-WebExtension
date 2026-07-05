@@ -68,6 +68,9 @@
   "whitelistManagement": {
     "message": "白名單管理"
   },
+  "whitelistPatternHelp": {
+    "message": "規則只比對網域 + 路徑，協定、連接埠、查詢參數與 hash 會被忽略。"
+  },
   "addRule": {
     "message": "加入規則"
   },
@@ -122,6 +125,18 @@
   "addEffect": {
     "message": "新增效果..."
   },
+  "effectSearchPlaceholder": {
+    "message": "搜尋效果..."
+  },
+  "effectBrowserDone": {
+    "message": "完成"
+  },
+  "effectBrowserAll": {
+    "message": "全部"
+  },
+  "noMatchingEffects": {
+    "message": "沒有符合的效果"
+  },
   "newCustomModeName": {
     "message": "新自訂模式"
   },
@@ -164,6 +179,12 @@
   "sourceCode": {
     "message": "原始碼"
   },
+  "permissionAudit": {
+    "message": "權限"
+  },
+  "permissionAuditLink": {
+    "message": "權限說明"
+  },
   "reportIssues": {
     "message": "回報問題"
   },
@@ -193,6 +214,21 @@
   },
   "performanceSettings": {
     "message": "效能設定"
+  },
+  "performanceMonitor": {
+    "message": "效能分析器"
+  },
+  "performanceMonitorDesc": {
+    "message": "在影片上顯示緊湊效能 HUD。GPU 診斷會在支援時低頻取樣。"
+  },
+  "performanceMonitorOff": {
+    "message": "關閉"
+  },
+  "performanceMonitorLite": {
+    "message": "輕量"
+  },
+  "performanceMonitorGpu": {
+    "message": "GPU 診斷"
   },
   "gpuPerformance": {
     "message": "GPU效能"
@@ -417,6 +453,9 @@
   },
   "continue": {
     "message": "繼續"
+  },
+  "getStarted": {
+    "message": "開始使用"
   },
   "setupComplete": {
     "message": "設定完成！"

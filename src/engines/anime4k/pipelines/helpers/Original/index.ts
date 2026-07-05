@@ -19,10 +19,6 @@ export class Original implements Anime4KPipeline {
     this.outputTexture = inputTexture;
   }
 
-  updateParam(param: string, value: any): void {
-    throw new Error('Method not implemented.');
-  }
-
   pass(encoder: GPUCommandEncoder): void {
   }
 

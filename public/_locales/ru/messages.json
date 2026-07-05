@@ -68,6 +68,9 @@
   "whitelistManagement": {
     "message": "Управление белым списком"
   },
+  "whitelistPatternHelp": {
+    "message": "Правила сопоставляются только с именем хоста и путем. Протокол, порт, query и hash игнорируются."
+  },
   "addRule": {
     "message": "Добавить правило"
   },
@@ -122,6 +125,18 @@
   "addEffect": {
     "message": "Добавить эффект..."
   },
+  "effectSearchPlaceholder": {
+    "message": "Поиск эффектов..."
+  },
+  "effectBrowserDone": {
+    "message": "Готово"
+  },
+  "effectBrowserAll": {
+    "message": "Все"
+  },
+  "noMatchingEffects": {
+    "message": "Нет подходящих эффектов"
+  },
   "newCustomModeName": {
     "message": "Новый кастомный режим"
   },
@@ -164,6 +179,12 @@
   "sourceCode": {
     "message": "Исходный код"
   },
+  "permissionAudit": {
+    "message": "Разрешения"
+  },
+  "permissionAuditLink": {
+    "message": "Обоснование разрешений"
+  },
   "reportIssues": {
     "message": "Сообщить о проблеме"
   },
@@ -193,6 +214,21 @@
   },
   "performanceSettings": {
     "message": "Настройки производительности"
+  },
+  "performanceMonitor": {
+    "message": "Performance Monitor"
+  },
+  "performanceMonitorDesc": {
+    "message": "Show a compact in-video performance HUD. GPU diagnostics use low-frequency sampling when supported."
+  },
+  "performanceMonitorOff": {
+    "message": "Off"
+  },
+  "performanceMonitorLite": {
+    "message": "Lite"
+  },
+  "performanceMonitorGpu": {
+    "message": "GPU Diagnostics"
   },
   "gpuPerformance": {
     "message": "Производительность GPU"
@@ -417,6 +453,9 @@
   },
   "continue": {
     "message": "Продолжить"
+  },
+  "getStarted": {
+    "message": "Начать"
   },
   "setupComplete": {
     "message": "Настройка завершена!"

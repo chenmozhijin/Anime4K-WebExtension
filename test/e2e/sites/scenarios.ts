@@ -182,6 +182,138 @@ export const siteScenarios: SiteScenarioDescriptor[] = [
       ),
     },
   ),
+  registerScenario(
+    {
+      id: 'source-swap-remount',
+      path: '/sites/source-swap-remount',
+      title: 'Source Swap And Remount Video',
+      tags: ['@site'],
+    },
+    pageTemplate(
+      'Source Swap And Remount Video',
+      `
+        <button id="swap-source" type="button">Swap source</button>
+        <button id="move-video" type="button">Move video</button>
+        <section id="slot-a"><video id="fixture-video" controls muted playsinline src="/media/a.mp4"></video></section>
+        <section id="slot-b"></section>
+      `,
+      `
+        document.getElementById('swap-source').addEventListener('click', () => {
+          const video = document.getElementById('fixture-video');
+          video.src = video.src.endsWith('/media/a.mp4') ? '/media/b.mp4' : '/media/a.mp4';
+          video.dispatchEvent(new Event('emptied'));
+          video.dispatchEvent(new Event('loadedmetadata'));
+        });
+        document.getElementById('move-video').addEventListener('click', () => {
+          const video = document.getElementById('fixture-video');
+          const target = video.parentElement.id === 'slot-a'
+            ? document.getElementById('slot-b')
+            : document.getElementById('slot-a');
+          target.appendChild(video);
+        });
+      `,
+    ),
+  ),
+  registerScenario(
+    {
+      id: 'transformed-video',
+      path: '/sites/transformed-video',
+      title: 'Transformed Video',
+      tags: ['@site'],
+    },
+    pageTemplate(
+      'Transformed Video',
+      `
+        <style>
+          #fixture-video {
+            transform: translate(24px, 12px) scale(0.92);
+            transform-origin: top left;
+            border-radius: 12px;
+          }
+        </style>
+        <video id="fixture-video" controls muted playsinline></video>
+      `,
+    ),
+  ),
+  registerScenario(
+    {
+      id: 'fullscreen-video',
+      path: '/sites/fullscreen-video',
+      title: 'Fullscreen Video',
+      tags: ['@site'],
+    },
+    pageTemplate(
+      'Fullscreen Video',
+      `
+        <button id="enter-fullscreen" type="button">Fullscreen</button>
+        <section id="fullscreen-shell">
+          <video id="fixture-video" controls muted playsinline></video>
+        </section>
+      `,
+      `
+        document.getElementById('enter-fullscreen').addEventListener('click', async () => {
+          const shell = document.getElementById('fullscreen-shell');
+          try {
+            await shell.requestFullscreen();
+            shell.setAttribute('data-fullscreen-result', 'entered');
+          } catch (error) {
+            try {
+              let simulatedFullscreenElement = shell;
+              Object.defineProperty(document, 'fullscreenElement', {
+                configurable: true,
+                get: () => simulatedFullscreenElement,
+              });
+              document.exitFullscreen = async () => {
+                simulatedFullscreenElement = null;
+                document.dispatchEvent(new Event('fullscreenchange'));
+              };
+              document.dispatchEvent(new Event('fullscreenchange'));
+              shell.setAttribute('data-fullscreen-result', 'simulated');
+            } catch (shimError) {
+              shell.setAttribute('data-fullscreen-result', 'failed');
+            }
+          }
+        });
+      `,
+    ),
+  ),
+  registerScenario(
+    {
+      id: 'obscured-controls',
+      path: '/sites/obscured-controls',
+      title: 'Obscured Controls',
+      tags: ['@site'],
+    },
+    pageTemplate(
+      'Obscured Controls',
+      `
+        <style>
+          #player-shell {
+            position: relative;
+            width: 480px;
+            height: 270px;
+          }
+
+          #fixture-video {
+            position: absolute;
+            inset: 0;
+          }
+
+          #control-cover {
+            position: absolute;
+            inset: 0;
+            z-index: 2147483647;
+            pointer-events: auto;
+            background: rgba(255, 0, 0, 0.01);
+          }
+        </style>
+        <section id="player-shell">
+          <video id="fixture-video" controls muted playsinline></video>
+          <div id="control-cover" aria-hidden="true"></div>
+        </section>
+      `,
+    ),
+  ),
 ];
 
 export function getSiteScenario(id: string): SiteScenarioDescriptor {

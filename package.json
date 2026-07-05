@@ -1,7 +1,8 @@
 {
   "name": "anime4k-webextension",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Real-time video super-resolution browser extension based on Anime4K.",
+  "license": "MIT AND LGPL-3.0-or-later",
   "scripts": {
     "build": "npm run build:chrome",
     "build:chrome": "cross-env TARGET_BROWSER=chrome webpack --mode production",
@@ -11,6 +12,22 @@
     "dev:firefox": "cross-env TARGET_BROWSER=firefox webpack --mode development",
     "watch:chrome": "cross-env TARGET_BROWSER=chrome webpack --mode development --watch",
     "watch:firefox": "cross-env TARGET_BROWSER=firefox webpack --mode development --watch",
+    "generate:acnet": "node scripts/generate-acnet.js",
+    "generate:anime4k-cnn": "node scripts/generate-anime4k-cnn.js",
+    "generate:cunny": "node scripts/generate-cunny.js",
+    "fetch:references": "node scripts/fetch-reference-sources.js",
+    "fetch:cunny-reference": "node scripts/fetch-cunny-reference.js",
+    "verify:doctor": "node scripts/verify-doctor.js",
+    "verify:setup-native": "node scripts/verify-setup-native.js",
+    "verify:reference-libplacebo:doctor": "node scripts/verify-reference-libplacebo-doctor.js",
+    "verify:reference-libplacebo:build-probe": "node scripts/build-libplacebo-probe.js",
+    "verify:reference-libplacebo:probe": "node scripts/verify-reference-libplacebo-probe.js",
+    "verify:reference-libplacebo:build-luma": "node scripts/build-libplacebo-luma-runner.js",
+    "verify:reference-libplacebo:build-rgba": "node scripts/build-libplacebo-rgba-runner.js",
+    "verify:reference-libplacebo:luma": "node scripts/verify-reference-libplacebo-luma.js",
+    "verify:effects": "node scripts/verify-effects.js",
+    "verify:report": "node scripts/verify-report.js",
+    "check:production-bundle": "node scripts/check-production-bundle.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit-node --project dom --project integration",
     "test:unit": "vitest run --project unit-node",
@@ -22,7 +39,7 @@
     "test:e2e:chromium:matrix": "npm run build:chrome && playwright test --grep @site",
     "test:gpu:smoke": "npm run build:chrome && cross-env RUN_GPU_TESTS=1 playwright test --grep @gpu-smoke",
     "test:gpu:benchmark": "npm run build:chrome && cross-env RUN_GPU_TESTS=1 playwright test --grep @gpu-benchmark",
-    "test:ci": "npm run typecheck && npm run test:unit && npm run test:dom && npm run test:integration && npm run build:chrome"
+    "test:ci": "npm run typecheck && npm run test:unit && npm run test:dom && npm run test:integration && npm run build:chrome && npm run check:production-bundle -- --dist dist-chrome"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

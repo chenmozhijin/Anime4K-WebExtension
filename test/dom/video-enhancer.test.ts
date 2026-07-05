@@ -12,6 +12,7 @@ const state = vi.hoisted(() => {
     updateConfiguration: vi.fn(),
     updateVideoSource: vi.fn(),
     handleSourceResize: vi.fn(),
+    updatePerformanceMonitor: vi.fn(),
   };
   const rendererCreate = vi.fn();
   const shouldAttemptCrossOriginRecovery = vi.fn();
@@ -95,6 +96,8 @@ vi.mock('../../src/core/overlay-manager', () => ({
         getCanvas: vi.fn(() => canvas),
         showCanvas: vi.fn(),
         hideCanvas: vi.fn(),
+        showPerformanceHud: vi.fn(),
+        hidePerformanceHud: vi.fn(),
         updateLayout: vi.fn(),
         detach: vi.fn(),
         reattach: vi.fn(),
@@ -182,6 +185,7 @@ describe('VideoEnhancer', () => {
     state.rendererInstance.updateConfiguration.mockReset();
     state.rendererInstance.updateVideoSource.mockReset();
     state.rendererInstance.handleSourceResize.mockReset();
+    state.rendererInstance.updatePerformanceMonitor.mockReset().mockReturnValue(true);
     state.rendererCreate.mockReset().mockImplementation(async (options: any) => {
       state.rendererOptions = options;
       return state.rendererInstance;
@@ -268,6 +272,20 @@ describe('VideoEnhancer', () => {
     expect(state.rendererCreate).toHaveBeenCalledTimes(2);
     expect(state.attemptCrossOriginRecovery).toHaveBeenCalledTimes(1);
     expect(video.getAttribute(ANIME4K_APPLIED_ATTR)).toBe('true');
+  });
+
+  it('cancels a pending metadata wait when the enhancer is destroyed', async () => {
+    const video = createVideo({ readyState: 0, width: 0, height: 0 });
+    const enhancer = VideoEnhancer.create(video);
+
+    const togglePromise = enhancer.toggleEnhancement();
+    await Promise.resolve();
+
+    enhancer.destroy();
+    await expect(togglePromise).resolves.toBeUndefined();
+
+    expect(state.rendererCreate).not.toHaveBeenCalled();
+    expect(state.notifierInstances[0].present).not.toHaveBeenCalled();
   });
 
   it('routes source-only updates to handleSourceResize and full changes to updateConfiguration', async () => {

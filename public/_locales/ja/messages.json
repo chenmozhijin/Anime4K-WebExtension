@@ -68,6 +68,9 @@
   "whitelistManagement": {
     "message": "ホワイトリスト管理"
   },
+  "whitelistPatternHelp": {
+    "message": "ルールはホスト名 + パスのみを照合します。プロトコル、ポート、クエリ、ハッシュは無視されます。"
+  },
   "addRule": {
     "message": "ルールを追加"
   },
@@ -122,6 +125,18 @@
   "addEffect": {
     "message": "エフェクトを追加..."
   },
+  "effectSearchPlaceholder": {
+    "message": "エフェクトを検索..."
+  },
+  "effectBrowserDone": {
+    "message": "完了"
+  },
+  "effectBrowserAll": {
+    "message": "すべて"
+  },
+  "noMatchingEffects": {
+    "message": "一致するエフェクトはありません"
+  },
   "newCustomModeName": {
     "message": "新しいカスタムモード"
   },
@@ -164,6 +179,12 @@
   "sourceCode": {
     "message": "ソースコード"
   },
+  "permissionAudit": {
+    "message": "権限"
+  },
+  "permissionAuditLink": {
+    "message": "権限の説明"
+  },
   "reportIssues": {
     "message": "問題を報告"
   },
@@ -193,6 +214,21 @@
   },
   "performanceSettings": {
     "message": "パフォーマンス設定"
+  },
+  "performanceMonitor": {
+    "message": "パフォーマンス分析"
+  },
+  "performanceMonitorDesc": {
+    "message": "動画上にコンパクトな性能 HUD を表示します。GPU 診断は対応時に低頻度でサンプリングします。"
+  },
+  "performanceMonitorOff": {
+    "message": "オフ"
+  },
+  "performanceMonitorLite": {
+    "message": "軽量"
+  },
+  "performanceMonitorGpu": {
+    "message": "GPU 診断"
   },
   "gpuPerformance": {
     "message": "GPUパフォーマンス"
@@ -417,6 +453,9 @@
   },
   "continue": {
     "message": "続ける"
+  },
+  "getStarted": {
+    "message": "始める"
   },
   "setupComplete": {
     "message": "セットアップ完了！"

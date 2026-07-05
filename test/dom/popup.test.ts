@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { flushPromises } from '../support/async';
 import { installChromeMock } from '../support/chrome';
 
 const popupHtml = readFileSync(resolve(process.cwd(), 'src/ui/popup/popup.html'), 'utf8');
@@ -10,13 +11,13 @@ function setDocumentFromHtml(html: string): void {
   document.body.innerHTML = body;
 }
 
-async function flushPromises(times = 3): Promise<void> {
-  for (let index = 0; index < times; index += 1) {
-    await Promise.resolve();
-  }
-}
-
 describe('popup UI', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
   it('initializes, saves settings, and handles whitelist/options actions', async () => {
     vi.useFakeTimers();
     setDocumentFromHtml(popupHtml);
@@ -42,6 +43,11 @@ describe('popup UI', () => {
     const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => undefined);
 
     vi.doMock('../../src/utils/settings', () => ({
+      SettingsSaveError: class SettingsSaveError extends Error {
+        constructor(public readonly failures: any[], public readonly succeededAreas: string[]) {
+          super('settings save failed');
+        }
+      },
       BUILTIN_MODES: [
         { id: 'builtin-mode-a', name: 'Mode A', backendId: 'anime4k' },
         { id: 'builtin-mode-b', name: 'Mode B', backendId: 'anime4k' },
@@ -68,6 +74,7 @@ describe('popup UI', () => {
     vi.doMock('../../src/ui/theme-manager', () => ({
       themeManager: {
         getTheme: vi.fn(),
+        ready: vi.fn().mockResolvedValue(undefined),
       },
     }));
     vi.doMock('../../src/ui/shared/notice', () => ({
@@ -108,8 +115,9 @@ describe('popup UI', () => {
     expect(saveSettings).toHaveBeenCalledWith({
       selectedModeId: 'builtin-mode-b',
       targetResolutionSetting: '4k',
+      performanceTier: 'quality',
     });
-    expect(saveLocalSettings).toHaveBeenCalledWith({ performanceTier: 'quality' });
+    expect(saveLocalSettings).not.toHaveBeenCalled();
     expect((chrome.tabs.sendMessage as any)).toHaveBeenCalledWith(
       7,
       { type: 'SETTINGS_UPDATED', modifiedModeId: 'builtin-mode-b' },
@@ -127,5 +135,106 @@ describe('popup UI', () => {
     vi.runAllTimers();
     expect(closeSpy).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+
+  it('refreshes controls and reports partial save failures', async () => {
+    setDocumentFromHtml(popupHtml);
+    installChromeMock();
+    class MockSettingsSaveError extends Error {
+      constructor(public readonly failures: any[], public readonly succeededAreas: string[]) {
+        super('settings save failed');
+      }
+    }
+    const saveSettings = vi.fn().mockRejectedValue(new MockSettingsSaveError(
+      [{ area: 'sync', error: new Error('sync failed') }],
+      ['local'],
+    ));
+    const showNotice = vi.fn(() => document.createElement('div'));
+    const getSettings = vi.fn()
+      .mockResolvedValueOnce({
+        enhancementModes: [{ id: 'builtin-mode-a', name: 'Mode A' }],
+        customModes: [],
+        selectedModeId: 'builtin-mode-a',
+        targetResolutionSetting: 'x2',
+        whitelistEnabled: false,
+        whitelist: [{ pattern: 'example.com/*', enabled: true }],
+      })
+      .mockResolvedValueOnce({
+        enhancementModes: [{ id: 'builtin-mode-b', name: 'Mode B' }],
+        customModes: [],
+        selectedModeId: 'builtin-mode-b',
+        targetResolutionSetting: '4k',
+        whitelistEnabled: true,
+        whitelist: [{ pattern: 'example.com/*', enabled: true }],
+      });
+    const getLocalSettings = vi.fn()
+      .mockResolvedValueOnce({
+        performanceTier: 'balanced',
+        benchmarkRunState: { status: 'idle' },
+      })
+      .mockResolvedValueOnce({
+        performanceTier: 'ultra',
+        benchmarkRunState: { status: 'idle' },
+      });
+
+    vi.doMock('../../src/utils/settings', () => ({
+      SettingsSaveError: MockSettingsSaveError,
+      BUILTIN_MODES: [
+        { id: 'builtin-mode-a', name: 'Mode A', backendId: 'anime4k' },
+        { id: 'builtin-mode-b', name: 'Mode B', backendId: 'anime4k' },
+      ],
+      getSettings,
+      getLocalSettings,
+      saveSettings,
+    }));
+    vi.doMock('../../src/utils/whitelist', () => ({
+      addWhitelistRule: vi.fn(),
+      setDefaultWhitelist: vi.fn(),
+    }));
+    vi.doMock('../../src/ui/theme-manager', () => ({
+      themeManager: {
+        getTheme: vi.fn(),
+        ready: vi.fn().mockResolvedValue(undefined),
+      },
+    }));
+    vi.doMock('../../src/ui/shared/notice', () => ({
+      showNotice,
+    }));
+    vi.doMock('../../src/utils/logger', () => ({
+      createLogger: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
+    }));
+
+    await import('../../src/ui/popup/popup');
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    await flushPromises(6);
+
+    const modeSelect = document.getElementById('mode-select') as HTMLSelectElement;
+    const resolutionSelect = document.getElementById('resolution-select') as HTMLSelectElement;
+    modeSelect.value = 'builtin-mode-b';
+    resolutionSelect.value = '4k';
+    document.querySelector<HTMLButtonElement>('[data-tier="ultra"]')?.click();
+
+    document.getElementById('save-settings')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises(8);
+
+    expect(saveSettings).toHaveBeenCalledWith({
+      selectedModeId: 'builtin-mode-b',
+      targetResolutionSetting: '4k',
+      performanceTier: 'ultra',
+    });
+    expect(getSettings).toHaveBeenCalledTimes(2);
+    expect(getLocalSettings).toHaveBeenCalledTimes(2);
+    expect(modeSelect.value).toBe('builtin-mode-b');
+    expect(resolutionSelect.value).toBe('4k');
+    expect(document.querySelector('.tier-btn.active')?.getAttribute('data-tier')).toBe('ultra');
+    expect(showNotice).toHaveBeenCalledWith({
+      kind: 'warning',
+      message: 'saveFailed: sync',
+    });
   });
 });
