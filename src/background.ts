@@ -1,6 +1,7 @@
 import { getSettings, getLocalSettings } from './utils/settings';
 import { ensureLatestConfig } from './utils/migration';
 import { createLogger } from './utils/logger';
+import type { LocalSettings } from './types';
 
 const RULESET_ID = 'ruleset_1';
 const logger = createLogger('background');
@@ -67,7 +68,10 @@ export function createBackgroundBootstrap(
   }
 
   async function checkBenchmarkCrash(): Promise<void> {
-    const local = await chromeApi.storage.local.get(['_benchmarkInProgress', 'benchmarkRunState']);
+    const local = await chromeApi.storage.local.get<Partial<LocalSettings> & { _benchmarkInProgress?: boolean }>([
+      '_benchmarkInProgress',
+      'benchmarkRunState',
+    ]);
     const currentLocalSettings = await deps.getLocalSettings();
     const benchmarkRunState = local.benchmarkRunState ?? currentLocalSettings.benchmarkRunState;
 
@@ -107,7 +111,7 @@ export function createBackgroundBootstrap(
     }
   };
 
-  const onTabUpdated = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+  const onTabUpdated = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
       chromeApi.tabs.sendMessage(tabId, {
         type: 'URL_UPDATED',

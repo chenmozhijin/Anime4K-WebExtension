@@ -70,7 +70,7 @@ export function normalizeBenchmarkRunState(state: unknown): BenchmarkRunState {
 
 export async function getSyncedSettings(): Promise<SyncedSettings> {
   return new Promise(resolve => {
-    chrome.storage.sync.get([
+    chrome.storage.sync.get<Partial<SyncedSettings>>([
       'selectedModeId',
       'targetResolutionSetting',
       'whitelistEnabled',
@@ -92,7 +92,7 @@ export async function getSyncedSettings(): Promise<SyncedSettings> {
 
 export async function getLocalSettings(): Promise<LocalSettings> {
   return new Promise(resolve => {
-    chrome.storage.local.get([
+    chrome.storage.local.get<Partial<LocalSettings> & { gpuAdapterInfo?: unknown }>([
       'performanceTier',
       'gpuBenchmarkResult',
       'gpuAdapterInfo',

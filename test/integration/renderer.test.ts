@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
 import { createMockCanvasContext, createWebGpuMock, installWebGpuMock } from '../support/webgpu';
+import type { FramePerformanceSnapshot } from '../../src/types';
 
 const compileEffectChain = vi.fn();
 
@@ -111,7 +112,7 @@ async function createRendererHarness(options: {
   onError?: (error: Error) => void;
   video?: MockVideoHarness;
   performanceMonitorMode?: 'off' | 'lite' | 'gpu';
-  onPerformanceSnapshot?: ReturnType<typeof vi.fn>;
+  onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
   webgpuFeatures?: GPUFeatureName[];
 } = {}) {
   installChromeMock();

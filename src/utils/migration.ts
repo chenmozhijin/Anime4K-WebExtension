@@ -3,7 +3,7 @@
  * 将旧版 effect 结构迁移到 backend-aware effect references。
  */
 
-import type { CustomMode, EnhancementEffect, PerformanceTier } from '../types';
+import type { CustomMode, EnhancementEffect, LocalSettings, PerformanceTier, SyncedSettings } from '../types';
 import { normalizeEffectReference } from '../core/effects/registry';
 import { createLogger } from './logger';
 
@@ -13,6 +13,13 @@ interface LegacyEnhancementMode {
   isBuiltIn: boolean;
   effects: unknown[];
 }
+
+interface MigrationSyncStorage extends Partial<SyncedSettings> {
+  _configVersion?: number;
+  enhancementModes?: LegacyEnhancementMode[];
+}
+
+type MigrationLocalStorage = Partial<LocalSettings>;
 
 const CURRENT_CONFIG_VERSION = 3;
 const logger = createLogger('migration');
@@ -46,7 +53,7 @@ function normalizeCustomModes(modes: unknown): CustomMode[] {
 }
 
 export async function needsMigration(): Promise<boolean> {
-  const data = await chrome.storage.sync.get(['_configVersion', 'enhancementModes', 'customModes']);
+  const data = await chrome.storage.sync.get<MigrationSyncStorage>(['_configVersion', 'enhancementModes', 'customModes']);
   return (data._configVersion ?? 0) < CURRENT_CONFIG_VERSION
     || Boolean(data.enhancementModes);
 }
@@ -54,7 +61,7 @@ export async function needsMigration(): Promise<boolean> {
 export async function migrateToLatest(): Promise<void> {
   logger.info('Migrating configuration to v3.');
 
-  const syncData = await chrome.storage.sync.get([
+  const syncData = await chrome.storage.sync.get<MigrationSyncStorage>([
     '_configVersion',
     'enhancementModes',
     'customModes',
@@ -82,7 +89,7 @@ export async function migrateToLatest(): Promise<void> {
 
   await chrome.storage.sync.remove('enhancementModes');
 
-  const localData = await chrome.storage.local.get([
+  const localData = await chrome.storage.local.get<MigrationLocalStorage>([
     'performanceTier',
     'gpuBenchmarkResult',
     'hasCompletedOnboarding',
@@ -116,7 +123,7 @@ export async function ensureLatestConfig(): Promise<void> {
     return;
   }
 
-  const syncData = await chrome.storage.sync.get(['_configVersion']);
+  const syncData = await chrome.storage.sync.get<MigrationSyncStorage>(['_configVersion']);
   if (!syncData._configVersion) {
     await chrome.storage.sync.set({
       customModes: [],

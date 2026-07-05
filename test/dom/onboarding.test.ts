@@ -61,6 +61,7 @@ describe('onboarding UI', () => {
     }));
 
     document.getElementById('start-test')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.dynamicImportSettled();
     await flushPromises(12);
 
     expect(runGPUBenchmark).toHaveBeenCalledTimes(1);

@@ -10,7 +10,7 @@ const { computePassInstances, computePassOptions } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
-  ComputeTexturePass: vi.fn((options: any) => {
+  ComputeTexturePass: vi.fn(function ComputeTexturePass(options: any) {
     computePassOptions.push(options);
     const instance = {
       outputTexture: { label: `clamp-output-${computePassInstances.length}` } as unknown as GPUTexture,

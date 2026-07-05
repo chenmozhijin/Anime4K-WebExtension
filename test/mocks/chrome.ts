@@ -68,9 +68,9 @@ function buildStorageArea(
     }
 
     if (callback) {
-      chrome.runtime.lastError = failure as chrome.runtime.LastError;
+      (chrome.runtime as { lastError?: chrome.runtime.LastError }).lastError = failure as chrome.runtime.LastError;
       (callback as (value?: T) => void)(callbackValue);
-      chrome.runtime.lastError = undefined;
+      (chrome.runtime as { lastError?: chrome.runtime.LastError }).lastError = undefined;
       return { failed: true, value: callbackValue };
     }
 
@@ -157,7 +157,7 @@ export function createChromeMock(options: ChromeMockOptions = {}) {
   const runtimeOnMessage = new MockChromeEvent<[any, chrome.runtime.MessageSender, (response?: any) => void]>();
   const runtimeOnInstalled = new MockChromeEvent<[chrome.runtime.InstalledDetails]>();
   const runtimeOnStartup = new MockChromeEvent<[]>();
-  const tabsOnUpdated = new MockChromeEvent<[number, chrome.tabs.TabChangeInfo, chrome.tabs.Tab]>();
+  const tabsOnUpdated = new MockChromeEvent<[number, chrome.tabs.OnUpdatedInfo, chrome.tabs.Tab]>();
   const tabsCreated: chrome.tabs.CreateProperties[] = [];
   const runtimeMessages: any[] = [];
   const sentTabMessages: Array<{ tabId: number; message: any }> = [];

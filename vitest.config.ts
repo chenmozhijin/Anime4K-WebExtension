@@ -24,7 +24,6 @@ export default defineConfig({
     mockReset: true,
     fileParallelism: false,
     maxWorkers: 1,
-    minWorkers: 1,
     exclude: ['test/e2e/**', 'dist-*/**', 'node_modules/**'],
     projects: [
       {
@@ -59,7 +58,6 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: 'coverage',
-      all: true,
       include: ['src/**/*.ts'],
       exclude: [
         '**/*.d.ts',

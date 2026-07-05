@@ -33,7 +33,7 @@ function createMockPass(label: string, width: number, height: number) {
 }
 
 vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
-  ComputeTexturePass: vi.fn((options: any) => {
+  ComputeTexturePass: vi.fn(function ComputeTexturePass(options: any) {
     computeOptions.push(options);
     const firstInput = options.inputTextures[0];
     const width = options.outputSize?.width ?? firstInput.width;
@@ -43,7 +43,7 @@ vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
 }));
 
 vi.mock('../../src/core/gpu-passes/depth-to-space-pass', () => ({
-  DepthToSpacePass: vi.fn((options: any) => {
+  DepthToSpacePass: vi.fn(function DepthToSpacePass(options: any) {
     depthOptions.push(options);
     return createMockPass(
       `depth-${depthOptions.length}`,
@@ -54,21 +54,21 @@ vi.mock('../../src/core/gpu-passes/depth-to-space-pass', () => ({
 }));
 
 vi.mock('../../src/core/gpu-passes/render-composite-pass', () => ({
-  RenderCompositePass: vi.fn((options: any) => {
+  RenderCompositePass: vi.fn(function RenderCompositePass(options: any) {
     compositeOptions.push(options);
     return createMockPass(`composite-${compositeOptions.length}`, options.outputSize.width, options.outputSize.height);
   }),
 }));
 
 vi.mock('../../src/core/shared-effects/downscale', () => ({
-  Downscale: vi.fn((options: any) => {
+  Downscale: vi.fn(function Downscale(options: any) {
     resizeOptions.push(options);
     return createMockPass(`resize-${resizeOptions.length}`, options.targetDimensions.width, options.targetDimensions.height);
   }),
 }));
 
 vi.mock('../../src/core/gpu-passes/luma-recompose-pass', () => ({
-  LumaRecomposePass: vi.fn((options: any) => {
+  LumaRecomposePass: vi.fn(function LumaRecomposePass(options: any) {
     lumaOptions.push(options);
     return createMockPass(`luma-${lumaOptions.length}`, options.outputSize.width, options.outputSize.height);
   }),

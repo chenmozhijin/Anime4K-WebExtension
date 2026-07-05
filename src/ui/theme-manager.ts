@@ -75,7 +75,7 @@ export class ThemeManager {
    */
   private async loadTheme(): Promise<void> {
     try {
-      const result = await chrome.storage.sync.get(['theme']);
+      const result = await chrome.storage.sync.get<{ theme?: ThemeMode }>(['theme']);
       if (result.theme && ['light', 'dark', 'auto'].includes(result.theme)) {
         this.currentTheme = result.theme as ThemeMode;
       }
