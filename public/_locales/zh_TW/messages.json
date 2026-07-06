@@ -116,6 +116,9 @@
   "optionsTitle": {
     "message": "擴充選項"
   },
+  "toggleSidebar": {
+    "message": "切換側邊欄"
+  },
   "enhancementModes": {
     "message": "增強模式"
   },
@@ -229,6 +232,66 @@
   },
   "performanceMonitorGpu": {
     "message": "GPU 診斷"
+  },
+  "hudActionCollapse": {
+    "message": "摺疊"
+  },
+  "hudActionCopy": {
+    "message": "複製"
+  },
+  "hudActionClose": {
+    "message": "關閉"
+  },
+  "hudLabelGpu": {
+    "message": "GPU"
+  },
+  "hudLabelUpload": {
+    "message": "上傳"
+  },
+  "hudLabelMode": {
+    "message": "模式"
+  },
+  "hudLabelSource": {
+    "message": "來源"
+  },
+  "hudLabelFps": {
+    "message": "FPS"
+  },
+  "hudLabelDrop": {
+    "message": "丟幀"
+  },
+  "hudLabelRenderTime": {
+    "message": "算繪時間"
+  },
+  "hudLabelTotal": {
+    "message": "總計"
+  },
+  "hudLabelOther": {
+    "message": "其他"
+  },
+  "hudLabelFrameCpu": {
+    "message": "影格 CPU"
+  },
+  "hudLabelUploadCpu": {
+    "message": "上傳 CPU"
+  },
+  "hudLabelEncodeCpu": {
+    "message": "編碼 CPU"
+  },
+  "hudLabelSubmitCpu": {
+    "message": "提交 CPU"
+  },
+  "hudSnapshotTitle": {
+    "message": "Anime4K 效能監視器"
+  },
+  "hudTimingLiteHint": {
+    "message": "效果耗時需要 GPU 診斷。輕量模式只會顯示整體影格統計。"
+  },
+  "hudTimingUnavailableHint": {
+    "message": "GPU 時間戳查詢無法使用，無法準確測量效果耗時。"
+  },
+  "hudTimingWaitingHint": {
+    "message": "正在等待 GPU 時間戳樣本。GPU 診斷資料可用後會顯示效果耗時。"
   },
   "gpuPerformance": {
     "message": "GPU效能"

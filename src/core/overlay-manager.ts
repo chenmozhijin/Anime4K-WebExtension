@@ -723,13 +723,16 @@ export class OverlayManager {
   }
 
   private renderPerformanceHudMini(snapshot: FramePerformanceSnapshot): string {
-    const gpuText = snapshot.timestampAvailable ? this.formatMs(this.sumGpuMs(snapshot.groupEntries)) : 'GPU n/a';
+    const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
+    const gpuText = snapshot.timestampAvailable
+      ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
+      : `${gpuLabel} n/a`;
     return `
       <button class="hud-mini" data-hud-action="toggle" type="button">
-        <span>${this.formatFps(snapshot.fps)} FPS</span>
+        <span>${this.formatFps(snapshot.fps)} ${this.escapeHtml(this.hudMessage('hudLabelFps', 'FPS'))}</span>
         <span>${this.formatMs(snapshot.frameMs)}</span>
-        <span>${gpuText}</span>
-        <span>Drop ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
+        <span>${this.escapeHtml(gpuText)}</span>
+        <span>${this.escapeHtml(this.hudMessage('hudLabelDrop', 'Drop'))} ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
       </button>
     `;
   }
@@ -751,33 +754,34 @@ export class OverlayManager {
         <span class="hud-ms">${this.formatEntryMs(entry)}</span>
       </div>
     `).join('');
+    const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
     const gpuStatus = snapshot.timestampAvailable
-      ? `GPU ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
-      : 'GPU n/a';
+      ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
+      : `${gpuLabel} n/a`;
 
     return `
       <div class="hud-titlebar">
-        <button class="hud-icon hud-collapse-button" data-hud-action="toggle" type="button" title="Collapse">
+        <button class="hud-icon hud-collapse-button" data-hud-action="toggle" type="button" title="${this.escapeHtml(this.hudMessage('hudActionCollapse', 'Collapse'))}">
           <span class="hud-chevron"></span>
         </button>
-        <span class="hud-title">${this.escapeHtml(chrome.i18n.getMessage('performanceMonitor') || 'Performance Monitor')}</span>
-        <button class="hud-icon" data-hud-action="copy" type="button" title="Copy">⧉</button>
-        <button class="hud-icon" data-hud-action="close" type="button" title="Close">×</button>
+        <span class="hud-title">${this.escapeHtml(this.hudMessage('performanceMonitor', 'Performance Monitor'))}</span>
+        <button class="hud-icon" data-hud-action="copy" type="button" title="${this.escapeHtml(this.hudMessage('hudActionCopy', 'Copy'))}">⧉</button>
+        <button class="hud-icon" data-hud-action="close" type="button" title="${this.escapeHtml(this.hudMessage('hudActionClose', 'Close'))}">×</button>
       </div>
       <div class="hud-body">
-        <div class="hud-info">GPU: ${this.escapeHtml(snapshot.gpuName)}</div>
-        <div class="hud-info">Upload: ${this.escapeHtml(snapshot.uploadMethod)}</div>
-        <div class="hud-info">Mode: ${this.escapeHtml(snapshot.modeName)} / ${snapshot.tier}</div>
-        <div class="hud-info">Source: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} → ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}</div>
+        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelGpu', 'GPU'))}: ${this.escapeHtml(snapshot.gpuName)}</div>
+        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelUpload', 'Upload'))}: ${this.escapeHtml(snapshot.uploadMethod)}</div>
+        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelMode', 'Mode'))}: ${this.escapeHtml(snapshot.modeName)} / ${snapshot.tier}</div>
+        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelSource', 'Source'))}: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} → ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}</div>
         <div class="hud-metrics">
-          <span>FPS: ${this.formatFps(snapshot.fps)}</span>
-          <span>Drop: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
-          <span>${gpuStatus}</span>
+          <span>${this.escapeHtml(this.hudMessage('hudLabelFps', 'FPS'))}: ${this.formatFps(snapshot.fps)}</span>
+          <span>${this.escapeHtml(this.hudMessage('hudLabelDrop', 'Drop'))}: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
+          <span>${this.escapeHtml(gpuStatus)}</span>
         </div>
         <div class="hud-section">
           <button class="hud-section-title ${this.renderTimingCollapsed ? 'is-collapsed' : ''}" data-hud-action="toggle-render" type="button">
             <span class="hud-chevron"></span>
-            <span>Render time</span>
+            <span>${this.escapeHtml(this.hudMessage('hudLabelRenderTime', 'Render time'))}</span>
           </button>
           ${this.renderTimingCollapsed
             ? ''
@@ -788,7 +792,7 @@ export class OverlayManager {
                 <div class="hud-rule"></div>
                 <div class="hud-row hud-total">
                   <span></span>
-                  <span class="hud-name">Total</span>
+                  <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelTotal', 'Total'))}</span>
                   <span class="hud-ms">${this.formatMs(snapshot.frameMs)}</span>
                 </div>
               `
@@ -813,8 +817,8 @@ export class OverlayManager {
     return [
       ...visible,
       {
-        label: 'Other',
-        group: 'Other',
+        label: this.hudMessage('hudLabelOther', 'Other'),
+        group: this.hudMessage('hudLabelOther', 'Other'),
         cpuMs: other.cpuMs,
         gpuMs: other.hasGpu ? other.gpuMs : undefined,
         source: other.hasGpu ? 'mixed' : 'cpu',
@@ -829,22 +833,22 @@ export class OverlayManager {
       <div class="hud-cpu-summary">
         <div class="hud-row hud-summary-row">
           <span></span>
-          <span class="hud-name">Frame CPU</span>
+          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelFrameCpu', 'Frame CPU'))}</span>
           <span class="hud-ms">${this.formatMs(snapshot.frameMs)}</span>
         </div>
         <div class="hud-row hud-summary-row">
           <span></span>
-          <span class="hud-name">Upload CPU</span>
+          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelUploadCpu', 'Upload CPU'))}</span>
           <span class="hud-ms">${this.formatMs(snapshot.uploadMs)}</span>
         </div>
         <div class="hud-row hud-summary-row">
           <span></span>
-          <span class="hud-name">Encode CPU</span>
+          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelEncodeCpu', 'Encode CPU'))}</span>
           <span class="hud-ms">${this.formatMs(snapshot.encodeMs)}</span>
         </div>
         <div class="hud-row hud-summary-row">
           <span></span>
-          <span class="hud-name">Submit CPU</span>
+          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelSubmitCpu', 'Submit CPU'))}</span>
           <span class="hud-ms">${this.formatMs(snapshot.submitMs)}</span>
         </div>
       </div>
@@ -871,17 +875,17 @@ export class OverlayManager {
       && snapshot.timestampAvailable
       && snapshot.groupEntries.some(entry => typeof entry.gpuMs === 'number');
     const lines = [
-      'Anime4K Performance Monitor',
-      `GPU: ${snapshot.gpuName}`,
-      `Upload: ${snapshot.uploadMethod}`,
-      `Mode: ${snapshot.modeName} / ${snapshot.tier}`,
-      `Source: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} -> ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}`,
-      `FPS: ${this.formatFps(snapshot.fps)}`,
-      `Frame: ${this.formatMs(snapshot.frameMs)}`,
-      `Upload CPU: ${this.formatMs(snapshot.uploadMs)}`,
-      `Encode CPU: ${this.formatMs(snapshot.encodeMs)}`,
-      `Submit CPU: ${this.formatMs(snapshot.submitMs)}`,
-      `Dropped: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%`,
+      this.hudMessage('hudSnapshotTitle', 'Anime4K Performance Monitor'),
+      `${this.hudMessage('hudLabelGpu', 'GPU')}: ${snapshot.gpuName}`,
+      `${this.hudMessage('hudLabelUpload', 'Upload')}: ${snapshot.uploadMethod}`,
+      `${this.hudMessage('hudLabelMode', 'Mode')}: ${snapshot.modeName} / ${snapshot.tier}`,
+      `${this.hudMessage('hudLabelSource', 'Source')}: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} -> ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}`,
+      `${this.hudMessage('hudLabelFps', 'FPS')}: ${this.formatFps(snapshot.fps)}`,
+      `${this.hudMessage('hudLabelFrameCpu', 'Frame CPU')}: ${this.formatMs(snapshot.frameMs)}`,
+      `${this.hudMessage('hudLabelUploadCpu', 'Upload CPU')}: ${this.formatMs(snapshot.uploadMs)}`,
+      `${this.hudMessage('hudLabelEncodeCpu', 'Encode CPU')}: ${this.formatMs(snapshot.encodeMs)}`,
+      `${this.hudMessage('hudLabelSubmitCpu', 'Submit CPU')}: ${this.formatMs(snapshot.submitMs)}`,
+      `${this.hudMessage('hudLabelDrop', 'Drop')}: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%`,
     ];
 
     if (!hasGpuPassTimings) {
@@ -905,7 +909,7 @@ export class OverlayManager {
 
   private formatEntryMs(entry: PassTimingEntry): string {
     if (typeof entry.gpuMs === 'number') {
-      return `${this.formatMs(entry.cpuMs)} / GPU ${this.formatMs(entry.gpuMs)}`;
+      return `${this.formatMs(entry.cpuMs)} / ${this.hudMessage('hudLabelGpu', 'GPU')} ${this.formatMs(entry.gpuMs)}`;
     }
 
     return this.formatMs(entry.cpuMs);
@@ -917,14 +921,28 @@ export class OverlayManager {
 
   private getPassTimingHint(snapshot: FramePerformanceSnapshot): string {
     if (snapshot.mode === 'lite') {
-      return 'Effect timings require GPU diagnostics. Lite mode only shows overall frame stats.';
+      return this.hudMessage(
+        'hudTimingLiteHint',
+        'Effect timings require GPU diagnostics. Lite mode only shows overall frame stats.',
+      );
     }
 
     if (!snapshot.timestampAvailable) {
-      return 'GPU timestamp queries are unavailable. Effect timings cannot be measured accurately.';
+      return this.hudMessage(
+        'hudTimingUnavailableHint',
+        'GPU timestamp queries are unavailable. Effect timings cannot be measured accurately.',
+      );
     }
 
-    return 'Waiting for GPU timestamp samples. Effect timings appear when GPU diagnostics data is available.';
+    return this.hudMessage(
+      'hudTimingWaitingHint',
+      'Waiting for GPU timestamp samples. Effect timings appear when GPU diagnostics data is available.',
+    );
+  }
+
+  private hudMessage(key: string, fallback: string, substitutions?: string[]): string {
+    const message = chrome.i18n.getMessage(key, substitutions);
+    return message || fallback;
   }
 
   private sumGpuMs(entries: PassTimingEntry[]): number | undefined {

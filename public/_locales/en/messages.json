@@ -116,6 +116,9 @@
   "optionsTitle": {
     "message": "Extension Options"
   },
+  "toggleSidebar": {
+    "message": "Toggle sidebar"
+  },
   "enhancementModes": {
     "message": "Enhancement Modes"
   },
@@ -229,6 +232,66 @@
   },
   "performanceMonitorGpu": {
     "message": "GPU Diagnostics"
+  },
+  "hudActionCollapse": {
+    "message": "Collapse"
+  },
+  "hudActionCopy": {
+    "message": "Copy"
+  },
+  "hudActionClose": {
+    "message": "Close"
+  },
+  "hudLabelGpu": {
+    "message": "GPU"
+  },
+  "hudLabelUpload": {
+    "message": "Upload"
+  },
+  "hudLabelMode": {
+    "message": "Mode"
+  },
+  "hudLabelSource": {
+    "message": "Source"
+  },
+  "hudLabelFps": {
+    "message": "FPS"
+  },
+  "hudLabelDrop": {
+    "message": "Drop"
+  },
+  "hudLabelRenderTime": {
+    "message": "Render time"
+  },
+  "hudLabelTotal": {
+    "message": "Total"
+  },
+  "hudLabelOther": {
+    "message": "Other"
+  },
+  "hudLabelFrameCpu": {
+    "message": "Frame CPU"
+  },
+  "hudLabelUploadCpu": {
+    "message": "Upload CPU"
+  },
+  "hudLabelEncodeCpu": {
+    "message": "Encode CPU"
+  },
+  "hudLabelSubmitCpu": {
+    "message": "Submit CPU"
+  },
+  "hudSnapshotTitle": {
+    "message": "Anime4K Performance Monitor"
+  },
+  "hudTimingLiteHint": {
+    "message": "Effect timings require GPU diagnostics. Lite mode only shows overall frame stats."
+  },
+  "hudTimingUnavailableHint": {
+    "message": "GPU timestamp queries are unavailable. Effect timings cannot be measured accurately."
+  },
+  "hudTimingWaitingHint": {
+    "message": "Waiting for GPU timestamp samples. Effect timings appear when GPU diagnostics data is available."
   },
   "gpuPerformance": {
     "message": "GPU Performance"

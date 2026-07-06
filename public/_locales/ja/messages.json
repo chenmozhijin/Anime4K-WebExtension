@@ -116,6 +116,9 @@
   "optionsTitle": {
     "message": "拡張機能オプション"
   },
+  "toggleSidebar": {
+    "message": "サイドバーを切り替え"
+  },
   "enhancementModes": {
     "message": "拡張モード"
   },
@@ -229,6 +232,66 @@
   },
   "performanceMonitorGpu": {
     "message": "GPU 診断"
+  },
+  "hudActionCollapse": {
+    "message": "折りたたむ"
+  },
+  "hudActionCopy": {
+    "message": "コピー"
+  },
+  "hudActionClose": {
+    "message": "閉じる"
+  },
+  "hudLabelGpu": {
+    "message": "GPU"
+  },
+  "hudLabelUpload": {
+    "message": "アップロード"
+  },
+  "hudLabelMode": {
+    "message": "モード"
+  },
+  "hudLabelSource": {
+    "message": "ソース"
+  },
+  "hudLabelFps": {
+    "message": "FPS"
+  },
+  "hudLabelDrop": {
+    "message": "ドロップ"
+  },
+  "hudLabelRenderTime": {
+    "message": "レンダリング時間"
+  },
+  "hudLabelTotal": {
+    "message": "合計"
+  },
+  "hudLabelOther": {
+    "message": "その他"
+  },
+  "hudLabelFrameCpu": {
+    "message": "フレーム CPU"
+  },
+  "hudLabelUploadCpu": {
+    "message": "アップロード CPU"
+  },
+  "hudLabelEncodeCpu": {
+    "message": "エンコード CPU"
+  },
+  "hudLabelSubmitCpu": {
+    "message": "送信 CPU"
+  },
+  "hudSnapshotTitle": {
+    "message": "Anime4K パフォーマンスモニター"
+  },
+  "hudTimingLiteHint": {
+    "message": "エフェクトの処理時間には GPU 診断が必要です。軽量モードでは全体のフレーム統計のみ表示されます。"
+  },
+  "hudTimingUnavailableHint": {
+    "message": "GPU タイムスタンプクエリを利用できないため、エフェクトの処理時間を正確に測定できません。"
+  },
+  "hudTimingWaitingHint": {
+    "message": "GPU タイムスタンプサンプルを待機しています。GPU 診断データが利用可能になると、エフェクトの処理時間が表示されます。"
   },
   "gpuPerformance": {
     "message": "GPUパフォーマンス"

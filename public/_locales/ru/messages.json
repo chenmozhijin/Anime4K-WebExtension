@@ -116,6 +116,9 @@
   "optionsTitle": {
     "message": "Опции расширения"
   },
+  "toggleSidebar": {
+    "message": "Переключить боковую панель"
+  },
   "enhancementModes": {
     "message": "Режимы улучшения"
   },
@@ -216,19 +219,79 @@
     "message": "Настройки производительности"
   },
   "performanceMonitor": {
-    "message": "Performance Monitor"
+    "message": "Монитор производительности"
   },
   "performanceMonitorDesc": {
-    "message": "Show a compact in-video performance HUD. GPU diagnostics use low-frequency sampling when supported."
+    "message": "Показывает компактный HUD производительности поверх видео. Диагностика GPU использует низкочастотную выборку, если она поддерживается."
   },
   "performanceMonitorOff": {
-    "message": "Off"
+    "message": "Выкл."
   },
   "performanceMonitorLite": {
-    "message": "Lite"
+    "message": "Облегчённый"
   },
   "performanceMonitorGpu": {
-    "message": "GPU Diagnostics"
+    "message": "Диагностика GPU"
+  },
+  "hudActionCollapse": {
+    "message": "Свернуть"
+  },
+  "hudActionCopy": {
+    "message": "Копировать"
+  },
+  "hudActionClose": {
+    "message": "Закрыть"
+  },
+  "hudLabelGpu": {
+    "message": "GPU"
+  },
+  "hudLabelUpload": {
+    "message": "Передача"
+  },
+  "hudLabelMode": {
+    "message": "Режим"
+  },
+  "hudLabelSource": {
+    "message": "Источник"
+  },
+  "hudLabelFps": {
+    "message": "FPS"
+  },
+  "hudLabelDrop": {
+    "message": "Пропуски"
+  },
+  "hudLabelRenderTime": {
+    "message": "Время рендеринга"
+  },
+  "hudLabelTotal": {
+    "message": "Итого"
+  },
+  "hudLabelOther": {
+    "message": "Другое"
+  },
+  "hudLabelFrameCpu": {
+    "message": "CPU кадра"
+  },
+  "hudLabelUploadCpu": {
+    "message": "CPU передачи"
+  },
+  "hudLabelEncodeCpu": {
+    "message": "CPU кодирования"
+  },
+  "hudLabelSubmitCpu": {
+    "message": "CPU отправки"
+  },
+  "hudSnapshotTitle": {
+    "message": "Монитор производительности Anime4K"
+  },
+  "hudTimingLiteHint": {
+    "message": "Для измерения времени эффектов нужна диагностика GPU. Облегчённый режим показывает только общую статистику кадров."
+  },
+  "hudTimingUnavailableHint": {
+    "message": "Запросы временных меток GPU недоступны, поэтому время эффектов нельзя измерить точно."
+  },
+  "hudTimingWaitingHint": {
+    "message": "Ожидание выборок временных меток GPU. Время эффектов появится, когда будут доступны данные диагностики GPU."
   },
   "gpuPerformance": {
     "message": "Производительность GPU"

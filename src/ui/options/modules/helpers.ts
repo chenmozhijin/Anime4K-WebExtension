@@ -84,6 +84,18 @@ export function openFile(): Promise<string> {
 }
 
 export function setupInternationalization(): void {
+  document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]').forEach(element => {
+    const key = element.getAttribute('data-i18n-aria-label');
+    if (!key) {
+      return;
+    }
+
+    const message = chrome.i18n.getMessage(key);
+    if (message) {
+      element.setAttribute('aria-label', message);
+    }
+  });
+
   document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(element => {
     const key = element.getAttribute('data-i18n');
     if (!key) {
