@@ -51,6 +51,8 @@ describe('effect browser', () => {
     expect(toggleButton.getAttribute('aria-controls')).toBe(browser.id);
     expect(browser.getAttribute('role')).toBe('region');
     expect(document.querySelector('.effect-backend-tabs')?.getAttribute('role')).toBe('tablist');
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map(tab => tab.textContent)).not.toContain('Core');
     expect(tabs[0].getAttribute('role')).toBe('tab');
     expect(tabs[0].getAttribute('aria-selected')).toBe('true');
     expect(search.getAttribute('aria-controls')).toBe(document.querySelector('.effect-browser-results')?.id);

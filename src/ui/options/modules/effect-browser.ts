@@ -26,7 +26,6 @@ const backendTabs: Array<{ id: EffectBrowserBackendId; labelKey: string; fallbac
   { id: 'artcnn', labelKey: '', fallback: 'ArtCNN' },
   { id: 'acnet', labelKey: '', fallback: 'ACNet' },
   { id: 'cunny', labelKey: '', fallback: 'CuNNy' },
-  { id: 'core', labelKey: '', fallback: 'Core' },
 ];
 
 function getMessage(key: string, fallback: string): string {

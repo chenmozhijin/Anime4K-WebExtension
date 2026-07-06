@@ -1,6 +1,6 @@
 import type { EffectDescriptor, EnhancementEffect } from '../../../types';
 
-export type EffectBrowserBackendId = 'all' | 'anime4k' | 'artcnn' | 'acnet' | 'cunny' | 'core';
+export type EffectBrowserBackendId = 'all' | 'anime4k' | 'artcnn' | 'acnet' | 'cunny';
 
 export interface EffectPresentationItem {
   descriptor: EffectDescriptor;
@@ -21,7 +21,6 @@ const backendOrder: Record<string, number> = {
   artcnn: 1,
   acnet: 2,
   cunny: 3,
-  core: 4,
 };
 
 const backendLabels: Record<string, string> = {
@@ -29,7 +28,6 @@ const backendLabels: Record<string, string> = {
   artcnn: 'ArtCNN',
   acnet: 'ACNet',
   cunny: 'CuNNy',
-  core: 'Core',
 };
 
 const categoryLabels: Record<string, string> = {
@@ -94,8 +92,6 @@ export function getEffectGroupLabel(descriptor: EffectDescriptor, activeBackend:
       return getACNetGroup(descriptor);
     case 'cunny':
       return getCuNNyGroup(descriptor);
-    case 'core':
-      return categoryLabels[descriptor.category] ?? descriptor.category;
     default:
       return backendLabels[descriptor.backendId] ?? descriptor.backendId;
   }
@@ -106,7 +102,7 @@ function getGroupSortWeight(descriptor: EffectDescriptor, activeBackend: EffectB
     return backendOrder[descriptor.backendId] ?? 99;
   }
 
-  if (descriptor.backendId === 'anime4k' || descriptor.backendId === 'core') {
+  if (descriptor.backendId === 'anime4k') {
     return categoryOrder[descriptor.category] ?? 99;
   }
 
