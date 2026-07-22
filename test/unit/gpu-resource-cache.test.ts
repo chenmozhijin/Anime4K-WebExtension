@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createBindGroupChecked,
   clearGpuResourceCache,
   flushGpuResourceErrors,
   getGpuResourceCacheStats,
   getOrCreateComputePipeline,
+  getOrCreateComputePipelineAsync,
   getOrCreateRenderPipeline,
   getOrCreateShaderModule,
   subscribeGpuResourceErrors,
@@ -94,6 +95,31 @@ describe('gpu resource cache', () => {
 
     unsubscribe();
     clearGpuResourceCache(device as unknown as GPUDevice);
+  });
+
+  it('deduplicates pending asynchronous compute pipeline compilation', async () => {
+    const { device } = createWebGpuMock();
+    const gpuDevice = device as unknown as GPUDevice & {
+      createComputePipelineAsync: (descriptor: GPUComputePipelineDescriptor) => Promise<GPUComputePipeline>;
+    };
+    const createAsync = vi.fn(async (descriptor: GPUComputePipelineDescriptor) =>
+      device.createComputePipeline(descriptor));
+    gpuDevice.createComputePipelineAsync = createAsync;
+    const shader = gpuDevice.createShaderModule({ code: '@compute @workgroup_size(1) fn main() {}' });
+    const descriptor = () => ({
+      layout: 'auto' as const,
+      compute: { module: shader, entryPoint: 'main' },
+    });
+
+    const [first, second] = await Promise.all([
+      getOrCreateComputePipelineAsync(gpuDevice, 'compute/async', descriptor),
+      getOrCreateComputePipelineAsync(gpuDevice, 'compute/async', descriptor),
+    ]);
+
+    expect(first).toBe(second);
+    expect(createAsync).toHaveBeenCalledOnce();
+    expect(getOrCreateComputePipeline(gpuDevice, 'compute/async', descriptor)).toBe(first);
+    clearGpuResourceCache(gpuDevice);
   });
 
   it('evicts cached resources that later report async validation errors', async () => {

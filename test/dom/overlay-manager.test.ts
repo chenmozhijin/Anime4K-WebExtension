@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
 import { OverlayManager } from '../../src/core/overlay-manager';
+import type { FramePerformanceSnapshot } from '../../src/types';
 
 class MockResizeObserver {
   public readonly observe = vi.fn();
@@ -57,6 +58,41 @@ function createVideo(parent: Element | ShadowRoot, slotId?: string): HTMLVideoEl
   } as DOMRect);
   parent.appendChild(video);
   return video;
+}
+
+function createPerformanceSnapshot(overrides: Partial<FramePerformanceSnapshot> = {}): FramePerformanceSnapshot {
+  return {
+    mode: 'gpu',
+    timingSource: 'mixed',
+    gpuName: 'Mock GPU',
+    uploadMethod: 'VideoFrame direct',
+    modeName: 'Mode A',
+    tier: 'balanced',
+    sourceDimensions: { width: 1280, height: 720 },
+    targetDimensions: { width: 2560, height: 1440 },
+    fps: 60,
+    droppedFrameRate: 0,
+    frameMs: 16,
+    uploadMs: 0.2,
+    encodeMs: 2,
+    submitMs: 0.1,
+    passEntries: [],
+    groupEntries: [],
+    budgetMs: 1000 / 60,
+    timestampAvailable: true,
+    ...overrides,
+  };
+}
+
+function installHudI18nMessages(): void {
+  vi.spyOn(chrome.i18n, 'getMessage').mockImplementation((key: string) => ({
+    hudLabelCpu: 'CPU',
+    hudLabelGpu: 'GPU',
+    hudLabelFps: 'FPS',
+    hudLabelDrop: 'Drop',
+    hudLabelRenderTime: 'Render time',
+    hudLabelTotal: 'Total',
+  }[key] ?? ''));
 }
 
 describe('OverlayManager', () => {
@@ -229,6 +265,64 @@ describe('OverlayManager', () => {
     expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).not.toBeNull();
     expect(canvas.parentElement?.parentElement).toBe(secondContainer);
 
+    manager.destroy();
+  });
+
+  it('uses displayed pass timings for the performance HUD total', () => {
+    installHudI18nMessages();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const renderFullHud = (manager as unknown as {
+      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
+    }).renderPerformanceHudFull.bind(manager);
+
+    const html = renderFullHud(createPerformanceSnapshot({
+      frameMs: 99,
+      groupEntries: [
+        { label: 'Upload', group: 'Upload', cpuMs: 10, gpuMs: 1.25, source: 'mixed' },
+        { label: 'Final Blit', group: 'Final Blit', cpuMs: 20, gpuMs: 1.75, source: 'mixed' },
+      ],
+    }));
+    const root = document.createElement('div');
+    root.innerHTML = html;
+
+    expect(root.querySelector('.hud-total .hud-ms')?.textContent).toBe('CPU+GPU 33.00 ms');
+    expect(root.querySelector('.hud-stack')?.getAttribute('title')).toContain('CPU+GPU 33.00 ms');
+    expect([...root.querySelectorAll('.hud-row .hud-ms')].map(row => row.textContent)).toContain('CPU 10.00 ms / GPU 1.25 ms');
+    manager.destroy();
+  });
+
+  it('shows CPU-labeled pass timings outside GPU diagnostics', () => {
+    installHudI18nMessages();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const renderers = manager as unknown as {
+      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
+      renderPerformanceHudMini(snapshot: FramePerformanceSnapshot): string;
+    };
+    const snapshot = createPerformanceSnapshot({
+      mode: 'lite',
+      timingSource: 'cpu',
+      timestampAvailable: false,
+      frameMs: 8,
+      groupEntries: [
+        { label: 'Upload', group: 'Upload', cpuMs: 1.5, source: 'cpu' },
+        { label: 'Final Blit', group: 'Final Blit', cpuMs: 2.5, source: 'cpu' },
+      ],
+    });
+    const fullRoot = document.createElement('div');
+    fullRoot.innerHTML = renderers.renderPerformanceHudFull.call(manager, snapshot);
+    const miniRoot = document.createElement('div');
+    miniRoot.innerHTML = renderers.renderPerformanceHudMini.call(manager, snapshot);
+
+    expect(fullRoot.querySelector('.hud-total .hud-ms')?.textContent).toBe('CPU 4.00 ms');
+    expect([...fullRoot.querySelectorAll('.hud-row .hud-ms')].map(row => row.textContent)).toContain('CPU 1.50 ms');
+    expect(fullRoot.querySelector('.hud-hint')).toBeNull();
+    expect(miniRoot.textContent).toContain('CPU 8.00 ms');
     manager.destroy();
   });
 });

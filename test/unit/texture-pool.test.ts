@@ -3,6 +3,7 @@ import {
   borrowTexture,
   clearTexturePool,
   getTexturePoolStats,
+  getTextureAllocationInfo,
   releaseTexture,
   setTexturePoolBudgetForDevice,
 } from '../../src/core/texture-pool';
@@ -69,5 +70,20 @@ describe('texture pool', () => {
     expect((first as unknown as { destroyed: boolean }).destroyed).toBe(true);
 
     clearTexturePool(gpuDevice);
+  });
+
+  it('accounts accurately for single-channel 32-bit textures', () => {
+    const { device } = createWebGpuMock();
+    const texture = borrowTexture({
+      device: device as unknown as GPUDevice,
+      width: 10,
+      height: 5,
+      format: 'r32float',
+      usage: GPUTextureUsage.STORAGE_BINDING,
+      labelGroup: 'test/r32',
+    });
+
+    expect(getTextureAllocationInfo(texture)?.byteSize).toBe(200);
+    clearTexturePool(device as unknown as GPUDevice);
   });
 });

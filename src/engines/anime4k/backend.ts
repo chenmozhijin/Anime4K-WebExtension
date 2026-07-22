@@ -101,6 +101,8 @@ export const anime4kBackend = createEffectBackend({
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       targetDimensions: context.targetDimensions,
+      terminalTarget: context.terminalTarget,
+      optimizationFlags: context.optimizationFlags,
     });
   },
   getBenchmarkProfiles() {

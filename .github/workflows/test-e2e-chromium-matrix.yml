@@ -5,17 +5,25 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: chromium-site-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   chromium-e2e-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -28,11 +36,12 @@ jobs:
         run: npm run test:e2e:chromium:matrix
 
       - name: Upload Playwright artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: failure()
+        uses: actions/upload-artifact@v7
         with:
-          name: chromium-matrix-artifacts
+          name: chromium-matrix-failure-${{ github.run_id }}
           path: |
             playwright-report
             test-results
           if-no-files-found: ignore
+          retention-days: 7

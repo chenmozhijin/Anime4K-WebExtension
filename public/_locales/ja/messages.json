@@ -245,6 +245,9 @@
   "hudLabelGpu": {
     "message": "GPU"
   },
+  "hudLabelCpu": {
+    "message": "CPU"
+  },
   "hudLabelUpload": {
     "message": "アップロード"
   },

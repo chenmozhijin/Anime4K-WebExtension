@@ -1,8 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { computePasses, recomposePasses } = vi.hoisted(() => ({
+const { computePasses, fusedPasses, recomposePasses, borrowTextureMock, releaseTextureMock } = vi.hoisted(() => ({
   computePasses: [] as any[],
+  fusedPasses: [] as any[],
   recomposePasses: [] as any[],
+  borrowTextureMock: vi.fn(),
+  releaseTextureMock: vi.fn(),
+}));
+
+vi.mock('../../src/core/gpu-passes/pixel-shuffle-recompose-pass', () => ({
+  PixelShuffleRecomposePass: class MockPixelShuffleRecomposePass {
+    readonly outputTexture: GPUTexture;
+    readonly destroy = vi.fn();
+    readonly pass = vi.fn();
+
+    constructor(readonly options: any) {
+      this.outputTexture = { label: `${options.name}: fused rgba output` } as GPUTexture;
+      fusedPasses.push(this);
+    }
+
+    getOutputTexture(): GPUTexture {
+      return this.outputTexture;
+    }
+  },
 }));
 
 vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
@@ -12,7 +32,7 @@ vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
     readonly pass = vi.fn();
 
     constructor(readonly options: any) {
-      this.outputTexture = { label: `${options.name}: output` } as GPUTexture;
+      this.outputTexture = options.outputTexture ?? ({ label: `${options.name}: output` } as GPUTexture);
       computePasses.push(this);
     }
 
@@ -22,8 +42,15 @@ vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
   },
 }));
 
+vi.mock('../../src/core/texture-pool', () => ({
+  borrowTexture: borrowTextureMock,
+  releaseTexture: releaseTextureMock,
+  getTextureAllocationInfo: vi.fn(() => ({ byteSize: 1024, labelGroup: 'test' })),
+}));
+
 vi.mock('../../src/core/gpu-passes/luma-recompose-pass', () => ({
   defaultLumaRecomposeWGSL: 'default-luma-recompose',
+  defaultLumaRecomposeTerminalWGSL: 'default-luma-recompose-terminal',
   LumaRecomposePass: class MockLumaRecomposePass {
     readonly outputTexture: GPUTexture;
     readonly destroy = vi.fn();
@@ -44,6 +71,7 @@ import { GeneratedLumaModelPipeline } from '../../src/core/generated-models/luma
 import { ACNetGeneratedPipeline } from '../../src/engines/acnet/pipeline';
 import { ArtCNNUpscalePipeline } from '../../src/engines/artcnn/pipelines/upscale/shared';
 import { CuNNyGeneratedPipeline } from '../../src/engines/cunny/pipeline';
+import { resolveOptimizationFeatureFlags } from '../../src/core/optimization-flags';
 
 describe('GeneratedLumaModelPipeline', () => {
   const device = { label: 'device' } as GPUDevice;
@@ -52,7 +80,15 @@ describe('GeneratedLumaModelPipeline', () => {
 
   beforeEach(() => {
     computePasses.length = 0;
+    fusedPasses.length = 0;
     recomposePasses.length = 0;
+    borrowTextureMock.mockReset();
+    releaseTextureMock.mockReset();
+    borrowTextureMock.mockImplementation((options: any) => ({
+      label: options.label,
+      width: options.width,
+      height: options.height,
+    } as GPUTexture));
   });
 
   it('builds stages in manifest order and exposes final luma plus recomposed RGBA output', () => {
@@ -193,6 +229,68 @@ describe('GeneratedLumaModelPipeline', () => {
     expect(computePasses[0].options.outputSize).toEqual({ width: 48, height: 9 });
   });
 
+  it('keeps legacy ACNet deconvolution on the non-terminal output path', () => {
+    const terminalTarget = {
+      width: 32,
+      height: 18,
+      format: 'bgra8unorm' as const,
+      getCurrentView: vi.fn(),
+    };
+
+    new ACNetGeneratedPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      terminalTarget,
+      model: {
+        key: 'ACNET_LEGACY_TEST',
+        name: 'ACNet Legacy Test',
+        sourceFamily: 'acnet-legacy',
+        stages: [{
+          name: 'legacy deconv',
+          shaderWGSL: 'legacy-deconv',
+          bindings: ['LUMA'],
+          outputName: 'OUT',
+          outputScale: 2,
+          final: true,
+        }],
+      },
+    });
+
+    expect(recomposePasses[0].options.terminalTarget).toBeUndefined();
+  });
+
+  it('keeps CuNNy on the non-terminal output path until its luma presenter is certified', () => {
+    const terminalTarget = {
+      width: 32,
+      height: 18,
+      format: 'bgra8unorm' as const,
+      getCurrentView: vi.fn(),
+    };
+
+    new CuNNyGeneratedPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      terminalTarget,
+      model: {
+        key: 'CUNNY_TERMINAL_TEST',
+        name: 'CuNNy Terminal Test',
+        variant: 'ds',
+        stages: [{
+          name: 'final',
+          shaderWGSL: 'final',
+          bindings: ['LUMA'],
+          outputName: 'OUT',
+          outputScale: { x: 2, y: 2 },
+          final: true,
+        }],
+      },
+    });
+
+    expect(recomposePasses[0].options.terminalTarget).toBeUndefined();
+  });
+
   it('adapts ArtCNN variants to the shared generated LUMA runner', () => {
     new ArtCNNUpscalePipeline({
       device,
@@ -227,5 +325,108 @@ describe('GeneratedLumaModelPipeline', () => {
     expect(computePasses[6].options.outputSize).toEqual({ width: 16, height: 9 });
     expect(recomposePasses[0].options.cacheKeyPrefix).toBe('artcnn');
     expect(recomposePasses[0].options.workgroupSize).toEqual({ width: 12, height: 16 });
+  });
+
+  it('selects certified optimized shaders independently from the baseline', () => {
+    const model = {
+      key: 'VARIANT',
+      name: 'Variant Model',
+      stages: [{
+        name: 'pixel shuffle',
+        shaderWGSL: 'baseline-shader',
+        optimizedShaderWGSL: 'optimized-shader',
+        optimizationFlag: 'vectorizedPixelShuffle' as const,
+        optimizedDispatchScale: 1,
+        bindings: ['LUMA'],
+        outputName: 'OUT',
+        outputScale: 2,
+        final: true,
+      }],
+    };
+
+    new GeneratedLumaModelPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      cacheKeyPrefix: 'variant',
+      model,
+      optimizationFlags: resolveOptimizationFeatureFlags(),
+    });
+    expect(computePasses[0].options.shaderWGSL).toBe('optimized-shader');
+    expect(computePasses[0].options.dispatchSize).toEqual(nativeDimensions);
+
+    computePasses.length = 0;
+    recomposePasses.length = 0;
+    new GeneratedLumaModelPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      cacheKeyPrefix: 'variant',
+      model,
+      optimizationFlags: resolveOptimizationFeatureFlags({ vectorizedPixelShuffle: false }),
+    });
+    expect(computePasses[0].options.shaderWGSL).toBe('baseline-shader');
+    expect(computePasses[0].options.dispatchSize).toEqual({ width: 32, height: 18 });
+  });
+
+  it('fuses a generated 2x pixel shuffle with luma recomposition without allocating the 2x luma texture', () => {
+    const model = {
+      key: 'FUSED_PIXEL_SHUFFLE',
+      name: 'Fused Pixel Shuffle',
+      stages: [{
+        name: 'packed luma',
+        shaderWGSL: 'packed-luma',
+        bindings: ['LUMA'],
+        outputName: 'PACKED',
+        outputScale: 1,
+        final: false,
+      }, {
+        name: 'pixel shuffle',
+        shaderWGSL: 'pixel-shuffle',
+        bindings: ['PACKED'],
+        outputName: 'OUT',
+        outputScale: 2,
+        finalOperation: 'pixel-shuffle-2x' as const,
+        final: true,
+      }],
+    };
+
+    const pipeline = new GeneratedLumaModelPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      cacheKeyPrefix: 'fused-pixel-shuffle',
+      model,
+    });
+
+    expect(computePasses).toHaveLength(1);
+    expect(fusedPasses).toHaveLength(1);
+    expect(recomposePasses).toHaveLength(0);
+    expect(fusedPasses[0].options.packedLumaTexture).toBe(computePasses[0].outputTexture);
+    expect(fusedPasses[0].options.outputSize).toEqual({ width: 32, height: 18 });
+    expect(pipeline.getLumaOutputTexture()).toBeUndefined();
+    expect(borrowTextureMock).toHaveBeenCalledTimes(1);
+
+    pipeline.destroy();
+    expect(fusedPasses[0].destroy).toHaveBeenCalledOnce();
+
+    computePasses.length = 0;
+    fusedPasses.length = 0;
+    recomposePasses.length = 0;
+    borrowTextureMock.mockClear();
+
+    new GeneratedLumaModelPipeline({
+      device,
+      inputTexture,
+      nativeDimensions,
+      cacheKeyPrefix: 'fused-pixel-shuffle',
+      model,
+      optimizationFlags: resolveOptimizationFeatureFlags({ fusedPixelShuffleRecompose: false }),
+    });
+
+    expect(computePasses).toHaveLength(2);
+    expect(fusedPasses).toHaveLength(0);
+    expect(recomposePasses).toHaveLength(1);
+    expect(borrowTextureMock).toHaveBeenCalledTimes(2);
   });
 });

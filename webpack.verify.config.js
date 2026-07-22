@@ -15,7 +15,11 @@ module.exports = {
     rules: [
       {
         test: /\.ts$/,
-        use: 'ts-loader',
+        loader: 'esbuild-loader',
+        options: {
+          loader: 'ts',
+          target: 'es2022',
+        },
         exclude: /node_modules/,
       },
       {

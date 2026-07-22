@@ -25,6 +25,10 @@ vi.mock('../../src/core/gpu-resource-cache', () => ({
     cacheCalls.pipelines.push(key);
     return create();
   }),
+  getOrCreateRenderPipeline: vi.fn((_device: GPUDevice, key: string, create: () => unknown) => {
+    cacheCalls.pipelines.push(key);
+    return create();
+  }),
   getOrCreateSampler: vi.fn((_device: GPUDevice, key: string, create: () => unknown) => {
     cacheCalls.samplers.push(key);
     return create();
@@ -95,7 +99,7 @@ describe('LumaRecomposePass', () => {
     pass.pass({ beginComputePass } as unknown as GPUCommandEncoder);
 
     expect(cacheCalls.shaderModules).toEqual(['test/luma/output-recompose/shader/main']);
-    expect(cacheCalls.bindGroupLayouts).toEqual(['test/luma/output-recompose/layout/main']);
+    expect(cacheCalls.bindGroupLayouts).toEqual(['test/luma/output-recompose/layout/compute']);
     expect(cacheCalls.pipelines).toEqual(['test/luma/output-recompose/pipeline/main']);
     expect(cacheCalls.samplers).toEqual(['test/luma/output-recompose/sampler/linear']);
     expect(cacheCalls.bindGroups).toEqual(['test/luma/output-recompose/luma-test/bind-group']);
@@ -112,5 +116,56 @@ describe('LumaRecomposePass', () => {
 
     pass.destroy();
     expect(releaseTextureMock).toHaveBeenCalledWith(outputTexture);
+  });
+
+  it('renders directly to the terminal without allocating an RGBA16F output texture', () => {
+    const sourceTexture = {
+      createView: vi.fn(() => ({ label: 'source-view' })),
+    } as unknown as GPUTexture;
+    const lumaTexture = {
+      width: 224,
+      height: 96,
+      createView: vi.fn(() => ({ label: 'luma-view' })),
+    } as unknown as GPUTexture;
+    const terminalView = { label: 'terminal-view' } as GPUTextureView;
+    const setPipeline = vi.fn();
+    const setBindGroup = vi.fn();
+    const draw = vi.fn();
+    const end = vi.fn();
+    const beginRenderPass = vi.fn(() => ({ setPipeline, setBindGroup, draw, end }));
+    const device = {
+      createPipelineLayout: vi.fn(descriptor => descriptor),
+    } as unknown as GPUDevice;
+
+    const pass = new LumaRecomposePass({
+      device,
+      sourceTexture,
+      lumaTexture,
+      outputSize: { width: 224, height: 96 },
+      name: 'luma-terminal',
+      cacheKeyPrefix: 'test/luma',
+      terminalTarget: {
+        width: 224,
+        height: 96,
+        format: 'bgra8unorm',
+        getCurrentView: () => terminalView,
+      },
+      terminalFragmentWGSL: '@fragment fn fragmentMain() -> @location(0) vec4f { return vec4f(1.0); }',
+    });
+
+    pass.pass({ beginRenderPass } as unknown as GPUCommandEncoder);
+
+    expect(pass.presentsToTerminal).toBe(true);
+    expect(pass.getOutputTexture()).toBe(lumaTexture);
+    expect(borrowTextureMock).not.toHaveBeenCalled();
+    expect(cacheCalls.bindGroupLayouts).toEqual(['test/luma/output-recompose/layout/terminal']);
+    expect(cacheCalls.pipelines[0]).toContain('/output-recompose/pipeline/terminal/');
+    expect(beginRenderPass).toHaveBeenCalledWith(expect.objectContaining({
+      colorAttachments: [expect.objectContaining({ view: terminalView })],
+    }));
+    expect(draw).toHaveBeenCalledWith(3);
+
+    pass.destroy();
+    expect(releaseTextureMock).not.toHaveBeenCalled();
   });
 });

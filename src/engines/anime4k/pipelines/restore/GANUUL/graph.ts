@@ -137,6 +137,7 @@ export function createGANUULGraph(): EffectGraph {
       id: 'output-half-residual',
       name: 'output-half-residual',
       op: 'render-composite',
+      terminalDirect: false,
       inputs: ['input', 'residual'],
       output: 'output',
       fragmentWGSL: overlayHalfResidualWGSL,

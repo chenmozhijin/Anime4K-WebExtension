@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { acnetGeneratedModelMetas } from '../../src/engines/acnet/generated/models';
 import { acnetGeneratedReferenceModelMetas } from '../../src/engines/acnet/generated/reference-models';
+import { createACNetWorkgroupTileVariant } from '../../src/core/generated-models/workgroup-tile-variant';
 
 function countSourceStages(sourceFile: string): number {
   const source = readFileSync(resolve(process.cwd(), sourceFile), 'utf8');
@@ -29,8 +30,8 @@ describe('ACNetGLSL generated models', () => {
   it('emits one WGSL shader per parsed stage', () => {
     acnetGeneratedModelMetas.forEach(model => {
       const shaderDir = resolve(process.cwd(), 'src/engines/acnet/generated', model.directory, 'shaders');
-      const shaderCount = readdirSync(shaderDir).filter(file => file.endsWith('.wgsl')).length;
-      expect(shaderCount).toBe(model.stageCount);
+      const shaders = readdirSync(shaderDir).filter(file => file.endsWith('.wgsl'));
+      expect(shaders.filter(file => /^stage\d+\.wgsl$/.test(file))).toHaveLength(model.stageCount);
     });
   });
 
@@ -47,7 +48,7 @@ describe('ACNetGLSL generated models', () => {
 
   it('generates representative output shaders for ACNet, Legacy, and ARNet', () => {
     const acnetPixelShuffle = readFileSync(
-      resolve(process.cwd(), 'src/engines/acnet/generated/acnet_f8b4/shaders/stage11.wgsl'),
+      resolve(process.cwd(), 'src/engines/acnet/generated/acnet_f8b4/shaders/stage11.vectorized.wgsl'),
       'utf8',
     );
     const legacyDeconv = readFileSync(
@@ -59,8 +60,22 @@ describe('ACNetGLSL generated models', () => {
       'utf8',
     );
 
-    expect(acnetPixelShuffle).toContain('let lane = (pixel.y % 2u) * 2u + (pixel.x % 2u);');
+    expect(acnetPixelShuffle).toContain('let values = textureLoad');
+    expect(acnetPixelShuffle.match(/textureStore\(out_tex/g)).toHaveLength(4);
     expect(legacyDeconv).toContain('result += dot(vec4f(');
     expect(arnetPixelShuffle).toContain('textureLoad(tex_TMP2_TEX_0');
+  });
+
+  it('reconstructs every tiled shader without bundling duplicate weight constants', () => {
+    for (const model of acnetGeneratedModelMetas) {
+      const shaderDir = resolve(process.cwd(), 'src/engines/acnet/generated', model.directory, 'shaders');
+      const tiledShaders = readdirSync(shaderDir).filter(file => /^stage\d+\.tiled\.wgsl$/.test(file));
+      for (const tiledShader of tiledShaders) {
+        const baselineName = tiledShader.replace('.tiled.wgsl', '.wgsl');
+        const baseline = readFileSync(resolve(shaderDir, baselineName), 'utf8');
+        const expected = readFileSync(resolve(shaderDir, tiledShader), 'utf8');
+        expect(createACNetWorkgroupTileVariant(baseline), `${model.id}/${tiledShader}`).toBe(expected);
+      }
+    }
   });
 });

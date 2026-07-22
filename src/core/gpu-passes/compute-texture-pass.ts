@@ -4,6 +4,7 @@ import {
   createBindGroupChecked,
   getOrCreateBindGroupLayout,
   getOrCreateComputePipeline,
+  getOrCreateComputePipelineAsync,
   getOrCreateSampler,
   getOrCreateShaderModule,
 } from '../gpu-resource-cache';
@@ -18,6 +19,7 @@ export interface ComputeTexturePassOptions {
   outputSize?: Dimensions;
   outputFormat?: GPUTextureFormat;
   outputUsage?: GPUTextureUsageFlags;
+  outputTexture?: GPUTexture;
   includeSampler?: boolean;
   samplerBindingOrder?: 'before-output' | 'after-output';
   samplerKey?: string;
@@ -30,6 +32,20 @@ export interface ComputeTexturePassOptions {
   extraLayoutKey?: string;
 }
 
+export interface ComputeTexturePipelinePreparationOptions {
+  device: GPUDevice;
+  inputTextureCount: number;
+  shaderWGSL: string;
+  name: string;
+  cacheKeyPrefix: string;
+  outputFormat?: GPUTextureFormat;
+  includeSampler?: boolean;
+  samplerBindingOrder?: 'before-output' | 'after-output';
+  entryPoint?: string;
+  extraLayoutEntries?: GPUBindGroupLayoutEntry[];
+  extraLayoutKey?: string;
+}
+
 function getShaderFingerprint(shaderWGSL: string): string {
   let hash = 2166136261;
   for (let i = 0; i < shaderWGSL.length; i += 1) {
@@ -38,6 +54,95 @@ function getShaderFingerprint(shaderWGSL: string): string {
   }
 
   return (hash >>> 0).toString(16);
+}
+
+function createPipelineResources({
+  device,
+  inputTextureCount,
+  shaderWGSL,
+  name,
+  cacheKeyPrefix,
+  outputFormat = 'rgba16float',
+  includeSampler = false,
+  samplerBindingOrder = 'after-output',
+  entryPoint = 'computeMain',
+  extraLayoutEntries = [],
+  extraLayoutKey,
+}: ComputeTexturePipelinePreparationOptions): {
+  bindGroupLayout: GPUBindGroupLayout;
+  outputBinding: number;
+  samplerBinding: number;
+  pipelineKey: string;
+  pipelineDescriptorFactory: () => GPUComputePipelineDescriptor;
+} {
+  if (inputTextureCount <= 0) {
+    throw new Error(`${name}: no input textures.`);
+  }
+  if (!shaderWGSL) {
+    throw new Error(`${name}: shader not defined.`);
+  }
+
+  const samplerBinding = samplerBindingOrder === 'before-output' ? inputTextureCount : inputTextureCount + 1;
+  const outputBinding = samplerBindingOrder === 'before-output' ? inputTextureCount + 1 : inputTextureCount;
+  const reservedBindings = new Set([
+    ...Array.from({ length: inputTextureCount }, (_, index) => index),
+    outputBinding,
+    ...(includeSampler ? [samplerBinding] : []),
+  ]);
+  const duplicateExtraBinding = extraLayoutEntries.find(entry => reservedBindings.has(entry.binding));
+  if (duplicateExtraBinding) {
+    throw new Error(`${name}: extra layout binding ${duplicateExtraBinding.binding} conflicts with built-in bindings.`);
+  }
+
+  const shaderFingerprint = getShaderFingerprint(shaderWGSL);
+  const resolvedExtraLayoutKey = extraLayoutEntries.length > 0
+    ? extraLayoutKey ?? `extra-${extraLayoutEntries.map(entry => entry.binding).join('-')}`
+    : 'no-extra';
+  const shaderModule = getOrCreateShaderModule(
+    device,
+    `${cacheKeyPrefix}/shader/${inputTextureCount}/${shaderFingerprint}`,
+    () => ({ label: `${name}: compute shader`, code: shaderWGSL }),
+  );
+  const layoutEntries: GPUBindGroupLayoutEntry[] = [
+    ...Array.from({ length: inputTextureCount }, (_, index): GPUBindGroupLayoutEntry => ({
+      binding: index,
+      visibility: GPUShaderStage.COMPUTE,
+      texture: {},
+    })),
+    {
+      binding: outputBinding,
+      visibility: GPUShaderStage.COMPUTE,
+      storageTexture: { access: 'write-only', format: outputFormat },
+    },
+  ];
+  if (includeSampler) {
+    layoutEntries.push({
+      binding: samplerBinding,
+      visibility: GPUShaderStage.COMPUTE,
+      sampler: { type: 'filtering' },
+    });
+  }
+  layoutEntries.push(...extraLayoutEntries);
+  const bindGroupLayout = getOrCreateBindGroupLayout(
+    device,
+    `${cacheKeyPrefix}/layout/${inputTextureCount}/${includeSampler ? samplerBindingOrder : 'no-sampler'}/${outputFormat}/${resolvedExtraLayoutKey}`,
+    () => ({ label: `${name}: compute bind group layout`, entries: layoutEntries }),
+  );
+  const pipelineKey = `${cacheKeyPrefix}/pipeline/${inputTextureCount}/${includeSampler ? samplerBindingOrder : 'no-sampler'}/${shaderFingerprint}/${resolvedExtraLayoutKey}`;
+  return {
+    bindGroupLayout,
+    outputBinding,
+    samplerBinding,
+    pipelineKey,
+    pipelineDescriptorFactory: () => ({
+      label: `${name}: compute pipeline`,
+      layout: device.createPipelineLayout({
+        label: `${name}: compute pipeline layout`,
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: { module: shaderModule, entryPoint },
+    }),
+  };
 }
 
 export class ComputeTexturePass implements PipelinePass {
@@ -55,6 +160,17 @@ export class ComputeTexturePass implements PipelinePass {
 
   private readonly workgroupSize: Dimensions;
 
+  private readonly ownsOutputTexture: boolean;
+
+  static async preparePipeline(options: ComputeTexturePipelinePreparationOptions): Promise<void> {
+    const resources = createPipelineResources(options);
+    await getOrCreateComputePipelineAsync(
+      options.device,
+      resources.pipelineKey,
+      resources.pipelineDescriptorFactory,
+    );
+  }
+
   constructor({
     device,
     inputTextures,
@@ -64,6 +180,7 @@ export class ComputeTexturePass implements PipelinePass {
     outputSize,
     outputFormat = 'rgba16float',
     outputUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+    outputTexture,
     includeSampler = false,
     samplerBindingOrder = 'after-output',
     samplerKey = `${cacheKeyPrefix}/sampler/linear-clamp`,
@@ -80,12 +197,6 @@ export class ComputeTexturePass implements PipelinePass {
     extraBindGroupEntries = [],
     extraLayoutKey,
   }: ComputeTexturePassOptions) {
-    if (inputTextures.length === 0) {
-      throw new Error(`${name}: no input textures.`);
-    }
-    if (!shaderWGSL) {
-      throw new Error(`${name}: shader not defined.`);
-    }
     this.profileLabel = name;
 
     const inputLength = inputTextures.length;
@@ -96,15 +207,22 @@ export class ComputeTexturePass implements PipelinePass {
     this.dispatchDimensions = dispatchSize ?? resolvedOutputSize;
     this.workgroupSize = workgroupSize;
 
-    this.outputTexture = borrowTexture({
-      device,
-      width: resolvedOutputSize.width,
-      height: resolvedOutputSize.height,
-      format: outputFormat,
-      usage: outputUsage,
-      labelGroup: `${cacheKeyPrefix}/output/${inputLength}`,
-      label: `${name}: output texture`,
-    });
+    this.ownsOutputTexture = !outputTexture;
+    this.outputTexture = outputTexture ?? borrowTexture({
+        device,
+        width: resolvedOutputSize.width,
+        height: resolvedOutputSize.height,
+        format: outputFormat,
+        usage: outputUsage,
+        labelGroup: `${cacheKeyPrefix}/output/${inputLength}`,
+        label: `${name}: output texture`,
+      });
+    if (outputTexture && (
+      this.outputTexture.width !== resolvedOutputSize.width
+      || this.outputTexture.height !== resolvedOutputSize.height
+    )) {
+      throw new Error(`${name}: preallocated output texture has incorrect dimensions.`);
+    }
 
     const samplerBinding = samplerBindingOrder === 'before-output' ? inputLength : inputLength + 1;
     const outputBinding = samplerBindingOrder === 'before-output' ? inputLength + 1 : inputLength;
@@ -122,67 +240,24 @@ export class ComputeTexturePass implements PipelinePass {
     if (missingExtraResource) {
       throw new Error(`${name}: extra bind group entry missing for binding ${missingExtraResource.binding}.`);
     }
-    const shaderFingerprint = getShaderFingerprint(shaderWGSL);
-    const resolvedExtraLayoutKey = extraLayoutEntries.length > 0
-      ? extraLayoutKey ?? `extra-${extraLayoutEntries.map(entry => entry.binding).join('-')}`
-      : 'no-extra';
-    const shaderModule = getOrCreateShaderModule(
+    const resources = createPipelineResources({
       device,
-      `${cacheKeyPrefix}/shader/${inputLength}/${shaderFingerprint}`,
-      () => ({
-        label: `${name}: compute shader`,
-        code: shaderWGSL,
-      }),
-    );
-
-    const layoutEntries: GPUBindGroupLayoutEntry[] = [
-      ...inputTextures.map((_, index): GPUBindGroupLayoutEntry => ({
-        binding: index,
-        visibility: GPUShaderStage.COMPUTE,
-        texture: {},
-      })),
-      {
-        binding: outputBinding,
-        visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          access: 'write-only',
-          format: outputFormat,
-        },
-      },
-    ];
-
-    if (includeSampler) {
-      layoutEntries.push({
-        binding: samplerBinding,
-        visibility: GPUShaderStage.COMPUTE,
-        sampler: { type: 'filtering' },
-      });
-    }
-    layoutEntries.push(...extraLayoutEntries);
-
-    const bindGroupLayout = getOrCreateBindGroupLayout(
-      device,
-      `${cacheKeyPrefix}/layout/${inputLength}/${includeSampler ? samplerBindingOrder : 'no-sampler'}/${outputFormat}/${resolvedExtraLayoutKey}`,
-      () => ({
-        label: `${name}: compute bind group layout`,
-        entries: layoutEntries,
-      }),
-    );
+      inputTextureCount: inputLength,
+      shaderWGSL,
+      name,
+      cacheKeyPrefix,
+      outputFormat,
+      includeSampler,
+      samplerBindingOrder,
+      entryPoint,
+      extraLayoutEntries,
+      extraLayoutKey,
+    });
 
     this.pipeline = getOrCreateComputePipeline(
       device,
-      `${cacheKeyPrefix}/pipeline/${inputLength}/${includeSampler ? samplerBindingOrder : 'no-sampler'}/${shaderFingerprint}/${resolvedExtraLayoutKey}`,
-      () => ({
-        label: `${name}: compute pipeline`,
-        layout: device.createPipelineLayout({
-          label: `${name}: compute pipeline layout`,
-          bindGroupLayouts: [bindGroupLayout],
-        }),
-        compute: {
-          module: shaderModule,
-          entryPoint,
-        },
-      }),
+      resources.pipelineKey,
+      resources.pipelineDescriptorFactory,
     );
 
     const bindGroupEntries: GPUBindGroupEntry[] = [
@@ -191,14 +266,14 @@ export class ComputeTexturePass implements PipelinePass {
         resource: texture.createView(),
       })),
       {
-        binding: outputBinding,
+        binding: resources.outputBinding,
         resource: this.outputTexture.createView(),
       },
     ];
 
     if (includeSampler) {
       bindGroupEntries.push({
-        binding: samplerBinding,
+        binding: resources.samplerBinding,
         resource: getOrCreateSampler(device, samplerKey, () => samplerDescriptor),
       });
     }
@@ -206,7 +281,7 @@ export class ComputeTexturePass implements PipelinePass {
 
     this.bindGroup = createBindGroupChecked(device, `${cacheKeyPrefix}/${name}/bind-group`, () => ({
       label: `${name}: compute bind group`,
-      layout: bindGroupLayout,
+      layout: resources.bindGroupLayout,
       entries: bindGroupEntries,
     }));
   }
@@ -236,6 +311,8 @@ export class ComputeTexturePass implements PipelinePass {
   }
 
   destroy(): void {
-    releaseTexture(this.outputTexture);
+    if (this.ownsOutputTexture) {
+      releaseTexture(this.outputTexture);
+    }
   }
 }

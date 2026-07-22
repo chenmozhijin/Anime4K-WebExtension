@@ -1,9 +1,8 @@
 import type { EffectGraph } from '../../../../../core/effects/graph';
 import {
-  createConvStage,
   createConvSymbols,
   createGraph,
-  createOverlayStage,
+  createRestoreTailStage,
   createPairedBranchConvStages,
 } from '../../graph-helpers';
 import conv2dtfWGSL from './shaders/conv2dtf.wgsl';
@@ -46,13 +45,10 @@ const branchShaders = [
 export function createCNNSoftVLGraph(): EffectGraph {
   const stages: EffectGraph['stages'] = createPairedBranchConvStages(branchShaders, 8);
 
-  stages.push(createConvStage({
-    id: 'output',
-    inputs: createConvSymbols(2, 14),
-    output: 'restore',
-    shaderWGSL: outputWGSL,
+  stages.push(createRestoreTailStage({
+    features: createConvSymbols(2, 14),
+    headShader: outputWGSL,
   }));
-  stages.push(createOverlayStage({ addon: 'restore' }));
 
   return createGraph(stages);
 }

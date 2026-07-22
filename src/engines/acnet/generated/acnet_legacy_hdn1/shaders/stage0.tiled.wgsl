@@ -1,0 +1,56 @@
+const WG_X: u32 = 8u;
+const WG_Y: u32 = 8u;
+const BT709_LUMA: vec3f = vec3f(0.2126, 0.7152, 0.0722);
+
+fn luma709(color: vec3f) -> f32 {
+  return dot(color, BT709_LUMA);
+}
+
+@group(0) @binding(0) var tex_LUMA: texture_2d<f32>;
+
+fn sample_LUMA(pos: vec2u, offset: vec2i) -> vec4f {
+  let size = vec2i(textureDimensions(tex_LUMA));
+  let coord = clamp(vec2i(pos) + offset, vec2i(0, 0), size - vec2i(1, 1));
+  let color = textureLoad(tex_LUMA, coord, 0);
+  return vec4f(luma709(color.rgb), 0.0, 0.0, color.a);
+}
+var<workgroup> tile_LUMA: array<array<vec4f, 10>, 10>;
+
+@group(0) @binding(1) var out_tex: texture_storage_2d<rgba16float, write>;
+
+@compute
+@workgroup_size(WG_X, WG_Y)
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
+  let outputSize = textureDimensions(out_tex);
+
+  let groupOrigin = pixel.xy - localId.xy;
+  for (var tileY = localId.y; tileY < 10u; tileY += WG_Y) {
+    for (var tileX = localId.x; tileX < 10u; tileX += WG_X) {
+      tile_LUMA[tileY][tileX] = sample_LUMA(
+        groupOrigin,
+        vec2i(i32(tileX) - 1, i32(tileY) - 1),
+      );
+    }
+  }
+  workgroupBarrier();
+
+  if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
+    return;
+  }
+
+  var result: vec4f = vec4f(-0.026418973, -0.022948245, -0.30211875, -0.25786248);
+      result += vec4f(-0.06632576, -0.46648893, -0.20316477, 0.048185702) * tile_LUMA[localId.y + 0u][localId.x + 0u].x;
+      result += vec4f(-0.22316125, -0.06878865, 0.047020923, -0.09342923) * tile_LUMA[localId.y + 0u][localId.x + 1u].x;
+      result += vec4f(0.042470794, 0.53455275, -0.2231294, 0.00244929) * tile_LUMA[localId.y + 0u][localId.x + 2u].x;
+      result += vec4f(0.017063819, -0.5094117, 0.053465288, 0.34654373) * tile_LUMA[localId.y + 1u][localId.x + 0u].x;
+      result += vec4f(-0.6830483, 0.070656784, 0.7074958, 0.07262486) * tile_LUMA[localId.y + 1u][localId.x + 1u].x;
+      result += vec4f(-0.1597832, 0.45646816, 0.091366485, 0.16614833) * tile_LUMA[localId.y + 1u][localId.x + 2u].x;
+      result += vec4f(0.67568016, -0.023656907, -0.28566208, 0.32101068) * tile_LUMA[localId.y + 2u][localId.x + 0u].x;
+      result += vec4f(0.32211924, 0.03530233, -0.02052095, 0.32923332) * tile_LUMA[localId.y + 2u][localId.x + 1u].x;
+      result += vec4f(0.08356148, -0.018316226, -0.07178592, -0.09854834) * tile_LUMA[localId.y + 2u][localId.x + 2u].x;
+      result = max(result, vec4f(0.0));
+  textureStore(out_tex, pixel.xy, result);
+}

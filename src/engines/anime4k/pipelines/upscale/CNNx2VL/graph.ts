@@ -1,11 +1,9 @@
 import type { EffectGraph } from '../../../../../core/effects/graph';
 import {
-  createConvStage,
   createConvSymbols,
-  createDepthToSpaceStage,
   createGraph,
-  createOverlayStage,
   createPairedBranchConvStages,
+  createUpscaleTailStage,
 } from '../../graph-helpers';
 import conv2dtfWGSL from './shaders/conv2dtf.wgsl';
 import conv2dtf1WGSL from './shaders/conv2dtf1.wgsl';
@@ -46,26 +44,10 @@ export function createCNNx2VLGraph(): EffectGraph {
   const stages: EffectGraph['stages'] = createPairedBranchConvStages(branchShaders, 7);
   const allBranchOutputs = createConvSymbols(0, 14);
 
-  stages.push(createConvStage({
-    id: 'conv2d_last_tf_0',
-    inputs: allBranchOutputs,
-    output: 'last0',
-    shaderWGSL: conv2dlasttfWGSL,
+  stages.push(createUpscaleTailStage({
+    features: allBranchOutputs,
+    headShaders: [conv2dlasttfWGSL, conv2dlasttf1WGSL, conv2dlasttf2WGSL],
   }));
-  stages.push(createConvStage({
-    id: 'conv2d_last_tf_1',
-    inputs: allBranchOutputs,
-    output: 'last1',
-    shaderWGSL: conv2dlasttf1WGSL,
-  }));
-  stages.push(createConvStage({
-    id: 'conv2d_last_tf_2',
-    inputs: allBranchOutputs,
-    output: 'last2',
-    shaderWGSL: conv2dlasttf2WGSL,
-  }));
-  stages.push(createDepthToSpaceStage(['last0', 'last1', 'last2']));
-  stages.push(createOverlayStage({ addon: 'depth', outputSizeScale: 2 }));
 
   return createGraph(stages);
 }

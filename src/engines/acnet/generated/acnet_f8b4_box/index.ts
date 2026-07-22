@@ -1,3 +1,4 @@
+import { createACNetWorkgroupTileVariant, createACNetWorkgroupTileVariants } from '../../../../core/generated-models/workgroup-tile-variant';
 import stage0WGSL from './shaders/stage0.wgsl';
 import stage1WGSL from './shaders/stage1.wgsl';
 import stage2WGSL from './shaders/stage2.wgsl';
@@ -10,6 +11,7 @@ import stage8WGSL from './shaders/stage8.wgsl';
 import stage9WGSL from './shaders/stage9.wgsl';
 import stage10WGSL from './shaders/stage10.wgsl';
 import stage11WGSL from './shaders/stage11.wgsl';
+import stage11VectorizedWGSL from './shaders/stage11.vectorized.wgsl';
 import type { ACNetGeneratedModelConfig } from '../../pipeline';
 
 export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
@@ -23,6 +25,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["LUMA"],
       outputName: "TMP1_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage0WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage0WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -31,6 +37,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["LUMA"],
       outputName: "TMP1_TEX_1",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage1WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage1WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -39,6 +49,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP1_TEX_0","TMP1_TEX_1"],
       outputName: "TMP2_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage2WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage2WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -47,6 +61,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP1_TEX_0","TMP1_TEX_1"],
       outputName: "TMP2_TEX_1",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage3WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage3WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -55,6 +73,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP2_TEX_0","TMP2_TEX_1"],
       outputName: "TMP1_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage4WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage4WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -63,6 +85,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP2_TEX_0","TMP2_TEX_1"],
       outputName: "TMP1_TEX_1",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage5WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage5WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -71,6 +97,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP1_TEX_0","TMP1_TEX_1"],
       outputName: "TMP2_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage6WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage6WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -79,6 +109,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP1_TEX_0","TMP1_TEX_1"],
       outputName: "TMP2_TEX_1",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage7WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage7WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -87,6 +121,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP2_TEX_0","TMP2_TEX_1"],
       outputName: "TMP1_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage8WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage8WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -95,6 +133,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP2_TEX_0","TMP2_TEX_1"],
       outputName: "TMP1_TEX_1",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage9WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage9WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -103,6 +145,10 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP1_TEX_0","TMP1_TEX_1","LUMA"],
       outputName: "TMP2_TEX_0",
       outputScale: 1,
+
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(stage10WGSL),
+      kernelVariants: createACNetWorkgroupTileVariants(stage10WGSL),
+      optimizationFlag: 'acnetWorkgroupTile',
       final: false,
     },
     {
@@ -111,6 +157,11 @@ export const AcnetF8b4BoxConfig: ACNetGeneratedModelConfig = {
       bindings: ["TMP2_TEX_0"],
       outputName: "__FINAL_LUMA_11",
       outputScale: 2,
+
+      optimizedShaderWGSL: stage11VectorizedWGSL,
+      optimizationFlag: 'vectorizedPixelShuffle',
+      optimizedDispatchScale: 1,
+      finalOperation: 'pixel-shuffle-2x',
       final: true,
     }
   ],

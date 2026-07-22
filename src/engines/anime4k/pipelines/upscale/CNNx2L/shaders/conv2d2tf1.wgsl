@@ -4,12 +4,11 @@
 @group(0) @binding(0) var conv2d_1_tf_tex: texture_2d<f32>;
 @group(0) @binding(1) var conv2d_1_tf1_tex: texture_2d<f32>;
 @group(0) @binding(2) var conv2d_2_tf1_tex: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(3) var anime4kLinearSampler: sampler;
 
 fn anime4kTextureLoadClamped(texture: texture_2d<f32>, pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  let dim = vec2f(textureDimensions(texture));
-  let uv = (vec2f(pos) + vec2f(0.5, 0.5) + vec2f(f32(x_off), f32(y_off))) / dim;
-  return textureSampleLevel(texture, anime4kLinearSampler, uv, 0.0);
+  let size = vec2i(textureDimensions(texture));
+  let coord = clamp(vec2i(pos) + vec2i(x_off, y_off), vec2i(0, 0), size - vec2i(1, 1));
+  return textureLoad(texture, coord, 0);
 }
 
 fn max4(vector: vec4f, value: f32) -> vec4f {

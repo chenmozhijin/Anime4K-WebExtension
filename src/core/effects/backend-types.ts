@@ -1,4 +1,6 @@
 import type { Dimensions, EffectDescriptor, EffectReference, PerformanceTier } from '../../types';
+import type { GpuCapabilities } from '../gpu-capabilities';
+import type { OptimizationFeatureFlags } from '../optimization-flags';
 
 export interface PipelinePass {
   updateParam?(param: string, value: any): void;
@@ -7,7 +9,15 @@ export interface PipelinePass {
   pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;
   getOutputTexture(): GPUTexture;
   getProfileChildren?(): PipelinePass[];
+  getTextureResourcePlan?(): PipelineTextureResourcePlan;
+  readonly presentsToTerminal?: boolean;
   destroy?(): void;
+}
+
+export interface PipelineTextureResourcePlan {
+  peakTextureBytes: number;
+  textureSlotCount: number;
+  resourceReleasePlan: TextureReleasePlanEntry[];
 }
 
 export interface PipelineProfileRecorder {
@@ -21,10 +31,20 @@ export interface PipelineProfileRecorder {
 
 export interface CompileEffectContext {
   device: GPUDevice;
+  capabilities?: GpuCapabilities;
   inputTexture: GPUTexture;
   sourceDimensions: Dimensions;
   currentDimensions: Dimensions;
   targetDimensions: Dimensions;
+  terminalTarget?: TerminalTextureTarget;
+  optimizationFlags?: OptimizationFeatureFlags;
+}
+
+export interface TerminalTextureTarget {
+  width: number;
+  height: number;
+  format: GPUTextureFormat;
+  getCurrentView(): GPUTextureView;
 }
 
 export interface CompiledEffectNode {
@@ -41,6 +61,19 @@ export interface CompiledEffectPlan {
   outputDimensions: Dimensions;
   requiredModules: string[];
   warmupSteps: number;
+  passCount: number;
+  peakTextureBytes: number;
+  textureSlotCount: number;
+  resourceReleasePlan: TextureReleasePlanEntry[];
+  terminalPresenter?: {
+    kind: 'direct-canvas';
+    passLabel: string;
+  };
+}
+
+export interface TextureReleasePlanEntry {
+  afterPass: number;
+  textureLabel: string;
 }
 
 export interface BenchmarkProfile {

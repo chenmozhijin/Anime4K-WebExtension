@@ -24,6 +24,7 @@ export const coreBackend: AlgorithmBackend = {
           inputTexture: context.inputTexture,
           targetDimensions: context.targetDimensions,
           name: effect.key,
+          terminalTarget: context.terminalTarget,
         });
         return {
           pipelines: [pipeline],

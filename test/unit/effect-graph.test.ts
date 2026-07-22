@@ -6,23 +6,31 @@ const {
   compositeOptions,
   resizeOptions,
   lumaOptions,
+  multiOptions,
+  modelTailOptions,
   passInstances,
+  borrowTextureMock,
+  releaseTextureMock,
 } = vi.hoisted(() => ({
   computeOptions: [] as any[],
   depthOptions: [] as any[],
   compositeOptions: [] as any[],
   resizeOptions: [] as any[],
   lumaOptions: [] as any[],
+  multiOptions: [] as any[],
+  modelTailOptions: [] as any[],
   passInstances: [] as Array<{
     outputTexture: GPUTexture;
     pass: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
   }>,
+  borrowTextureMock: vi.fn(),
+  releaseTextureMock: vi.fn(),
 }));
 
-function createMockPass(label: string, width: number, height: number) {
+function createMockPass(label: string, width: number, height: number, outputTexture?: GPUTexture) {
   const instance = {
-    outputTexture: { label, width, height } as unknown as GPUTexture,
+    outputTexture: outputTexture ?? ({ label, width, height } as unknown as GPUTexture),
     pass: vi.fn(),
     destroy: vi.fn(),
     getOutputTexture: vi.fn(() => ({ label, width, height } as unknown as GPUTexture)),
@@ -38,7 +46,7 @@ vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
     const firstInput = options.inputTextures[0];
     const width = options.outputSize?.width ?? firstInput.width;
     const height = options.outputSize?.height ?? firstInput.height;
-    return createMockPass(`compute-${computeOptions.length}`, width, height);
+    return createMockPass(`compute-${computeOptions.length}`, width, height, options.outputTexture);
   }),
 }));
 
@@ -49,6 +57,7 @@ vi.mock('../../src/core/gpu-passes/depth-to-space-pass', () => ({
       `depth-${depthOptions.length}`,
       options.inputTextures[0].width * 2,
       options.inputTextures[0].height * 2,
+      options.outputTexture,
     );
   }),
 }));
@@ -56,22 +65,67 @@ vi.mock('../../src/core/gpu-passes/depth-to-space-pass', () => ({
 vi.mock('../../src/core/gpu-passes/render-composite-pass', () => ({
   RenderCompositePass: vi.fn(function RenderCompositePass(options: any) {
     compositeOptions.push(options);
-    return createMockPass(`composite-${compositeOptions.length}`, options.outputSize.width, options.outputSize.height);
+    return createMockPass(
+      `composite-${compositeOptions.length}`,
+      options.outputSize.width,
+      options.outputSize.height,
+      options.outputTexture,
+    );
   }),
 }));
 
 vi.mock('../../src/core/shared-effects/downscale', () => ({
   Downscale: vi.fn(function Downscale(options: any) {
     resizeOptions.push(options);
-    return createMockPass(`resize-${resizeOptions.length}`, options.targetDimensions.width, options.targetDimensions.height);
+    return createMockPass(
+      `resize-${resizeOptions.length}`,
+      options.targetDimensions.width,
+      options.targetDimensions.height,
+      options.outputTexture,
+    );
   }),
 }));
 
 vi.mock('../../src/core/gpu-passes/luma-recompose-pass', () => ({
   LumaRecomposePass: vi.fn(function LumaRecomposePass(options: any) {
     lumaOptions.push(options);
-    return createMockPass(`luma-${lumaOptions.length}`, options.outputSize.width, options.outputSize.height);
+    return createMockPass(
+      `luma-${lumaOptions.length}`,
+      options.outputSize.width,
+      options.outputSize.height,
+      options.outputTexture,
+    );
   }),
+}));
+
+vi.mock('../../src/core/gpu-passes/multi-output-compute-pass', () => ({
+  MultiOutputComputePass: vi.fn(function MultiOutputComputePass(options: any) {
+    multiOptions.push(options);
+    return createMockPass(
+      `multi-${multiOptions.length}`,
+      options.outputSize.width,
+      options.outputSize.height,
+      options.outputTextures[0],
+    );
+  }),
+}));
+
+vi.mock('../../src/core/gpu-passes/model-tail-pass', () => ({
+  ModelTailPass: vi.fn(function ModelTailPass(options: any) {
+    modelTailOptions.push(options);
+    return createMockPass(
+      `tail-${modelTailOptions.length}`,
+      options.outputSize.width,
+      options.outputSize.height,
+      options.outputTexture,
+    );
+  }),
+}));
+
+vi.mock('../../src/core/texture-pool', () => ({
+  borrowTexture: borrowTextureMock,
+  releaseTexture: releaseTextureMock,
+  getTextureAllocationInfo: vi.fn(() => ({ byteSize: 1024, labelGroup: 'test' })),
 }));
 
 import { EffectGraphRunner } from '../../src/core/effects/graph';
@@ -99,7 +153,16 @@ describe('EffectGraphRunner', () => {
     compositeOptions.length = 0;
     resizeOptions.length = 0;
     lumaOptions.length = 0;
+    multiOptions.length = 0;
+    modelTailOptions.length = 0;
     passInstances.length = 0;
+    borrowTextureMock.mockReset();
+    releaseTextureMock.mockReset();
+    borrowTextureMock.mockImplementation((options: any) => ({
+      label: options.label,
+      width: options.width,
+      height: options.height,
+    } as GPUTexture));
   });
 
   it('builds graph stages in order, resolves texture symbols, and forwards pass/destroy', () => {
@@ -204,6 +267,33 @@ describe('EffectGraphRunner', () => {
     expect(runner.getOutputTexture()).toBe(passInstances[2].outputTexture);
   });
 
+  it('reuses SSA texture slots only after the previous version is no longer live', () => {
+    const runner = new EffectGraphRunner({
+      device: {} as GPUDevice,
+      inputTexture: { label: 'input', width: 16, height: 9 } as unknown as GPUTexture,
+      graph: {
+        input: 'input',
+        output: 'output',
+        stages: Array.from({ length: 4 }, (_, index) => ({
+          id: `stage-${index}`,
+          op: 'compute' as const,
+          inputs: [index === 0 ? 'input' : 'tmp'],
+          output: index === 3 ? 'output' : 'tmp',
+          shaderWGSL: `shader-${index}`,
+          cacheKeyPrefix: 'test/ssa',
+        })),
+      },
+    });
+
+    expect(borrowTextureMock).toHaveBeenCalledTimes(2);
+    expect(computeOptions[0].outputTexture).toBe(computeOptions[2].outputTexture);
+    expect(computeOptions[1].outputTexture).toBe(computeOptions[3].outputTexture);
+    computeOptions.forEach(options => {
+      expect(options.inputTextures).not.toContain(options.outputTexture);
+    });
+    expect(runner.getTextureResourcePlan().textureSlotCount).toBe(2);
+  });
+
   it('fails fast when a stage references an undefined texture symbol', () => {
     expect(() => new EffectGraphRunner({
       device: {} as GPUDevice,
@@ -223,23 +313,137 @@ describe('EffectGraphRunner', () => {
     })).toThrow('Effect graph texture is not defined: missing');
   });
 
+  it('builds multi-output and fused model-tail stages with independent feature flags', () => {
+    const inputTexture = { label: 'input', width: 16, height: 9 } as unknown as GPUTexture;
+    const runner = new EffectGraphRunner({
+      device: {} as GPUDevice,
+      inputTexture,
+      graph: {
+        input: 'input',
+        output: 'output',
+        stages: [{
+          id: 'branches',
+          op: 'multi-compute',
+          inputs: ['input'],
+          outputs: ['left', 'right'],
+          shaderWGSL: 'fused-shader',
+          baselineShaders: ['left-shader', 'right-shader'],
+          cacheKeyPrefix: 'test/multi',
+        }, {
+          id: 'tail',
+          op: 'model-tail',
+          source: 'input',
+          features: ['left', 'right'],
+          headShaders: ['head-shader'],
+          kind: 'restore',
+          output: 'output',
+          outputSize: { kind: 'texture', texture: 'input' },
+          cacheKeyPrefix: 'test/tail',
+        }],
+      },
+    });
+
+    expect(multiOptions[0]).toMatchObject({
+      shaderWGSL: 'fused-shader',
+      baselineShaders: ['left-shader', 'right-shader'],
+      optimized: true,
+    });
+    expect(multiOptions[0].outputTextures).toHaveLength(2);
+    expect(modelTailOptions[0]).toMatchObject({
+      sourceTexture: inputTexture,
+      headShaders: ['head-shader'],
+      kind: 'restore',
+      optimized: true,
+      multiOutputDispatch: true,
+    });
+    expect(modelTailOptions[0].featureTextures).toEqual(multiOptions[0].outputTextures);
+    expect(runner.getOutputTexture()).toBe(passInstances[1].outputTexture);
+  });
+
+  it('only forwards a terminal target to certified upscale model tails', () => {
+    const device = {} as GPUDevice;
+    const inputTexture = { label: 'input', width: 16, height: 9 } as unknown as GPUTexture;
+    const terminalTarget = {
+      width: 16,
+      height: 9,
+      format: 'bgra8unorm' as const,
+      getCurrentView: vi.fn(),
+    };
+    const createGraph = (kind: 'restore' | 'upscale') => ({
+      input: 'input',
+      output: 'output',
+      stages: [{
+        id: `${kind}-tail`,
+        op: 'model-tail' as const,
+        source: 'input',
+        features: ['input'],
+        headShaders: ['head-shader'],
+        kind,
+        terminalDirect: kind === 'upscale',
+        output: 'output',
+        outputSize: kind === 'restore'
+          ? { kind: 'texture' as const, texture: 'input' }
+          : { kind: 'texture' as const, texture: 'input', scale: 2 },
+        cacheKeyPrefix: `test/${kind}-tail`,
+      }],
+    });
+
+    new EffectGraphRunner({ device, inputTexture, graph: createGraph('restore'), terminalTarget });
+    expect(modelTailOptions[0].terminalTarget).toBeUndefined();
+    expect(modelTailOptions[0].outputTexture).toBeDefined();
+
+    modelTailOptions.length = 0;
+    terminalTarget.width = 32;
+    terminalTarget.height = 18;
+    new EffectGraphRunner({ device, inputTexture, graph: createGraph('upscale'), terminalTarget });
+    expect(modelTailOptions[0].terminalTarget).toBe(terminalTarget);
+    expect(modelTailOptions[0].outputTexture).toBeUndefined();
+  });
+
+  it('keeps render-composite terminal output behind explicit stage certification', () => {
+    const inputTexture = { label: 'input', width: 16, height: 9 } as unknown as GPUTexture;
+    const terminalTarget = {
+      width: 16,
+      height: 9,
+      format: 'bgra8unorm' as const,
+      getCurrentView: vi.fn(),
+    };
+    new EffectGraphRunner({
+      device: {} as GPUDevice,
+      inputTexture,
+      terminalTarget,
+      graph: {
+        input: 'input',
+        output: 'output',
+        stages: [{
+          id: 'uncertified-composite',
+          op: 'render-composite',
+          terminalDirect: false,
+          inputs: ['input'],
+          output: 'output',
+          fragmentWGSL: 'fragment',
+          outputSize: { kind: 'texture', texture: 'input' },
+          cacheKeyPrefix: 'test/uncertified-composite',
+        }],
+      },
+    });
+
+    expect(compositeOptions[0].terminalTarget).toBeUndefined();
+    expect(compositeOptions[0].outputTexture).toBeDefined();
+  });
+
   it('describes Anime4K CNNx2M without exporting extra pipeline constructors from the effect module', () => {
     const graph = createCNNx2MGraph();
 
     expect(graph.input).toBe('input');
     expect(graph.output).toBe('output');
-    expect(graph.stages).toHaveLength(10);
-    expect(graph.stages.slice(0, 8).map(stage => stage.op)).toEqual(Array(8).fill('compute'));
-    expect(graph.stages[8]).toMatchObject({
-      id: 'depth-to-space',
-      op: 'depth-to-space',
-      inputs: ['conv-last', 'conv-last', 'conv-last'],
-      output: 'depth',
-    });
-    expect(graph.stages[9]).toMatchObject({
-      id: 'overlay',
-      op: 'render-composite',
-      inputs: ['input', 'depth'],
+    expect(graph.stages).toHaveLength(8);
+    expect(graph.stages.slice(0, 7).map(stage => stage.op)).toEqual(Array(7).fill('compute'));
+    expect(graph.stages[7]).toMatchObject({
+      id: 'upscale-tail',
+      op: 'model-tail',
+      source: 'input',
+      features: ['conv0', 'conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6'],
       output: 'output',
       outputSize: { kind: 'texture', texture: 'input', scale: 2 },
     });
@@ -251,12 +455,12 @@ describe('EffectGraphRunner', () => {
       'compute',
       'compute',
       'compute',
-      'compute',
-      'render-composite',
+      'model-tail',
     ]);
-    expect(restoreGraph.stages[4]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'restore'],
+    expect(restoreGraph.stages[3]).toMatchObject({
+      id: 'restore-tail',
+      source: 'input',
+      features: ['conv2'],
       outputSize: { kind: 'texture', texture: 'input' },
     });
 
@@ -265,17 +469,12 @@ describe('EffectGraphRunner', () => {
       'compute',
       'compute',
       'compute',
-      'compute',
-      'depth-to-space',
-      'render-composite',
+      'model-tail',
     ]);
-    expect(upscaleGraph.stages[4]).toMatchObject({
-      id: 'depth-to-space',
-      inputs: ['conv-last', 'conv-last', 'conv-last'],
-    });
-    expect(upscaleGraph.stages[5]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'depth'],
+    expect(upscaleGraph.stages[3]).toMatchObject({
+      id: 'upscale-tail',
+      source: 'input',
+      features: ['conv2'],
       outputSize: { kind: 'texture', texture: 'input', scale: 2 },
     });
   });
@@ -292,17 +491,11 @@ describe('EffectGraphRunner', () => {
         'compute',
         'compute',
         'compute',
-        'compute',
-        'render-composite',
+        'model-tail',
       ]);
       expect(graph.stages[7]).toMatchObject({
-        id: 'output',
-        inputs: ['conv0', 'conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6'],
-        output: 'restore',
-      });
-      expect(graph.stages[8]).toMatchObject({
-        id: 'overlay',
-        inputs: ['input', 'restore'],
+        id: 'restore-tail',
+        features: ['conv0', 'conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6'],
         output: 'output',
         outputSize: { kind: 'texture', texture: 'input' },
       });
@@ -312,81 +505,54 @@ describe('EffectGraphRunner', () => {
   it('describes Anime4K CNNL and CNNx2L branch graph pipelines', () => {
     const restoreGraph = createCNNLGraph();
     expect(restoreGraph.stages.map(stage => stage.op)).toEqual([
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'render-composite',
+      'multi-compute',
+      'multi-compute',
+      'multi-compute',
+      'multi-compute',
+      'model-tail',
     ]);
-    expect(restoreGraph.stages[2]).toMatchObject({
-      id: 'conv2d_1_tf',
+    expect(restoreGraph.stages[1]).toMatchObject({
+      id: 'conv2d_1_tf_pair',
       inputs: ['conv0', 'conv1'],
-      output: 'conv2',
+      outputs: ['conv2', 'conv3'],
     });
-    expect(restoreGraph.stages[8]).toMatchObject({
-      id: 'output',
-      inputs: ['conv6', 'conv7'],
-      output: 'restore',
-    });
-    expect(restoreGraph.stages[9]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'restore'],
+    expect(restoreGraph.stages[4]).toMatchObject({
+      id: 'restore-tail',
+      features: ['conv6', 'conv7'],
       outputSize: { kind: 'texture', texture: 'input' },
     });
 
     const upscaleGraph = createCNNx2LGraph();
     expect(upscaleGraph.stages.map(stage => stage.op)).toEqual([
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'compute',
-      'depth-to-space',
-      'render-composite',
+      'multi-compute',
+      'multi-compute',
+      'multi-compute',
+      'model-tail',
     ]);
-    expect(upscaleGraph.stages[6]).toMatchObject({
-      id: 'conv2d_last_tf_0',
-      inputs: ['conv4', 'conv5'],
-      output: 'last0',
-    });
-    expect(upscaleGraph.stages[9]).toMatchObject({
-      id: 'depth-to-space',
-      inputs: ['last0', 'last1', 'last2'],
-      output: 'depth',
-    });
-    expect(upscaleGraph.stages[10]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'depth'],
+    expect(upscaleGraph.stages[3]).toMatchObject({
+      id: 'upscale-tail',
+      features: ['conv4', 'conv5'],
       outputSize: { kind: 'texture', texture: 'input', scale: 2 },
     });
   });
 
   it('describes Anime4K VL branch graph pipelines', () => {
     for (const graph of [createCNNVLGraph(), createCNNSoftVLGraph()]) {
-      expect(graph.stages).toHaveLength(18);
-      expect(graph.stages.slice(0, 16).map(stage => stage.op)).toEqual(Array(16).fill('compute'));
-      expect(graph.stages[2]).toMatchObject({
-        id: 'conv2d_1_tf',
+      expect(graph.stages).toHaveLength(9);
+      expect(graph.stages.slice(0, 8).map(stage => stage.op)).toEqual(Array(8).fill('multi-compute'));
+      expect(graph.stages[1]).toMatchObject({
+        id: 'conv2d_1_tf_pair',
         inputs: ['conv0', 'conv1'],
-        output: 'conv2',
+        outputs: ['conv2', 'conv3'],
       });
-      expect(graph.stages[14]).toMatchObject({
-        id: 'conv2d_7_tf',
+      expect(graph.stages[7]).toMatchObject({
+        id: 'conv2d_7_tf_pair',
         inputs: ['conv12', 'conv13'],
-        output: 'conv14',
+        outputs: ['conv14', 'conv15'],
       });
-      expect(graph.stages[16]).toMatchObject({
-        id: 'output',
-        inputs: [
+      expect(graph.stages[8]).toMatchObject({
+        id: 'restore-tail',
+        features: [
           'conv2',
           'conv3',
           'conv4',
@@ -402,21 +568,17 @@ describe('EffectGraphRunner', () => {
           'conv14',
           'conv15',
         ],
-        output: 'restore',
-      });
-      expect(graph.stages[17]).toMatchObject({
-        id: 'overlay',
-        inputs: ['input', 'restore'],
+        output: 'output',
         outputSize: { kind: 'texture', texture: 'input' },
       });
     }
 
     for (const graph of [createCNNx2VLGraph(), createDenoiseCNNx2VLGraph()]) {
-      expect(graph.stages).toHaveLength(19);
-      expect(graph.stages.slice(0, 17).map(stage => stage.op)).toEqual(Array(17).fill('compute'));
-      expect(graph.stages[14]).toMatchObject({
-        id: 'conv2d_last_tf_0',
-        inputs: [
+      expect(graph.stages).toHaveLength(8);
+      expect(graph.stages.slice(0, 7).map(stage => stage.op)).toEqual(Array(7).fill('multi-compute'));
+      expect(graph.stages[7]).toMatchObject({
+        id: 'upscale-tail',
+        features: [
           'conv0',
           'conv1',
           'conv2',
@@ -432,16 +594,7 @@ describe('EffectGraphRunner', () => {
           'conv12',
           'conv13',
         ],
-        output: 'last0',
-      });
-      expect(graph.stages[17]).toMatchObject({
-        id: 'depth-to-space',
-        inputs: ['last0', 'last1', 'last2'],
-        output: 'depth',
-      });
-      expect(graph.stages[18]).toMatchObject({
-        id: 'overlay',
-        inputs: ['input', 'depth'],
+        output: 'output',
         outputSize: { kind: 'texture', texture: 'input', scale: 2 },
       });
     }
@@ -449,16 +602,16 @@ describe('EffectGraphRunner', () => {
 
   it('describes Anime4K UL triple-branch graph pipelines', () => {
     const restoreGraph = createCNNULGraph();
-    expect(restoreGraph.stages).toHaveLength(26);
-    expect(restoreGraph.stages.slice(0, 24).map(stage => stage.op)).toEqual(Array(24).fill('compute'));
-    expect(restoreGraph.stages[3]).toMatchObject({
-      id: 'conv2d_1_tf_0',
+    expect(restoreGraph.stages).toHaveLength(9);
+    expect(restoreGraph.stages.slice(0, 8).map(stage => stage.op)).toEqual(Array(8).fill('multi-compute'));
+    expect(restoreGraph.stages[1]).toMatchObject({
+      id: 'conv2d_1_tf_triple',
       inputs: ['conv0', 'conv1', 'conv2'],
-      output: 'conv3',
+      outputs: ['conv3', 'conv4', 'conv5'],
     });
-    expect(restoreGraph.stages[24]).toMatchObject({
-      id: 'output',
-      inputs: [
+    expect(restoreGraph.stages[8]).toMatchObject({
+      id: 'restore-tail',
+      features: [
         'conv9',
         'conv10',
         'conv11',
@@ -475,20 +628,16 @@ describe('EffectGraphRunner', () => {
         'conv22',
         'conv23',
       ],
-      output: 'restore',
-    });
-    expect(restoreGraph.stages[25]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'restore'],
+      output: 'output',
       outputSize: { kind: 'texture', texture: 'input' },
     });
 
     const upscaleGraph = createCNNx2ULGraph();
-    expect(upscaleGraph.stages).toHaveLength(26);
-    expect(upscaleGraph.stages.slice(0, 24).map(stage => stage.op)).toEqual(Array(24).fill('compute'));
-    expect(upscaleGraph.stages[21]).toMatchObject({
-      id: 'conv2d_last_tf_0',
-      inputs: [
+    expect(upscaleGraph.stages).toHaveLength(8);
+    expect(upscaleGraph.stages.slice(0, 7).map(stage => stage.op)).toEqual(Array(7).fill('multi-compute'));
+    expect(upscaleGraph.stages[7]).toMatchObject({
+      id: 'upscale-tail',
+      features: [
         'conv6',
         'conv7',
         'conv8',
@@ -505,16 +654,7 @@ describe('EffectGraphRunner', () => {
         'conv19',
         'conv20',
       ],
-      output: 'last0',
-    });
-    expect(upscaleGraph.stages[24]).toMatchObject({
-      id: 'depth-to-space',
-      inputs: ['last0', 'last1', 'last2'],
-      output: 'depth',
-    });
-    expect(upscaleGraph.stages[25]).toMatchObject({
-      id: 'overlay',
-      inputs: ['input', 'depth'],
+      output: 'output',
       outputSize: { kind: 'texture', texture: 'input', scale: 2 },
     });
   });
@@ -586,10 +726,11 @@ describe('EffectGraphRunner', () => {
   it('describes Anime4K GANx4UUL graph upsample wiring', () => {
     const graph = createGANx4UULGraph();
 
-    expect(graph.stages).toHaveLength(85);
-    expect(graph.stages.slice(0, 77).map(stage => stage.op)).toEqual(Array(77).fill('compute'));
-    expect(graph.stages[8]).toMatchObject({
-      id: 'conv2d_3_tf',
+    expect(graph.stages).toHaveLength(27);
+    expect(graph.stages.slice(0, 19).every(stage =>
+      stage.op === 'compute' || stage.op === 'multi-compute')).toBe(true);
+    expect(graph.stages[2]).toMatchObject({
+      id: 'conv2d_3_tf-branches',
       inputs: [
         'conv2d_tf',
         'conv2d_tf1',
@@ -600,9 +741,16 @@ describe('EffectGraphRunner', () => {
         'conv2d_2_tf',
         'conv2d_1_tf',
       ],
-      output: 'conv2d_3_tf',
+      outputs: [
+        'conv2d_3_tf',
+        'conv2d_3_tf1',
+        'conv2d_3_tf2',
+        'conv2d_3_tf3',
+        'conv2d_3_tf4',
+        'conv2d_3_tf5',
+      ],
     });
-    expect(graph.stages[70]).toMatchObject({
+    expect(graph.stages[17]).toMatchObject({
       id: 'conv2d_25_tf',
       inputs: [
         'conv2d_24_tf',
@@ -614,8 +762,8 @@ describe('EffectGraphRunner', () => {
       ],
       output: 'conv2d_25_tf',
     });
-    expect(graph.stages[71]).toMatchObject({
-      id: 'conv0ups',
+    expect(graph.stages[18]).toMatchObject({
+      id: 'conv0ups-branches',
       inputs: [
         'conv2d_24_tf',
         'conv2d_24_tf1',
@@ -634,21 +782,21 @@ describe('EffectGraphRunner', () => {
         'conv2d_22_tf',
         'conv2d_25_tf',
       ],
-      output: 'conv0ups',
+      outputs: ['conv0ups', 'conv0ups1', 'conv0ups2', 'conv0ups3', 'conv0ups4', 'conv0ups5'],
     });
-    expect(graph.stages[77]).toMatchObject({
+    expect(graph.stages[19]).toMatchObject({
       id: 'conv1ups',
       op: 'render-composite',
       inputs: ['conv0ups', 'conv0ups1', 'conv0ups2', 'conv0ups3', 'conv0ups4', 'conv0ups5'],
       outputSize: { kind: 'texture', texture: 'input', scale: 4 },
     });
-    expect(graph.stages[83]).toMatchObject({
+    expect(graph.stages[25]).toMatchObject({
       id: 'output',
       op: 'compute',
       inputs: ['conv1ups', 'conv1ups1', 'conv1ups2', 'conv1ups3', 'conv1ups4', 'conv1ups5'],
       output: 'output-conv',
     });
-    expect(graph.stages[84]).toMatchObject({
+    expect(graph.stages[26]).toMatchObject({
       id: 'overlay',
       op: 'render-composite',
       inputs: ['input', 'output-conv'],

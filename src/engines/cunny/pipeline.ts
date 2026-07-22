@@ -3,8 +3,13 @@
 import type { Dimensions } from '../../types';
 import {
   GeneratedLumaModelPipeline,
+  prepareGeneratedLumaComputePipelines,
+  tuneGeneratedLumaModel,
   type GeneratedLumaStageConfig,
 } from '../../core/generated-models/luma-model-pipeline';
+import type { OptimizationFeatureFlags } from '../../core/optimization-flags';
+import type { TerminalTextureTarget } from '../../core/effects/backend-types';
+import type { GpuCapabilities } from '../../core/gpu-capabilities';
 
 export interface CuNNyGeneratedStageConfig extends GeneratedLumaStageConfig {
   outputScale: { x: number; y: number };
@@ -22,10 +27,36 @@ export interface CuNNyPipelineDescriptor {
   inputTexture: GPUTexture;
   nativeDimensions: Dimensions;
   model: CuNNyGeneratedModelConfig;
+  optimizationFlags?: OptimizationFeatureFlags;
+  terminalTarget?: TerminalTextureTarget;
+  capabilities?: GpuCapabilities;
 }
 
 export class CuNNyGeneratedPipeline extends GeneratedLumaModelPipeline<CuNNyGeneratedStageConfig> {
-  constructor({ device, inputTexture, nativeDimensions, model }: CuNNyPipelineDescriptor) {
+  static async create(options: CuNNyPipelineDescriptor): Promise<CuNNyGeneratedPipeline> {
+    const model = await tuneGeneratedLumaModel({
+      device: options.device,
+      capabilities: options.capabilities,
+      nativeDimensions: options.nativeDimensions,
+      model: options.model,
+      cacheKeyPrefix: 'cunny',
+      stageUsesSampler: true,
+      samplerBindingOrder: 'before-output',
+      stageDispatchSize: 'native',
+      optimizationFlags: options.optimizationFlags,
+    });
+    await prepareGeneratedLumaComputePipelines({
+      device: options.device,
+      model,
+      cacheKeyPrefix: 'cunny',
+      stageUsesSampler: true,
+      samplerBindingOrder: 'before-output',
+      optimizationFlags: options.optimizationFlags,
+    });
+    return new CuNNyGeneratedPipeline({ ...options, model });
+  }
+
+  constructor({ device, inputTexture, nativeDimensions, model, optimizationFlags }: CuNNyPipelineDescriptor) {
     super({
       device,
       inputTexture,
@@ -35,6 +66,8 @@ export class CuNNyGeneratedPipeline extends GeneratedLumaModelPipeline<CuNNyGene
       stageUsesSampler: true,
       samplerBindingOrder: 'before-output',
       stageDispatchSize: 'native',
+      optimizationFlags,
+      terminalTarget: undefined,
     });
   }
 }

@@ -23,6 +23,7 @@ vi.mock('../../src/core/gpu-passes/compute-texture-pass', () => ({
 }));
 
 import { ClampHighlights } from '../../src/engines/anime4k/pipelines/helpers/ClampHighlights';
+import { resolveOptimizationFeatureFlags } from '../../src/core/optimization-flags';
 
 describe('ClampHighlights', () => {
   beforeEach(() => {
@@ -38,7 +39,12 @@ describe('ClampHighlights', () => {
       createView: vi.fn(),
     } as unknown as GPUTexture;
 
-    const pass = new ClampHighlights({ device, inputTexture, name: 'test clamp' });
+    const pass = new ClampHighlights({
+      device,
+      inputTexture,
+      name: 'test clamp',
+      optimizationFlags: resolveOptimizationFeatureFlags({ fusedClampHighlights: false }),
+    });
 
     expect(computePassOptions).toHaveLength(3);
     expect(computePassOptions.map(option => option.cacheKeyPrefix)).toEqual([
@@ -68,5 +74,24 @@ describe('ClampHighlights', () => {
 
     pass.destroy();
     computePassInstances.forEach(instance => expect(instance.destroy).toHaveBeenCalledTimes(1));
+  });
+
+  it('uses the quantized tiled fusion as a single independently flagged pass', () => {
+    const inputTexture = { width: 96, height: 54 } as GPUTexture;
+    const pass = new ClampHighlights({
+      device: {} as GPUDevice,
+      inputTexture,
+      name: 'test clamp',
+    });
+
+    expect(computePassOptions).toHaveLength(1);
+    expect(computePassOptions[0]).toMatchObject({
+      inputTextures: [inputTexture],
+      cacheKeyPrefix: 'anime4k/helper/ClampHighlights/fused',
+      outputSize: { width: 96, height: 54 },
+    });
+    expect(pass.statsXTexture).toBeNull();
+    expect(pass.statsYTexture).toBeNull();
+    expect(pass.getProfileChildren()).toHaveLength(1);
   });
 });

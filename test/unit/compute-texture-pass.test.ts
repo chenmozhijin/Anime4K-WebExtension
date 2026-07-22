@@ -25,6 +25,10 @@ vi.mock('../../src/core/gpu-resource-cache', () => ({
     cacheCalls.pipelines.push(key);
     return create();
   }),
+  getOrCreateComputePipelineAsync: vi.fn(async (_device: GPUDevice, key: string, create: () => unknown) => {
+    cacheCalls.pipelines.push(key);
+    return create();
+  }),
   getOrCreateSampler: vi.fn((_device: GPUDevice, key: string, create: () => unknown) => {
     cacheCalls.samplers.push(key);
     return create();

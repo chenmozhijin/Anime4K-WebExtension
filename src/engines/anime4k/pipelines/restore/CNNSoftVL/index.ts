@@ -11,10 +11,14 @@ export class CNNSoftVL implements Anime4KPipeline {
   constructor({
     device,
     inputTexture,
+    terminalTarget,
+    optimizationFlags,
   }: Anime4KPipelineDescriptor) {
     this.graphRunner = new EffectGraphRunner({
       device,
       inputTexture,
+      terminalTarget,
+      optimizationFlags,
       graph: createCNNSoftVLGraph(),
     });
     this.pipelines = this.graphRunner.pipelines;

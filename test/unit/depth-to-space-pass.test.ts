@@ -47,7 +47,7 @@ describe('DepthToSpacePass', () => {
     releaseTextureMock.mockReset();
   });
 
-  function createPassHarness(outputSize = { width: 128, height: 64 }) {
+  function createPassHarness(outputSize = { width: 128, height: 64 }, vectorized = true) {
     const outputTexture = {
       width: outputSize.width,
       height: outputSize.height,
@@ -79,6 +79,7 @@ describe('DepthToSpacePass', () => {
       inputTextures: [inputTexture, inputTexture, inputTexture],
       name: 'depth-test',
       cacheKeyPrefix: 'test/depth',
+      vectorized,
     });
 
     pass.pass({ beginComputePass } as unknown as GPUCommandEncoder);
@@ -99,9 +100,9 @@ describe('DepthToSpacePass', () => {
       pass,
     } = createPassHarness();
 
-    expect(cacheCalls.shaderModules).toEqual(['test/depth/shader/main']);
+    expect(cacheCalls.shaderModules).toEqual(['test/depth/shader/vectorized']);
     expect(cacheCalls.bindGroupLayouts).toEqual(['test/depth/layout/3in1out']);
-    expect(cacheCalls.pipelines).toEqual(['test/depth/pipeline/main']);
+    expect(cacheCalls.pipelines).toEqual(['test/depth/pipeline/vectorized']);
     expect(cacheCalls.bindGroups).toEqual(['test/depth/depth-test/bind-group']);
     expect(borrowTextureMock).toHaveBeenCalledWith(expect.objectContaining({
       width: 128,
@@ -110,7 +111,7 @@ describe('DepthToSpacePass', () => {
     }));
     expect(inputTexture.createView).toHaveBeenCalledTimes(3);
     expect(outputTexture.createView).toHaveBeenCalledTimes(1);
-    expect(dispatchWorkgroups).toHaveBeenCalledWith(16, 8);
+    expect(dispatchWorkgroups).toHaveBeenCalledWith(8, 4);
     expect(pass.getOutputTexture()).toBe(outputTexture);
 
     pass.destroy();
@@ -120,7 +121,7 @@ describe('DepthToSpacePass', () => {
   it('rounds up non-divisible output dimensions to full workgroups', () => {
     const { dispatchWorkgroups } = createPassHarness({ width: 130, height: 66 });
 
-    expect(dispatchWorkgroups).toHaveBeenCalledWith(17, 9);
+    expect(dispatchWorkgroups).toHaveBeenCalledWith(9, 5);
   });
 
   it('requires exactly three input textures', () => {
@@ -131,5 +132,13 @@ describe('DepthToSpacePass', () => {
       device,
       inputTextures: [inputTexture],
     })).toThrow('expect 3 textures for depth2Space, got 1');
+  });
+
+  it('retains the baseline one-invocation-per-output variant behind a flag', () => {
+    const { dispatchWorkgroups } = createPassHarness({ width: 128, height: 64 }, false);
+
+    expect(cacheCalls.shaderModules).toEqual(['test/depth/shader/baseline']);
+    expect(cacheCalls.pipelines).toEqual(['test/depth/pipeline/baseline']);
+    expect(dispatchWorkgroups).toHaveBeenCalledWith(16, 8);
   });
 });

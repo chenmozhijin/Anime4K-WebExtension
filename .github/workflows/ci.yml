@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ github.run_id }}
+          path: coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Chrome extension
+        run: npm run build:chrome
+
+      - name: Build Firefox extension
+        run: npm run build:firefox
+
+      - name: Scan production bundles
+        run: npm run check:production-bundle
+
+      - name: Validate release versions
+        run: npm run check:release-version
+
+      - name: Validate tag version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm run check:release-version -- --tag "$GITHUB_REF_NAME"
+
+      - name: Create release packages
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          (cd dist-chrome && zip -q -r ../release-assets/anime4k-webextension.zip .)
+          (cd dist-firefox && zip -q -r ../release-assets/anime4k-webextension-firefox.zip .)
+          (cd release-assets && sha256sum *.zip > SHA256SUMS)
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-packages-${{ github.sha }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  e2e-smoke:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Download release packages
+        uses: actions/download-artifact@v7
+        with:
+          name: release-packages-${{ github.sha }}
+          path: release-assets
+
+      - name: Extract Chrome package
+        run: unzip -q release-assets/anime4k-webextension.zip -d dist-chrome
+
+      - name: Run non-GPU Chromium smoke tests
+        run: npx playwright test --grep '(^|\s)@smoke(\s|$)'
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: chromium-smoke-failure-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [quality, package, e2e-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v7
+        with:
+          name: release-packages-${{ github.sha }}
+          path: release-assets
+
+      - name: Create or update draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          existing_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [[ -z "$existing_draft" ]]; then
+            gh release create "$GITHUB_REF_NAME" \
+              release-assets/anime4k-webextension.zip \
+              release-assets/anime4k-webextension-firefox.zip \
+              release-assets/SHA256SUMS \
+              --draft \
+              --generate-notes \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME"
+          elif [[ "$existing_draft" == "true" ]]; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          else
+            echo "Release $GITHUB_REF_NAME is already published; refusing to overwrite it." >&2
+            exit 1
+          fi

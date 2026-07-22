@@ -105,6 +105,8 @@ function makeTextureHelpers(bindNames) {
       ? '  let color = textureLoad(tex_' + safe + ', coord, 0);\n  return vec4f(luma709(color.rgb), 0.0, 0.0, color.a);'
       : '  return textureLoad(tex_' + safe + ', coord, 0);';
 
+    // Explicit clamping preserves the source shader's edge semantics and avoids
+    // relying on implementation-dependent assumptions about out-of-range loads.
     return `@group(0) @binding(${index}) var tex_${safe}: texture_2d<f32>;
 
 fn sample_${safe}(pos: vec2u, offset: vec2i) -> vec4f {
@@ -115,10 +117,42 @@ ${lumaReturn}
   }).join('\n\n');
 }
 
-function makeStageWGSL(stage) {
+function makeStageWGSL(stage, useWorkgroupTile = false) {
   const outputBinding = stage.binds.length;
   const helpers = makeTextureHelpers(stage.binds);
-  const body = translateCommon(extractHookBody(stage), stage);
+  let body = translateCommon(extractHookBody(stage), stage);
+  if (useWorkgroupTile) {
+    for (const bindName of stage.binds) {
+      const safe = sanitizeName(bindName);
+      const pattern = new RegExp(`sample_${safe}\\(pixel\\.xy, vec2i\\((-?\\d+), (-?\\d+)\\)\\)`, 'g');
+      body = body.replace(pattern, (_, x, y) =>
+        `tile_${safe}[localId.y + ${Number(y) + 1}u][localId.x + ${Number(x) + 1}u]`);
+    }
+  }
+  const tileDeclarations = useWorkgroupTile
+    ? stage.binds.map(bindName =>
+      `var<workgroup> tile_${sanitizeName(bindName)}: array<array<vec4f, 10>, 10>;`).join('\n')
+    : '';
+  const tileLoads = useWorkgroupTile
+    ? stage.binds.map(bindName => {
+      const safe = sanitizeName(bindName);
+      return `      tile_${safe}[tileY][tileX] = sample_${safe}(
+        groupOrigin,
+        vec2i(i32(tileX) - 1, i32(tileY) - 1),
+      );`;
+    }).join('\n')
+    : '';
+  // The generated bounds check must remain after workgroupBarrier(): every lane in a
+  // partially covered edge workgroup is required to participate in cooperative loading.
+  const tilePreamble = useWorkgroupTile ? `
+  let groupOrigin = pixel.xy - localId.xy;
+  for (var tileY = localId.y; tileY < 10u; tileY += WG_Y) {
+    for (var tileX = localId.x; tileX < 10u; tileX += WG_X) {
+${tileLoads}
+    }
+  }
+  workgroupBarrier();
+` : '';
 
   return `const WG_X: u32 = 8u;
 const WG_Y: u32 = 8u;
@@ -129,13 +163,18 @@ fn luma709(color: vec3f) -> f32 {
 }
 
 ${helpers}
+${tileDeclarations}
 
 @group(0) @binding(${outputBinding}) var out_tex: texture_storage_2d<rgba16float, write>;
 
 @compute
 @workgroup_size(WG_X, WG_Y)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
   let outputSize = textureDimensions(out_tex);
+${tilePreamble}
   if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
     return;
   }
@@ -146,7 +185,7 @@ ${body.split('\n').map(line => `  ${line}`).join('\n')}
 `;
 }
 
-function makePixelShuffleWGSL(stage) {
+function makePixelShuffleBaselineWGSL(stage) {
   const sourceName = stage.binds[0];
   const safe = sanitizeName(sourceName);
 
@@ -168,6 +207,36 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
   let lane = (pixel.y % 2u) * 2u + (pixel.x % 2u);
   let value = textureLoad(tex_${safe}, vec2i(sourcePixel), 0)[lane];
   textureStore(out_tex, pixel.xy, vec4f(clamp(value, 0.0, 1.0), 0.0, 0.0, 1.0));
+}
+`;
+}
+
+function makePixelShuffleVectorizedWGSL(stage) {
+  const sourceName = stage.binds[0];
+  const safe = sanitizeName(sourceName);
+
+  // One source invocation writes a disjoint 2x2 block. This is the same lane mapping
+  // as the baseline shader with one quarter of the invocation count.
+  return `const WG_X: u32 = 8u;
+const WG_Y: u32 = 8u;
+
+@group(0) @binding(0) var tex_${safe}: texture_2d<f32>;
+@group(0) @binding(1) var out_tex: texture_storage_2d<rgba16float, write>;
+
+@compute
+@workgroup_size(WG_X, WG_Y)
+fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+  let sourceSize = textureDimensions(tex_${safe});
+  if (pixel.x >= sourceSize.x || pixel.y >= sourceSize.y) {
+    return;
+  }
+
+  let values = textureLoad(tex_${safe}, vec2i(pixel.xy), 0);
+  let outputBase = pixel.xy * vec2u(2u, 2u);
+  textureStore(out_tex, outputBase, vec4f(clamp(values.x, 0.0, 1.0), 0.0, 0.0, 1.0));
+  textureStore(out_tex, outputBase + vec2u(1u, 0u), vec4f(clamp(values.y, 0.0, 1.0), 0.0, 0.0, 1.0));
+  textureStore(out_tex, outputBase + vec2u(0u, 1u), vec4f(clamp(values.z, 0.0, 1.0), 0.0, 0.0, 1.0));
+  textureStore(out_tex, outputBase + vec2u(1u, 1u), vec4f(clamp(values.w, 0.0, 1.0), 0.0, 0.0, 1.0));
 }
 `;
 }
@@ -230,7 +299,7 @@ function stageOutputName(stage, index) {
 
 function makeWGSL(stage) {
   if (!stage.save && /pixelshuff/i.test(stage.desc)) {
-    return makePixelShuffleWGSL(stage);
+    return makePixelShuffleBaselineWGSL(stage);
   }
 
   if (!stage.save && /deconv/i.test(stage.desc)) {
@@ -269,24 +338,54 @@ function generateModel(family, filePath) {
 
   const imports = [];
   const stageConfigs = [];
+  let usesRuntimeTiledVariant = false;
   stages.forEach((stage, index) => {
     const shaderName = `stage${index}.wgsl`;
     const shaderVar = `stage${index}WGSL`;
     const wgsl = makeWGSL(stage);
+    const isVectorizedPixelShuffle = !stage.save && /pixelshuff/i.test(stage.desc);
+    const isTiledConvolution = !isVectorizedPixelShuffle
+      && !(!stage.save && /deconv/i.test(stage.desc))
+      && stage.binds.length >= 1
+      && stage.binds.length <= 3;
     writeFile(path.join(shaderDir, shaderName), wgsl);
     imports.push(`import ${shaderVar} from './shaders/${shaderName}';`);
+    let optimizedConfig = '';
+    if (isVectorizedPixelShuffle) {
+      const optimizedShaderName = `stage${index}.vectorized.wgsl`;
+      const optimizedShaderVar = `stage${index}VectorizedWGSL`;
+      writeFile(path.join(shaderDir, optimizedShaderName), makePixelShuffleVectorizedWGSL(stage));
+      imports.push(`import ${optimizedShaderVar} from './shaders/${optimizedShaderName}';`);
+      optimizedConfig = `
+      optimizedShaderWGSL: ${optimizedShaderVar},
+      optimizationFlag: 'vectorizedPixelShuffle',
+      optimizedDispatchScale: 1,
+      finalOperation: 'pixel-shuffle-2x',`;
+    } else if (isTiledConvolution) {
+      const optimizedShaderName = `stage${index}.tiled.wgsl`;
+      writeFile(path.join(shaderDir, optimizedShaderName), makeStageWGSL(stage, true));
+      usesRuntimeTiledVariant = true;
+      optimizedConfig = `
+      optimizedShaderWGSL: createACNetWorkgroupTileVariant(${shaderVar}),
+      kernelVariants: createACNetWorkgroupTileVariants(${shaderVar}),
+      optimizationFlag: 'acnetWorkgroupTile',`;
+    }
     stageConfigs.push(`    {
       name: ${JSON.stringify(stage.desc)},
       shaderWGSL: ${shaderVar},
       bindings: ${JSON.stringify(stage.binds)},
       outputName: ${JSON.stringify(stageOutputName(stage, index))},
       outputScale: ${stage.widthScale === 2 || stage.heightScale === 2 ? 2 : 1},
+${optimizedConfig}
       final: ${stage.save ? 'false' : 'true'},
     }`);
   });
 
   const exportName = `${toPascalCase(modelName)}Config`;
-  writeFile(path.join(modelDir, 'index.ts'), `${imports.join('\n')}
+  const variantImport = usesRuntimeTiledVariant
+    ? "import { createACNetWorkgroupTileVariant, createACNetWorkgroupTileVariants } from '../../../../core/generated-models/workgroup-tile-variant';\n"
+    : '';
+  writeFile(path.join(modelDir, 'index.ts'), `${variantImport}${imports.join('\n')}
 import type { ACNetGeneratedModelConfig } from '../../pipeline';
 
 export const ${exportName}: ACNetGeneratedModelConfig = {

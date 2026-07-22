@@ -101,7 +101,7 @@ describe('RenderCompositePass', () => {
     }));
     expect(inputTexture.createView).toHaveBeenCalledTimes(2);
     expect(outputTexture.createView).toHaveBeenCalledTimes(1);
-    expect(draw).toHaveBeenCalledWith(6);
+    expect(draw).toHaveBeenCalledWith(3);
     expect(pass.getOutputTexture()).toBe(outputTexture);
 
     pass.destroy();
@@ -117,5 +117,42 @@ describe('RenderCompositePass', () => {
       fragmentWGSL: '',
       name: 'missing-fragment',
     })).toThrow('missing-fragment: shader not defined.');
+  });
+
+  it('renders directly to a terminal view without touching the intermediate output view', () => {
+    const outputTexture = { createView: vi.fn() } as unknown as GPUTexture;
+    const inputTexture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const terminalView = {} as GPUTextureView;
+    const getCurrentView = vi.fn(() => terminalView);
+    const draw = vi.fn();
+    const beginRenderPass = vi.fn(() => ({
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      draw,
+      end: vi.fn(),
+    }));
+    borrowTextureMock.mockReturnValue(outputTexture);
+
+    const pass = new RenderCompositePass({
+      device: { createPipelineLayout: vi.fn(descriptor => descriptor) } as unknown as GPUDevice,
+      inputTextures: [inputTexture],
+      outputSize: { width: 128, height: 64 },
+      fragmentWGSL: '@fragment fn main() -> @location(0) vec4f { return vec4f(1.0); }',
+      terminalTarget: {
+        width: 128,
+        height: 64,
+        format: 'rgba8unorm',
+        getCurrentView,
+      },
+    });
+    pass.pass({ beginRenderPass } as unknown as GPUCommandEncoder);
+
+    expect(pass.presentsToTerminal).toBe(true);
+    expect(getCurrentView).toHaveBeenCalledOnce();
+    expect(outputTexture.createView).not.toHaveBeenCalled();
+    expect(beginRenderPass).toHaveBeenCalledWith(expect.objectContaining({
+      colorAttachments: [expect.objectContaining({ view: terminalView })],
+    }));
+    expect(draw).toHaveBeenCalledWith(3);
   });
 });

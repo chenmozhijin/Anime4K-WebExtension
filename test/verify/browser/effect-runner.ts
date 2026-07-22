@@ -3,6 +3,28 @@ import { compileEffectChain } from '../../../src/core/effects/chain-compiler';
 import { createEffectReference } from '../../../src/core/effects/reference';
 import { getEffectDescriptorById } from '../../../src/core/effects/registry';
 import { getRequiredDeviceLimits } from '../../../src/core/gpu-device-limits';
+import { collectGpuCapabilities, type GpuCapabilities } from '../../../src/core/gpu-capabilities';
+import { setGeneratedKernelVariantOverride } from '../../../src/core/generated-models/luma-model-pipeline';
+import { VideoFrameUploader } from '../../../src/core/renderer/frame-uploader';
+import {
+  flushGpuResourceErrors,
+  subscribeGpuResourceErrors,
+  type GpuResourceError,
+} from '../../../src/core/gpu-resource-cache';
+import type { OptimizationFeatureFlags } from '../../../src/core/optimization-flags';
+import { resolveAnime4kPresetEffectChain } from '../../../src/engines/anime4k/preset-resolver';
+import type { Anime4KPresetId, PerformanceTier } from '../../../src/types';
+import {
+  runGpuPerformanceSuite,
+  type GpuPerformanceSuiteReport,
+  type GpuPerformanceSuiteRequest,
+} from './gpu-performance-suite';
+import {
+  TemporalMetricsAccumulator,
+  defaultTemporalThresholds,
+  type TemporalMetricsSummary,
+  type TemporalThresholds,
+} from './temporal-metrics';
 
 interface VerifyRequest {
   effectId: string;
@@ -11,6 +33,9 @@ interface VerifyRequest {
   rgba: number[];
   outputMode?: 'final' | 'luma' | 'rgba';
   includePreview?: boolean;
+  terminalPresentation?: boolean;
+  optimizationFlags?: Partial<OptimizationFeatureFlags>;
+  kernelVariantOverride?: string;
 }
 
 interface VerifyResponse {
@@ -20,10 +45,28 @@ interface VerifyResponse {
   lumaF32?: number[];
   rgbaF32?: number[];
   adapterInfo: string;
+  passCount: number;
+  peakTextureBytes: number;
+  textureSlotCount: number;
+  terminalPresented: boolean;
+}
+
+interface VerifyChainRequest {
+  effectIds: string[];
+  width: number;
+  height: number;
+  targetWidth: number;
+  targetHeight: number;
+  rgba: number[];
+  includePreview?: boolean;
+  optimizationFlags?: Partial<OptimizationFeatureFlags>;
+  terminalPresentation?: boolean;
+  kernelVariantOverride?: string;
 }
 
 interface VerifyGpuContext {
   device: GPUDevice;
+  capabilities: GpuCapabilities;
   adapterInfo: string;
   readbackRgba8Pipeline?: GPURenderPipeline;
   readbackLumaF32Pipeline?: GPUComputePipeline;
@@ -31,11 +74,58 @@ interface VerifyGpuContext {
   readbackRgbaF32Pipeline?: GPUComputePipeline;
 }
 
+interface VerifyExternalTextureRequest {
+  videoUrl: string;
+}
+
+interface VerifyExternalTextureResponse {
+  width: number;
+  height: number;
+  adapterInfo: string;
+  nativeInput: number[];
+  externalInput: number[];
+  nativeClamp: number[];
+  externalClamp: number[];
+  directExternalClamp: number[];
+}
+
+interface VerifyTemporalRequest {
+  videoUrl: string;
+  effectIds: string[];
+  targetWidth: number;
+  targetHeight: number;
+  frameCount: number;
+  fps: number;
+  baselineFlags: Partial<OptimizationFeatureFlags>;
+  optimizedFlags: Partial<OptimizationFeatureFlags>;
+  externalTexture?: boolean;
+  thresholds?: Partial<TemporalThresholds>;
+}
+
+interface VerifyTemporalResponse {
+  width: number;
+  height: number;
+  outputWidth: number;
+  outputHeight: number;
+  adapterInfo: string;
+  baselinePassCount: number;
+  optimizedPassCount: number;
+  externalTextureActive: boolean;
+  metrics: TemporalMetricsSummary;
+}
+
 declare global {
   interface Window {
     __runEffectVerification?: (request: VerifyRequest) => Promise<VerifyResponse>;
+    __runChainVerification?: (request: VerifyChainRequest) => Promise<VerifyResponse>;
     __probeEffectVerification?: () => Promise<{ available: boolean; summary: string }>;
     __resetEffectVerification?: () => void;
+    __runGpuPerformanceSuite?: (request?: GpuPerformanceSuiteRequest) => Promise<GpuPerformanceSuiteReport>;
+    __resolvePresetChain?: (preset: Anime4KPresetId, tier: PerformanceTier) => string[];
+    __runExternalTextureVerification?: (
+      request: VerifyExternalTextureRequest,
+    ) => Promise<VerifyExternalTextureResponse>;
+    __runTemporalVerification?: (request: VerifyTemporalRequest) => Promise<VerifyTemporalResponse>;
   }
 }
 
@@ -373,6 +463,89 @@ async function readTextureRgbaAsF32(
   return values;
 }
 
+class RgbaF32PairReadback {
+  private readonly byteLength: number;
+  private readonly readBuffers: GPUBuffer[];
+  private readonly mapBuffers: GPUBuffer[];
+  private readonly bindGroups: GPUBindGroup[];
+
+  constructor(
+    private readonly context: VerifyGpuContext,
+    textures: readonly [GPUTexture, GPUTexture],
+    private readonly width: number,
+    private readonly height: number,
+  ) {
+    const { device } = context;
+    if (!context.readbackRgbaF32Pipeline) {
+      const shaderModule = device.createShaderModule({
+        label: 'verify/readback-rgba-f32/shader',
+        code: readbackRgbaF32Shader,
+      });
+      context.readbackRgbaF32Pipeline = device.createComputePipeline({
+        label: 'verify/readback-rgba-f32/pipeline',
+        layout: 'auto',
+        compute: {
+          module: shaderModule,
+          entryPoint: 'computeMain',
+        },
+      });
+    }
+    const pipeline = context.readbackRgbaF32Pipeline;
+    this.byteLength = width * height * 4 * 4;
+    this.readBuffers = textures.map((_, index) => device.createBuffer({
+      label: `verify/temporal/read-buffer/${index}`,
+      size: this.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    }));
+    this.mapBuffers = textures.map((_, index) => device.createBuffer({
+      label: `verify/temporal/map-buffer/${index}`,
+      size: this.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    }));
+    this.bindGroups = textures.map((texture, index) => device.createBindGroup({
+      label: `verify/temporal/readback-bind-group/${index}`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: texture.createView() },
+        { binding: 1, resource: { buffer: this.readBuffers[index] } },
+      ],
+    }));
+  }
+
+  encode(encoder: GPUCommandEncoder): void {
+    const pipeline = this.context.readbackRgbaF32Pipeline!;
+    for (let index = 0; index < this.bindGroups.length; index += 1) {
+      const pass = encoder.beginComputePass({ label: `verify/temporal/readback/${index}` });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, this.bindGroups[index]);
+      pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
+      pass.end();
+      encoder.copyBufferToBuffer(
+        this.readBuffers[index],
+        0,
+        this.mapBuffers[index],
+        0,
+        this.byteLength,
+      );
+    }
+  }
+
+  async read(): Promise<[Float32Array, Float32Array]> {
+    await Promise.all(this.mapBuffers.map(buffer => buffer.mapAsync(GPUMapMode.READ)));
+    const values = this.mapBuffers.map(buffer => {
+      const result = new Float32Array(buffer.getMappedRange().slice(0));
+      buffer.unmap();
+      return result;
+    });
+    return values as [Float32Array, Float32Array];
+  }
+
+  destroy(): void {
+    this.readBuffers.forEach(buffer => buffer.destroy());
+    this.mapBuffers.forEach(buffer => buffer.destroy());
+  }
+}
+
 async function createDevice(): Promise<VerifyGpuContext> {
   if (!navigator.gpu) {
     throw new Error('WebGPU is not available in this browser.');
@@ -385,7 +558,15 @@ async function createDevice(): Promise<VerifyGpuContext> {
   const device = await adapter.requestDevice({
     requiredLimits: getRequiredDeviceLimits(adapter),
   });
-  return { device, adapterInfo };
+  return {
+    device,
+    adapterInfo,
+    capabilities: collectGpuCapabilities({
+      adapter,
+      device,
+      presentationFormat: 'rgba8unorm',
+    }),
+  };
 }
 
 let verifyGpuContext: VerifyGpuContext | null = null;
@@ -428,6 +609,277 @@ window.__probeEffectVerification = async () => {
 };
 
 window.__resetEffectVerification = resetVerifyGpuContext;
+window.__runGpuPerformanceSuite = runGpuPerformanceSuite;
+window.__resolvePresetChain = (preset, tier) => resolveAnime4kPresetEffectChain(preset, tier)
+  .map(effect => effect.id);
+
+async function loadVerificationVideo(url: string): Promise<HTMLVideoElement> {
+  const video = document.createElement('video');
+  video.crossOrigin = 'anonymous';
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = url;
+  await new Promise<void>((resolve, reject) => {
+    video.addEventListener('loadeddata', () => resolve(), { once: true });
+    video.addEventListener('error', () => reject(
+      new Error(`Unable to decode verification video: ${video.error?.message ?? url}`),
+    ), { once: true });
+    video.load();
+  });
+  return video;
+}
+
+window.__runExternalTextureVerification = async (
+  request: VerifyExternalTextureRequest,
+): Promise<VerifyExternalTextureResponse> => {
+  const context = await getVerifyGpuContext();
+  const { device, capabilities, adapterInfo } = context;
+  if (!capabilities.externalTexture) {
+    throw new Error('GPUExternalTexture is unavailable.');
+  }
+  const descriptor = getEffectDescriptorById('anime4k/Helper/ClampHighlights');
+  if (!descriptor) {
+    throw new Error('ClampHighlights is not registered.');
+  }
+  const video = await loadVerificationVideo(request.videoUrl);
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  const createInput = (label: string) => device.createTexture({
+    label,
+    size: { width, height },
+    format: 'rgba16float',
+    usage: GPUTextureUsage.TEXTURE_BINDING
+      | GPUTextureUsage.COPY_DST
+      | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  const nativeInput = createInput('verify external/native input');
+  const externalInput = createInput('verify external/converted input');
+  const directExternalClamp = createInput('verify external/direct clamp output');
+  const effect = createEffectReference(descriptor);
+  const optimizationFlags = {
+    fusedClampHighlights: true,
+    terminalDirect: false,
+    externalTexture: false,
+  };
+  const compileClamp = (inputTexture: GPUTexture) => compileEffectChain({
+    device,
+    capabilities,
+    inputTexture,
+    effects: [effect],
+    sourceDimensions: { width, height },
+    targetDimensions: { width, height },
+    optimizationFlags,
+  });
+  const nativePlan = await compileClamp(nativeInput);
+  const externalPlan = await compileClamp(externalInput);
+  const conversionUploader = new VideoFrameUploader();
+  conversionUploader.setExternalTextureEnabled(true);
+  const directUploader = new VideoFrameUploader();
+  directUploader.setExternalTextureEnabled(true);
+  directUploader.setExternalClampHighlightsEnabled(true);
+
+  try {
+    device.pushErrorScope('validation');
+    device.queue.copyExternalImageToTexture(
+      { source: video },
+      { texture: nativeInput },
+      { width, height },
+    );
+    const nativeEncoder = device.createCommandEncoder({ label: 'verify external/native clamp' });
+    nativePlan.pipelines.forEach(pipeline => pipeline.pass(nativeEncoder));
+
+    const externalEncoder = device.createCommandEncoder({ label: 'verify external/converted clamp' });
+    conversionUploader.copyFrame(device, video, externalInput, externalEncoder);
+    externalPlan.pipelines.forEach(pipeline => pipeline.pass(externalEncoder));
+
+    const directEncoder = device.createCommandEncoder({ label: 'verify external/direct clamp' });
+    directUploader.copyFrame(device, video, directExternalClamp, directEncoder);
+    device.queue.submit([nativeEncoder.finish(), externalEncoder.finish(), directEncoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    const validationError = await device.popErrorScope();
+    if (validationError) {
+      throw new Error(`External texture verification failed validation: ${validationError.message}`);
+    }
+
+    const [
+      nativeInputValues,
+      externalInputValues,
+      nativeClampValues,
+      externalClampValues,
+      directExternalClampValues,
+    ] = await Promise.all([
+      readTextureRgbaAsF32(context, nativeInput, width, height),
+      readTextureRgbaAsF32(context, externalInput, width, height),
+      readTextureRgbaAsF32(context, nativePlan.outputTexture, width, height),
+      readTextureRgbaAsF32(context, externalPlan.outputTexture, width, height),
+      readTextureRgbaAsF32(context, directExternalClamp, width, height),
+    ]);
+    return {
+      width,
+      height,
+      adapterInfo,
+      nativeInput: Array.from(nativeInputValues),
+      externalInput: Array.from(externalInputValues),
+      nativeClamp: Array.from(nativeClampValues),
+      externalClamp: Array.from(externalClampValues),
+      directExternalClamp: Array.from(directExternalClampValues),
+    };
+  } finally {
+    nativePlan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    externalPlan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    conversionUploader.dispose();
+    directUploader.dispose();
+    nativeInput.destroy();
+    externalInput.destroy();
+    directExternalClamp.destroy();
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+};
+
+async function seekVerificationVideo(video: HTMLVideoElement, time: number): Promise<void> {
+  const durationLimit = Number.isFinite(video.duration)
+    ? Math.max(0, video.duration - 1e-4)
+    : time;
+  const target = Math.min(time, durationLimit);
+  if (Math.abs(video.currentTime - target) < 1e-6 && video.readyState >= video.HAVE_CURRENT_DATA) {
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const onSeeked = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error(`Unable to seek verification video to ${target.toFixed(6)}s.`));
+    };
+    const cleanup = () => {
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+    };
+    video.addEventListener('seeked', onSeeked, { once: true });
+    video.addEventListener('error', onError, { once: true });
+    video.currentTime = target;
+  });
+}
+
+window.__runTemporalVerification = async (
+  request: VerifyTemporalRequest,
+): Promise<VerifyTemporalResponse> => {
+  const context = await getVerifyGpuContext();
+  const { device, capabilities, adapterInfo } = context;
+  const descriptors = request.effectIds.map(effectId => {
+    const descriptor = getEffectDescriptorById(effectId);
+    if (!descriptor) throw new Error(`Effect is not registered: ${effectId}`);
+    return descriptor;
+  });
+  const video = await loadVerificationVideo(request.videoUrl);
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  const createInput = (label: string) => device.createTexture({
+    label,
+    size: { width, height },
+    format: 'rgba16float',
+    usage: GPUTextureUsage.TEXTURE_BINDING
+      | GPUTextureUsage.COPY_DST
+      | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  const baselineInput = createInput('verify temporal/baseline input');
+  const optimizedInput = createInput('verify temporal/optimized input');
+  const effects = descriptors.map(descriptor => createEffectReference(descriptor));
+  const externalTextureActive = Boolean(request.externalTexture && capabilities.externalTexture);
+  if (request.externalTexture && !externalTextureActive) {
+    throw new Error('GPUExternalTexture is unavailable for temporal verification.');
+  }
+  const directExternalClamp = externalTextureActive
+    && effects[0]?.id === 'anime4k/Helper/ClampHighlights';
+  const optimizedEffects = directExternalClamp ? effects.slice(1) : effects;
+  const targetDimensions = { width: request.targetWidth, height: request.targetHeight };
+  const compile = (inputTexture: GPUTexture, chain: EffectReference[], flags: Partial<OptimizationFeatureFlags>) =>
+    compileEffectChain({
+      device,
+      capabilities,
+      inputTexture,
+      effects: chain,
+      sourceDimensions: { width, height },
+      targetDimensions,
+      optimizationFlags: flags,
+    });
+  const baselinePlan = await compile(baselineInput, effects, request.baselineFlags);
+  const optimizedPlan = await compile(optimizedInput, optimizedEffects, request.optimizedFlags);
+  if (
+    baselinePlan.outputDimensions.width !== optimizedPlan.outputDimensions.width
+    || baselinePlan.outputDimensions.height !== optimizedPlan.outputDimensions.height
+  ) {
+    throw new Error('Temporal baseline and optimized output dimensions differ.');
+  }
+  const uploader = new VideoFrameUploader();
+  uploader.setExternalTextureEnabled(externalTextureActive);
+  uploader.setExternalClampHighlightsEnabled(directExternalClamp);
+  const thresholds = { ...defaultTemporalThresholds, ...request.thresholds };
+  const metrics = new TemporalMetricsAccumulator(
+    baselinePlan.outputDimensions.width,
+    baselinePlan.outputDimensions.height,
+    thresholds,
+  );
+  const readback = new RgbaF32PairReadback(
+    context,
+    [baselinePlan.outputTexture, optimizedPlan.outputTexture],
+    baselinePlan.outputDimensions.width,
+    baselinePlan.outputDimensions.height,
+  );
+
+  try {
+    for (let frameIndex = 0; frameIndex < request.frameCount; frameIndex += 1) {
+      await seekVerificationVideo(video, (frameIndex + 0.25) / request.fps);
+      device.queue.copyExternalImageToTexture(
+        { source: video },
+        { texture: baselineInput },
+        { width, height },
+      );
+      const encoder = device.createCommandEncoder({ label: `verify temporal/frame ${frameIndex}` });
+      if (externalTextureActive) {
+        uploader.copyFrame(device, video, optimizedInput, encoder);
+      } else {
+        device.queue.copyExternalImageToTexture(
+          { source: video },
+          { texture: optimizedInput },
+          { width, height },
+        );
+      }
+      baselinePlan.pipelines.forEach(pipeline => pipeline.pass(encoder));
+      optimizedPlan.pipelines.forEach(pipeline => pipeline.pass(encoder));
+      readback.encode(encoder);
+      device.queue.submit([encoder.finish()]);
+      const [baseline, optimized] = await readback.read();
+      metrics.addFrame(baseline, optimized, frameIndex);
+    }
+    return {
+      width,
+      height,
+      outputWidth: baselinePlan.outputDimensions.width,
+      outputHeight: baselinePlan.outputDimensions.height,
+      adapterInfo,
+      baselinePassCount: baselinePlan.passCount,
+      optimizedPassCount: optimizedPlan.passCount + (externalTextureActive ? 1 : 0),
+      externalTextureActive,
+      metrics: metrics.summarize(),
+    };
+  } finally {
+    baselinePlan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    optimizedPlan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    readback.destroy();
+    uploader.dispose();
+    baselineInput.destroy();
+    optimizedInput.destroy();
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+};
 
 window.__runEffectVerification = async (request: VerifyRequest): Promise<VerifyResponse> => {
   const descriptor = getEffectDescriptorById(request.effectId);
@@ -436,31 +888,85 @@ window.__runEffectVerification = async (request: VerifyRequest): Promise<VerifyR
   }
 
   const context = await getVerifyGpuContext();
-  const { device, adapterInfo } = context;
+  const { device, adapterInfo, capabilities } = context;
   const inputTexture = createInputTexture(device, request);
   const effect: EffectReference = createEffectReference(descriptor);
   const scale = descriptor.dimensionBehavior.kind === 'scale' ? descriptor.dimensionBehavior.scale ?? 1 : 1;
   const targetDimensions = descriptor.dimensionBehavior.kind === 'target'
     ? { width: request.width * scale, height: request.height * scale }
     : { width: request.width * scale, height: request.height * scale };
-
-  const plan = await compileEffectChain({
+  const terminalTexture = request.terminalPresentation
+    ? device.createTexture({
+      label: `verify/terminal/${request.effectId}`,
+      size: targetDimensions,
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+    })
+    : null;
+  const resourceErrors: GpuResourceError[] = [];
+  const unsubscribeResourceErrors = subscribeGpuResourceErrors(
     device,
-    inputTexture,
-    effects: [effect],
-    sourceDimensions: { width: request.width, height: request.height },
-    targetDimensions,
-  });
+    error => resourceErrors.push(error),
+  );
 
+  device.pushErrorScope('validation');
+  setGeneratedKernelVariantOverride(device, request.kernelVariantOverride);
+  let plan;
+  try {
+    plan = await compileEffectChain({
+      device,
+      capabilities,
+      inputTexture,
+      effects: [effect],
+      sourceDimensions: { width: request.width, height: request.height },
+      targetDimensions,
+      optimizationFlags: request.optimizationFlags,
+      terminalTarget: terminalTexture ? {
+        width: targetDimensions.width,
+        height: targetDimensions.height,
+        format: 'rgba8unorm',
+        getCurrentView: () => terminalTexture.createView(),
+      } : undefined,
+    });
+  } finally {
+    setGeneratedKernelVariantOverride(device);
+  }
+  const compileValidationError = await device.popErrorScope();
+  await flushGpuResourceErrors(device);
+  if (compileValidationError || resourceErrors.length > 0) {
+    plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    terminalTexture?.destroy();
+    inputTexture.destroy();
+    unsubscribeResourceErrors();
+    const details = [
+      compileValidationError?.message,
+      ...resourceErrors.map(error => `${error.source}: ${error.message}`),
+    ].filter(Boolean).join(' | ');
+    throw new Error(`WebGPU validation failed during effect compilation: ${details}`);
+  }
+
+  device.pushErrorScope('validation');
   const encoder = device.createCommandEncoder({ label: `verify/${request.effectId}/encoder` });
   plan.pipelines.forEach(pipeline => pipeline.pass(encoder));
   device.queue.submit([encoder.finish()]);
   await device.queue.onSubmittedWorkDone();
+  const executionValidationError = await device.popErrorScope();
+  if (executionValidationError) {
+    plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    terminalTexture?.destroy();
+    inputTexture.destroy();
+    unsubscribeResourceErrors();
+    throw new Error(`WebGPU validation failed during effect execution: ${executionValidationError.message}`);
+  }
 
-  const lumaTextureProvider = plan.pipelines[0] as { getLumaOutputTexture?: () => GPUTexture };
-  const readbackTexture = request.outputMode === 'luma' && lumaTextureProvider.getLumaOutputTexture
-    ? lumaTextureProvider.getLumaOutputTexture()
+  const lumaTextureProvider = plan.pipelines[0] as { getLumaOutputTexture?: () => GPUTexture | undefined };
+  const lumaTexture = lumaTextureProvider.getLumaOutputTexture?.();
+  const finalTexture = plan.terminalPresenter && terminalTexture
+    ? terminalTexture
     : plan.outputTexture;
+  const readbackTexture = request.outputMode === 'luma' && lumaTexture
+    ? lumaTexture
+    : finalTexture;
 
   const rgba = request.includePreview
     ? await readTextureAsRgba8(
@@ -481,13 +987,15 @@ window.__runEffectVerification = async (request: VerifyRequest): Promise<VerifyR
   const rgbaF32 = request.outputMode === 'rgba'
     ? await readTextureRgbaAsF32(
       context,
-      plan.outputTexture,
+      finalTexture,
       plan.outputDimensions.width,
       plan.outputDimensions.height,
     )
     : null;
 
   plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+  unsubscribeResourceErrors();
+  terminalTexture?.destroy();
   inputTexture.destroy();
 
   return {
@@ -497,5 +1005,125 @@ window.__runEffectVerification = async (request: VerifyRequest): Promise<VerifyR
     ...(lumaF32 ? { lumaF32: Array.from(lumaF32) } : {}),
     ...(rgbaF32 ? { rgbaF32: Array.from(rgbaF32) } : {}),
     adapterInfo,
+    passCount: plan.passCount,
+    peakTextureBytes: plan.peakTextureBytes,
+    textureSlotCount: plan.textureSlotCount,
+    terminalPresented: Boolean(plan.terminalPresenter),
+  };
+};
+
+window.__runChainVerification = async (request: VerifyChainRequest): Promise<VerifyResponse> => {
+  const descriptors = request.effectIds.map(effectId => {
+    const descriptor = getEffectDescriptorById(effectId);
+    if (!descriptor) {
+      throw new Error(`Effect is not registered: ${effectId}`);
+    }
+    return descriptor;
+  });
+  const context = await getVerifyGpuContext();
+  const { device, adapterInfo, capabilities } = context;
+  const inputTexture = createInputTexture(device, {
+    effectId: request.effectIds.join('+'),
+    width: request.width,
+    height: request.height,
+    rgba: request.rgba,
+  });
+  const targetDimensions = { width: request.targetWidth, height: request.targetHeight };
+  const terminalTexture = request.terminalPresentation
+    ? device.createTexture({
+      label: 'verify/chain/terminal',
+      size: targetDimensions,
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+    })
+    : null;
+  const resourceErrors: GpuResourceError[] = [];
+  const unsubscribeResourceErrors = subscribeGpuResourceErrors(
+    device,
+    error => resourceErrors.push(error),
+  );
+  const effects = descriptors.map(descriptor => createEffectReference(descriptor));
+
+  device.pushErrorScope('validation');
+  setGeneratedKernelVariantOverride(device, request.kernelVariantOverride);
+  let plan;
+  try {
+    plan = await compileEffectChain({
+      device,
+      capabilities,
+      inputTexture,
+      effects,
+      sourceDimensions: { width: request.width, height: request.height },
+      targetDimensions,
+      optimizationFlags: request.optimizationFlags,
+      terminalTarget: terminalTexture ? {
+        ...targetDimensions,
+        format: 'rgba8unorm',
+        getCurrentView: () => terminalTexture.createView(),
+      } : undefined,
+    });
+  } finally {
+    setGeneratedKernelVariantOverride(device);
+  }
+  const compileValidationError = await device.popErrorScope();
+  await flushGpuResourceErrors(device);
+  if (compileValidationError || resourceErrors.length > 0) {
+    plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    terminalTexture?.destroy();
+    inputTexture.destroy();
+    unsubscribeResourceErrors();
+    const details = [
+      compileValidationError?.message,
+      ...resourceErrors.map(error => `${error.source}: ${error.message}`),
+    ].filter(Boolean).join(' | ');
+    throw new Error(`WebGPU validation failed during chain compilation: ${details}`);
+  }
+
+  device.pushErrorScope('validation');
+  const encoder = device.createCommandEncoder({ label: 'verify/chain/encoder' });
+  plan.pipelines.forEach(pipeline => pipeline.pass(encoder));
+  device.queue.submit([encoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
+  const executionValidationError = await device.popErrorScope();
+  if (executionValidationError) {
+    plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+    terminalTexture?.destroy();
+    inputTexture.destroy();
+    unsubscribeResourceErrors();
+    throw new Error(`WebGPU validation failed during chain execution: ${executionValidationError.message}`);
+  }
+
+  const finalTexture = plan.terminalPresenter && terminalTexture
+    ? terminalTexture
+    : plan.outputTexture;
+  const rgba = request.includePreview
+    ? await readTextureAsRgba8(
+      context,
+      finalTexture,
+      plan.outputDimensions.width,
+      plan.outputDimensions.height,
+    )
+    : null;
+  const rgbaF32 = await readTextureRgbaAsF32(
+    context,
+    finalTexture,
+    plan.outputDimensions.width,
+    plan.outputDimensions.height,
+  );
+
+  plan.pipelines.forEach(pipeline => pipeline.destroy?.());
+  terminalTexture?.destroy();
+  inputTexture.destroy();
+  unsubscribeResourceErrors();
+  return {
+    width: plan.outputDimensions.width,
+    height: plan.outputDimensions.height,
+    rgba: rgba ? Array.from(rgba) : undefined,
+    rgbaF32: Array.from(rgbaF32),
+    adapterInfo,
+    passCount: plan.passCount,
+    peakTextureBytes: plan.peakTextureBytes,
+    textureSlotCount: plan.textureSlotCount,
+    terminalPresented: Boolean(plan.terminalPresenter),
   };
 };

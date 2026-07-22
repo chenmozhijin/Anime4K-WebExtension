@@ -16,6 +16,11 @@ interface TextureMetadata {
   lastUsed: number;
 }
 
+export interface TextureAllocationInfo {
+  byteSize: number;
+  labelGroup: string;
+}
+
 interface DeviceTexturePool {
   available: Map<string, GPUTexture[]>;
   borrowed: Set<GPUTexture>;
@@ -54,30 +59,33 @@ function getPool(device: GPUDevice): DeviceTexturePool {
 }
 
 function estimateBytesPerPixel(format: GPUTextureFormat): number {
-  if (format.includes('16float') || format.includes('16uint') || format.includes('16sint')) {
-    return 8;
+  if (format.startsWith('rgba32')) return 16;
+  if (format.startsWith('rg32')) return 8;
+  if (format.startsWith('r32') || format === 'depth32float') return 4;
+
+  if (format.startsWith('rgba16')) return 8;
+  if (format.startsWith('rg16')) return 4;
+  if (format.startsWith('r16') || format === 'depth16unorm') return 2;
+
+  if (format.startsWith('rgba8') || format.startsWith('bgra8')) {
+    return 4;
   }
 
-  if (format.includes('32float') || format.includes('32uint') || format.includes('32sint')) {
-    return 16;
-  }
-
-  if (format.includes('rg8')) {
-    return 2;
-  }
-
-  if (format.includes('r8')) {
-    return 1;
-  }
+  if (format.startsWith('rg8')) return 2;
+  if (format.startsWith('r8')) return 1;
 
   return 4;
 }
 
 function estimateTextureByteSize(options: Pick<BorrowTextureOptions, 'width' | 'height' | 'format'>): number {
+  // All pooled textures are single-sample, single-mip 2D intermediates. Extend this
+  // estimate before pooling multisampled or mipmapped resources.
   return options.width * options.height * estimateBytesPerPixel(options.format);
 }
 
 function createTextureKey(options: Omit<BorrowTextureOptions, 'device' | 'label'>): string {
+  // Usage is part of WebGPU resource compatibility. labelGroup intentionally keeps
+  // unrelated owners from aliasing a texture merely because size/format happen to match.
   return [
     options.width,
     options.height,
@@ -142,6 +150,9 @@ export function releaseTexture(texture: GPUTexture): void {
     return;
   }
 
+  // Callers may release after submitting prior uses; queue ordering makes a later
+  // borrower safe without onSubmittedWorkDone(). Never release while an unsubmitted
+  // command encoder can still reference the texture.
   pool.borrowed.delete(texture);
   metadata.lastUsed = performance.now();
   const availableTextures = pool.available.get(metadata.key);
@@ -251,4 +262,12 @@ export function setTexturePoolBudgetForDevice(device: GPUDevice, budgetBytes: nu
   const pool = getPool(device);
   pool.budgetBytes = Math.max(0, budgetBytes);
   evictAvailableTexturesIfNeeded(pool);
+}
+
+export function getTextureAllocationInfo(texture: GPUTexture): TextureAllocationInfo | null {
+  const metadata = metadataByTexture.get(texture);
+  return metadata ? {
+    byteSize: metadata.byteSize,
+    labelGroup: metadata.labelGroup,
+  } : null;
 }

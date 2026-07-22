@@ -25,14 +25,20 @@ import { VideoFrameUploader } from './frame-uploader';
 import { createLogger } from '../../utils/logger';
 import { waitForMediaReady } from '../media-wait';
 import { PerformanceFrameProfiler, type PerformanceProfilerMetadata } from '../performance-monitor/profiler';
+import { collectGpuCapabilities, type GpuCapabilities } from '../gpu-capabilities';
+import {
+  resolveOptimizationFeatureFlags,
+  type OptimizationFeatureFlags,
+} from '../optimization-flags';
+import { acquireSharedGpuDevice, type SharedGpuDeviceLease } from '../shared-gpu-device';
 
 const logger = createLogger('renderer');
 
 /**
- * 全屏纹理四边形顶点着色器
+ * 全屏纹理三角形顶点着色器
  * 定义顶点位置和UV坐标，用于渲染全屏纹理
  */
-const fullscreenTexturedQuadWGSL = `
+const fullscreenTexturedTriangleWGSL = `
 struct VertexOutput {
   @builtin(position) Position : vec4<f32>,
   @location(0) fragUV : vec2<f32>,
@@ -41,21 +47,15 @@ struct VertexOutput {
 @vertex
 fn vert_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
   const pos = array(
-    vec2( 1.0,  1.0),  // 右上
-    vec2( 1.0, -1.0),  // 右下
-    vec2(-1.0, -1.0),  // 左下
-    vec2( 1.0,  1.0),  // 右上 (重复)
-    vec2(-1.0, -1.0),  // 左下 (重复)
-    vec2(-1.0,  1.0),  // 左上
+    vec2(-1.0, -1.0),
+    vec2( 3.0, -1.0),
+    vec2(-1.0,  3.0),
   );
 
   const uv = array(
-    vec2(1.0, 0.0),  // 右上UV
-    vec2(1.0, 1.0),  // 右下UV
-    vec2(0.0, 1.0),  // 左下UV
-    vec2(1.0, 0.0),  // 右上UV (重复)
-    vec2(0.0, 1.0),  // 左下UV (重复)
-    vec2(0.0, 0.0),  // 左上UV
+    vec2(0.0, 1.0),
+    vec2(2.0, 1.0),
+    vec2(0.0, -1.0),
   );
 
   var output : VertexOutput;
@@ -104,6 +104,7 @@ export interface RendererOptions {
   performanceModeName?: string;
   performanceTier?: PerformanceTier;
   onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
+  optimizationFlags?: Partial<OptimizationFeatureFlags>;
 }
 
 /**
@@ -124,9 +125,15 @@ export class Renderer {
   private performanceModeName: string;
   private performanceTier: PerformanceTier;
   private onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
+  private readonly optimizationFlags: OptimizationFeatureFlags;
   private performanceProfiler: PerformanceFrameProfiler | null = null;
   private gpuName = 'Unknown GPU';
   private timestampQueryAvailable = false;
+  private gpuCapabilities?: GpuCapabilities;
+  private profilerPassCapacity = 1;
+  private terminalPresentationActive = false;
+  private externalClampHighlightsActive = false;
+  private externalFallbackInProgress = false;
   private readonly finalBlitProfilePass: PipelinePass = {
     profileLabel: 'Final Blit',
     profileGroup: 'Final Blit',
@@ -150,6 +157,7 @@ export class Renderer {
 
   // --- WebGPU 对象 ---
   private device!: GPUDevice;
+  private deviceLease?: SharedGpuDeviceLease;
   private context!: GPUCanvasContext;
   private presentationFormat!: GPUTextureFormat;
   /** 用于从视频帧复制图像数据的中间纹理 */
@@ -184,6 +192,7 @@ export class Renderer {
     this.performanceModeName = options.performanceModeName ?? 'Unknown';
     this.performanceTier = options.performanceTier ?? 'balanced';
     this.onPerformanceSnapshot = options.onPerformanceSnapshot;
+    this.optimizationFlags = resolveOptimizationFeatureFlags(options.optimizationFlags);
   }
 
   /**
@@ -211,15 +220,19 @@ export class Renderer {
 
       // 请求 GPU 适配器，并根据平台设置能效偏好
       this.onProgress?.(chrome.i18n.getMessage('initGpu'));
-      const adapterOptions: GPURequestAdapterOptions = {};
-      // 在 Windows 上设置 powerPreference 会产生警告，因此仅在非 Windows 平台使用
-      if (!navigator.platform.startsWith('Win')) {
-        adapterOptions.powerPreference = 'high-performance';
-      }
-      const adapter = await navigator.gpu.requestAdapter(adapterOptions);
-      if (!adapter) {
-        throw new RendererInitializationError('WebGPU not supported: No adapter found.');
-      }
+      const adapterOptions = this.createAdapterOptions();
+      const lease = await acquireSharedGpuDevice({
+        gpu: navigator.gpu,
+        adapterOptions,
+        descriptorFactory: adapter => ({
+          ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
+            ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
+            : {}),
+          requiredLimits: getRequiredDeviceLimits(adapter),
+        }),
+      });
+      this.deviceLease = lease;
+      const { adapter } = lease;
       this.gpuName = this.describeAdapter(adapter);
       this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
         && Boolean(adapter.features?.has('timestamp-query'));
@@ -227,12 +240,14 @@ export class Renderer {
       // 请求 GPU 设备并配置 Canvas 上下文
       // 根据适配器支持的限制请求更高的缓冲区和 workgroup storage 上限，
       // 以支持高分辨率视频处理和更重的 ArtCNN C4F32 shader。
-      this.device = await adapter.requestDevice({
-        ...(this.timestampQueryAvailable ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] } : {}),
-        requiredLimits: getRequiredDeviceLimits(adapter),
-      });
+      this.device = lease.device;
       this.setupGpuErrorMonitoring(this.device);
-
+      this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+      this.gpuCapabilities = collectGpuCapabilities({
+        adapter,
+        device: this.device,
+        presentationFormat: this.presentationFormat,
+      });
       // 监听设备丢失事件并尝试自动恢复
       this.device.lost.then((info) => {
         // 如果渲染器已销毁，不需要处理
@@ -250,6 +265,9 @@ export class Renderer {
       // 检查是否需要使用回退上传路径
       const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
       this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
+      this.frameUploader.setExternalTextureEnabled(
+        this.optimizationFlags.externalTexture && Boolean(this.gpuCapabilities?.externalTexture),
+      );
       if (this.frameUploader.isFallbackEnabled()) {
         logger.info('Using fallback uploader for copying video frames.');
       }
@@ -259,11 +277,10 @@ export class Renderer {
       if (!this.context) {
         throw new RendererInitializationError('Failed to get WebGPU context from canvas.');
       }
-      this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
       this.context.configure({
         device: this.device,
         format: this.presentationFormat,
-        alphaMode: 'premultiplied',
+        alphaMode: 'opaque',
       });
 
       // 创建初始资源
@@ -276,6 +293,7 @@ export class Renderer {
       // 启动渲染循环，尝试渲染第一帧并启动持续渲染
       this.renderFirstFrameAndStartLoop();
     } catch (error) {
+      this.releaseDeviceLease(true);
       if (error instanceof RendererInitializationError) {
         throw error;
       }
@@ -304,8 +322,8 @@ export class Renderer {
     this.frameUploader.sync(this.video);
   }
 
-  private async copyVideoFrameToTexture(): Promise<void> {
-    await this.frameUploader.copyFrame(this.device, this.video, this.videoFrameTexture);
+  private copyVideoFrameToTexture(encoder: GPUCommandEncoder): void | Promise<void> {
+    return this.frameUploader.copyFrame(this.device, this.video, this.videoFrameTexture, encoder);
   }
 
   private destroyPipelines(): void {
@@ -326,6 +344,33 @@ export class Renderer {
 
     clearTexturePool(device);
     clearGpuResourceCache(device);
+  }
+
+  private createAdapterOptions(): GPURequestAdapterOptions {
+    const adapterOptions: GPURequestAdapterOptions = {};
+    // Windows browsers currently warn when powerPreference is specified.
+    if (!navigator.platform.startsWith('Win')) {
+      adapterOptions.powerPreference = 'high-performance';
+    }
+    return adapterOptions;
+  }
+
+  private releaseDeviceLease(destroyIfLast: boolean, invalidate = false): void {
+    const lease = this.deviceLease;
+    if (!lease) {
+      return;
+    }
+    this.deviceLease = undefined;
+    if (invalidate) {
+      lease.invalidate();
+    }
+    if (!lease.release()) {
+      return;
+    }
+    this.clearDeviceScopedCaches(lease.device);
+    if (destroyIfLast) {
+      lease.device.destroy();
+    }
   }
 
   private setupGpuErrorMonitoring(device: GPUDevice): void {
@@ -376,16 +421,36 @@ export class Renderer {
     }
 
     const effectChainLabel = this.getEffectChainLabel();
+    this.externalClampHighlightsActive = Boolean(
+      this.optimizationFlags.externalTexture
+      && this.gpuCapabilities?.externalTexture
+      && this.frameUploader.getMode() === 'external'
+      && this.effects[0]?.id === 'anime4k/Helper/ClampHighlights'
+    );
+    this.frameUploader.setExternalClampHighlightsEnabled(this.externalClampHighlightsActive);
+    // Remove only a leading ClampHighlights while the uploader executes the certified
+    // equivalent. A later Clamp remains in the chain because its input is no longer video.
+    const compiledEffects = this.externalClampHighlightsActive
+      ? this.effects.slice(1)
+      : this.effects;
     const compileStartedAt = performance.now();
     const compiledPlan = await compileEffectChain({
       device: this.device,
       inputTexture: this.videoFrameTexture,
-      effects: this.effects,
+      effects: compiledEffects,
       sourceDimensions: {
         width: this.video.videoWidth,
         height: this.video.videoHeight,
       },
       targetDimensions: this.targetDimensions,
+      capabilities: this.gpuCapabilities,
+      optimizationFlags: this.optimizationFlags,
+      terminalTarget: {
+        width: this.targetDimensions.width,
+        height: this.targetDimensions.height,
+        format: this.presentationFormat,
+        getCurrentView: () => this.context.getCurrentTexture().createView(),
+      },
     });
     const compileTime = performance.now() - compileStartedAt;
     let compiledPlanAccepted = false;
@@ -395,6 +460,13 @@ export class Renderer {
 
       this.pipelines = compiledPlan.pipelines;
       this.finalOutputTexture = compiledPlan.outputTexture;
+      this.terminalPresentationActive = Boolean(compiledPlan.terminalPresenter);
+      // Query capacity includes passes outside the compiled plan: fallback presentation
+      // and the external uploader's fused leading ClampHighlights render pass.
+      this.profilerPassCapacity = (compiledPlan.passCount ?? this.pipelines.length)
+        + (this.terminalPresentationActive ? 0 : 1)
+        + (this.externalClampHighlightsActive ? 1 : 0);
+      this.configurePerformanceProfiler(undefined, this.profilerPassCapacity);
       compiledPlanAccepted = true;
 
       const warmupStartedAt = performance.now();
@@ -403,6 +475,8 @@ export class Renderer {
       const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder));
       this.device.queue.submit([commandEncoder.finish()]);
+      // Initialization may synchronize to surface validation errors before playback.
+      // The frame loop deliberately never waits for queue completion.
       await this.device.queue.onSubmittedWorkDone();
       } catch (error) {
         warmupError = error;
@@ -419,7 +493,7 @@ export class Renderer {
       const cacheStats = getGpuResourceCacheStats(this.device);
       const texturePoolStats = getTexturePoolStats(this.device);
       logger.debug(
-        `Built ${this.pipelines.length} pipelines `
+        `Built ${compiledPlan.passCount ?? this.pipelines.length} passes `
         + `(warmupSteps=${compiledPlan.warmupSteps}, modules=${compiledPlan.requiredModules.join(', ') || 'none'})`
       );
       logger.debug(
@@ -429,7 +503,9 @@ export class Renderer {
         + `pipeline h/m=${cacheStats.pipelineHits}/${cacheStats.pipelineMisses}), `
         + `texturePool(h/m=${texturePoolStats.hits}/${texturePoolStats.misses}, `
         + `active=${texturePoolStats.active}, available=${texturePoolStats.available}, `
-        + `cachedBytes=${texturePoolStats.cachedBytes})`
+        + `cachedBytes=${texturePoolStats.cachedBytes}), `
+        + `planTextures(slots=${compiledPlan.textureSlotCount ?? 'unknown'}, `
+        + `peakBytes=${compiledPlan.peakTextureBytes ?? 'unknown'})`
       );
     } catch (error) {
       if (compiledPlanAccepted) {
@@ -519,7 +595,7 @@ export class Renderer {
   private async createRenderPipeline(): Promise<void> {
     const vertexModule = getOrCreateShaderModule(this.device, 'core/renderer/final-blit/shader/vertex', () => ({
       label: 'renderer final blit vertex module',
-      code: fullscreenTexturedQuadWGSL,
+      code: fullscreenTexturedTriangleWGSL,
     }));
     const fragmentModule = getOrCreateShaderModule(this.device, 'core/renderer/final-blit/shader/fragment', () => ({
       label: 'renderer final blit fragment module',
@@ -566,6 +642,9 @@ export class Renderer {
    * 创建渲染绑定组，它将实际的资源（采样器和最终纹理）绑定到渲染管线。
    */
   private createRenderBindGroup(): void {
+    if (this.terminalPresentationActive) {
+      return;
+    }
     this.renderBindGroup = createBindGroupChecked(this.device, 'core/renderer/final-blit', () => ({
       layout: this.renderBindGroupLayout,
       entries: [
@@ -604,12 +683,15 @@ export class Renderer {
 
       // 将视频帧复制到纹理
       const uploadStartedAt = performance.now();
-      await this.copyVideoFrameToTexture();
+      const commandEncoder = this.device.createCommandEncoder();
+      const upload = this.copyVideoFrameToTexture(commandEncoder);
+      if (upload) {
+        await upload;
+      }
       const uploadMs = performance.now() - uploadStartedAt;
       profiler?.addInstantEntry('Upload', 'Upload', uploadMs);
 
       const encodeStartedAt = performance.now();
-      const commandEncoder = this.device.createCommandEncoder();
       this.pipelines.forEach((pipeline) => pipeline.pass(commandEncoder, profiler ?? undefined));
       const encodeFinalBlit = () => {
         const descriptor: GPURenderPassDescriptor = {
@@ -625,13 +707,15 @@ export class Renderer {
         );
         passEncoder.setPipeline(this.renderPipeline);
         passEncoder.setBindGroup(0, this.renderBindGroup);
-        passEncoder.draw(6);
+        passEncoder.draw(3);
         passEncoder.end();
       };
-      if (profiler) {
-        profiler.recordNamedPass('Final Blit', 'Final Blit', encodeFinalBlit);
-      } else {
-        encodeFinalBlit();
+      if (!this.terminalPresentationActive) {
+        if (profiler) {
+          profiler.recordNamedPass('Final Blit', 'Final Blit', encodeFinalBlit);
+        } else {
+          encodeFinalBlit();
+        }
       }
       profiler?.resolveGpuQueries?.(commandEncoder);
       const commandBuffer = commandEncoder.finish();
@@ -652,6 +736,21 @@ export class Renderer {
 
     } catch (error) {
       logger.error('Frame processing failed.', error);
+
+      if (this.frameUploader.getMode() === 'external' && !this.externalFallbackInProgress) {
+        // Disable both external upload and its fused leading Clamp, then rebuild from
+        // the original effects list. Falling back without rebuilding would skip Clamp.
+        this.externalFallbackInProgress = true;
+        this.externalClampHighlightsActive = false;
+        this.optimizationFlags.externalTexture = false;
+        this.frameUploader.setExternalClampHighlightsEnabled(false);
+        this.frameUploader.setExternalTextureEnabled(false);
+        logger.warn('External texture path failed; rebuilding the copy-based chain.', error);
+        void this.handleSourceResize().finally(() => {
+          this.externalFallbackInProgress = false;
+        });
+        return false;
+      }
 
       // 检查是否是可恢复的尺寸不匹配错误
       if (error instanceof Error && error.name === 'OperationError' && error.message.includes('out of bounds')) {
@@ -915,8 +1014,6 @@ export class Renderer {
     logger.warn('Starting device recovery.');
 
     try {
-      const oldDevice = this.device;
-
       // 停止当前渲染循环
       if (this.animationFrameId) {
         this.video.cancelVideoFrameCallback(this.animationFrameId);
@@ -926,24 +1023,35 @@ export class Renderer {
       this.destroyPipelines();
       this.videoFrameTexture?.destroy();
       this.teardownGpuErrorMonitoring();
-      this.clearDeviceScopedCaches(oldDevice);
+      this.releaseDeviceLease(true, true);
 
       // 重新请求 GPU 适配器和设备
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        throw new Error('Failed to get GPU adapter during recovery');
-      }
-
-      this.device = await adapter.requestDevice({
-        ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
-          ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
-          : {}),
-        requiredLimits: getRequiredDeviceLimits(adapter),
+      const lease = await acquireSharedGpuDevice({
+        gpu: navigator.gpu,
+        adapterOptions: this.createAdapterOptions(),
+        descriptorFactory: adapter => ({
+          ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
+            ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
+            : {}),
+          requiredLimits: getRequiredDeviceLimits(adapter),
+        }),
       });
+      this.deviceLease = lease;
+      const { adapter } = lease;
+      this.device = lease.device;
       this.gpuName = this.describeAdapter(adapter);
       this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
         && Boolean(adapter.features?.has('timestamp-query'));
       this.setupGpuErrorMonitoring(this.device);
+      this.gpuCapabilities = collectGpuCapabilities({
+        adapter,
+        device: this.device,
+        presentationFormat: this.presentationFormat,
+      });
+
+      this.frameUploader.setExternalTextureEnabled(
+        this.optimizationFlags.externalTexture && this.gpuCapabilities.externalTexture,
+      );
 
       // 设置新设备的丢失监听
       this.device.lost.then((info) => {
@@ -958,7 +1066,7 @@ export class Renderer {
       this.context.configure({
         device: this.device,
         format: this.presentationFormat,
-        alphaMode: 'premultiplied',
+        alphaMode: 'opaque',
       });
 
       // 重建资源和管道
@@ -991,8 +1099,6 @@ export class Renderer {
     if (this.destroyed) return;
     // 立即设置销毁标志，以防止任何异步操作（如 device.lost）在销毁过程中执行不必要的操作
     this.destroyed = true;
-    const currentDevice = this.device;
-
     // 停止渲染循环
     if (this.animationFrameId) {
       this.video.cancelVideoFrameCallback(this.animationFrameId);
@@ -1004,13 +1110,12 @@ export class Renderer {
       this.destroyPipelines();
       this.videoFrameTexture?.destroy();
       this.teardownGpuErrorMonitoring();
-      this.clearDeviceScopedCaches(currentDevice);
       this.performanceProfiler?.destroy();
       this.performanceProfiler = null;
       // 解除画布与GPU设备的关联，这对于后续重新初始化至关重要
       this.context?.unconfigure();
-      // 主动销毁设备，这将触发 device.lost Promise
-      currentDevice?.destroy();
+      // The final owner clears shared caches and destroys the shared device.
+      this.releaseDeviceLease(true);
       this.frameUploader.dispose();
       logger.debug('Renderer destroyed.');
     } catch (error) {
@@ -1048,10 +1153,14 @@ export class Renderer {
     return effectChainLabel ? `${stage} (${effectChainLabel})` : stage;
   }
 
-  private configurePerformanceProfiler(sourceDimensions = {
-    width: this.video.videoWidth,
-    height: this.video.videoHeight,
-  }): void {
+  private configurePerformanceProfiler(
+    sourceDimensions: Dimensions | undefined = undefined,
+    passCapacity = this.profilerPassCapacity,
+  ): void {
+    const resolvedSourceDimensions = sourceDimensions ?? {
+      width: this.video.videoWidth,
+      height: this.video.videoHeight,
+    };
     if (this.performanceMonitorMode === 'off' || !this.onPerformanceSnapshot) {
       this.performanceProfiler?.destroy();
       this.performanceProfiler = null;
@@ -1061,10 +1170,14 @@ export class Renderer {
     const metadata: PerformanceProfilerMetadata = {
       mode: this.performanceMonitorMode,
       gpuName: this.gpuName,
-      uploadMethod: this.frameUploader.isFallbackEnabled() ? 'Fallback canvas' : 'VideoFrame direct',
+      uploadMethod: this.frameUploader.getMode() === 'external'
+        ? 'GPUExternalTexture'
+        : this.frameUploader.isFallbackEnabled()
+          ? 'Fallback canvas'
+          : 'VideoFrame direct',
       modeName: this.performanceModeName,
       tier: this.performanceTier,
-      sourceDimensions,
+      sourceDimensions: resolvedSourceDimensions,
       targetDimensions: this.targetDimensions,
       timestampAvailable: this.performanceMonitorMode === 'gpu' && this.timestampQueryAvailable,
     };
@@ -1072,12 +1185,14 @@ export class Renderer {
     if (!this.performanceProfiler) {
       this.performanceProfiler = new PerformanceFrameProfiler(metadata, this.onPerformanceSnapshot, {
         device: this.device,
+        passCapacity,
       });
       return;
     }
 
     this.performanceProfiler.updateMetadata(metadata, {
       device: this.device,
+      passCapacity,
     });
   }
 

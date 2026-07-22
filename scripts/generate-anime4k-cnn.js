@@ -108,6 +108,8 @@ function transformHookBody(body, outputVar) {
 
 function makeWgsl(stage) {
   const outputName = stage.save === 'MAIN' ? 'output' : stage.save;
+  // Residual output reads MAIN directly in the later composite stage. Removing it
+  // from generated bindings avoids a duplicate sample without changing the expression.
   const residualOutput = /return\s+result\s+\+\s+MAIN_tex\(MAIN_pos\)/.test(stage.code.join('\n'));
   const inputs = residualOutput ? stage.binds.filter(input => input !== 'MAIN') : stage.binds;
   const goDefines = parseGoDefines(stage.code);
@@ -116,11 +118,10 @@ function makeWgsl(stage) {
     `@group(0) @binding(${index}) var ${toVarName(input)}_tex: texture_2d<f32>;`
   ));
   const outputBinding = `@group(0) @binding(${inputs.length}) var ${outputName}_tex: texture_storage_2d<rgba16float, write>;`;
-  const samplerBinding = `@group(0) @binding(${inputs.length + 1}) var anime4kLinearSampler: sampler;`;
   const helper = `fn anime4kTextureLoadClamped(texture: texture_2d<f32>, pos: vec2u, x_off: i32, y_off: i32) -> vec4f {
-  let dim = vec2f(textureDimensions(texture));
-  let uv = (vec2f(pos) + vec2f(0.5, 0.5) + vec2f(f32(x_off), f32(y_off))) / dim;
-  return textureSampleLevel(texture, anime4kLinearSampler, uv, 0.0);
+  let size = vec2i(textureDimensions(texture));
+  let coord = clamp(vec2i(pos) + vec2i(x_off, y_off), vec2i(0, 0), size - vec2i(1, 1));
+  return textureLoad(texture, coord, 0);
 }
 
 fn max4(vector: vec4f, value: f32) -> vec4f {
@@ -139,7 +140,6 @@ fn max4(vector: vec4f, value: f32) -> vec4f {
 // Output: ${outputName}
 ${inputBindings.join('\n')}
 ${outputBinding}
-${samplerBinding}
 
 ${helper}
 
@@ -162,6 +162,44 @@ function importName(fileName) {
   return fileName
     .replace(/\.wgsl$/, '')
     .replace(/[^A-Za-z0-9]+(.)/g, (_, char) => char.toUpperCase());
+}
+
+function makeGraphRunnerIndex(model) {
+  return `import { EffectGraphRunner } from '../../../../../core/effects/graph';
+import type { PipelineProfileRecorder } from '../../../../../core/effects/backend-types';
+import { Anime4KPipeline, Anime4KPipelineDescriptor } from '../../interfaces';
+import { create${model.className}Graph } from './graph';
+
+export class ${model.className} implements Anime4KPipeline {
+  private readonly graphRunner: EffectGraphRunner;
+
+  constructor({ device, inputTexture, terminalTarget, optimizationFlags }: Anime4KPipelineDescriptor) {
+    this.graphRunner = new EffectGraphRunner({
+      device,
+      inputTexture,
+      terminalTarget,
+      optimizationFlags,
+      graph: create${model.className}Graph(),
+    });
+  }
+
+  pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
+    this.graphRunner.pass(encoder, profile);
+  }
+
+  getOutputTexture(): GPUTexture {
+    return this.graphRunner.getOutputTexture();
+  }
+
+  getProfileChildren() {
+    return this.graphRunner.getProfileChildren();
+  }
+
+  destroy(): void {
+    this.graphRunner.destroy();
+  }
+}
+`;
 }
 
 function makeSingleIndex(model, shaderFiles) {
@@ -392,9 +430,7 @@ function generateModel(model) {
     fs.writeFileSync(path.join(shaderDir, fileName), makeWgsl(stage));
     shaderFiles.push(fileName);
   }
-  const index = model.kind.includes('paired')
-    ? makePairedIndex(model, shaderFiles)
-    : makeSingleIndex(model, shaderFiles);
+  const index = makeGraphRunnerIndex(model);
   fs.writeFileSync(path.join(outDir, 'index.ts'), index);
   console.log(`${model.className}: generated ${shaderFiles.length} shaders`);
 }

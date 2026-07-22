@@ -68,7 +68,7 @@ function parseMpvHookStages(source, options = {}) {
 
     if (line.startsWith('//!WIDTH')) {
       if (!parseDimensions) {
-        throw new Error(`${current.desc}: unsupported WIDTH directive: ${line}`);
+        continue;
       }
       current.widthScale = parseLumaScaleExpression(line, 'WIDTH');
       continue;
@@ -76,7 +76,7 @@ function parseMpvHookStages(source, options = {}) {
 
     if (line.startsWith('//!HEIGHT')) {
       if (!parseDimensions) {
-        throw new Error(`${current.desc}: unsupported HEIGHT directive: ${line}`);
+        continue;
       }
       current.heightScale = parseLumaScaleExpression(line, 'HEIGHT');
       continue;

@@ -11,10 +11,10 @@ import type { PipelinePass, PipelineProfileRecorder } from '../effects/backend-t
 const SNAPSHOT_INTERVAL_MS = 500;
 const FPS_WINDOW_MS = 1000;
 const FRAME_BUDGET_60FPS_MS = 1000 / 60;
-const GPU_SAMPLE_INTERVAL_FRAMES = 60;
-const GPU_TIMESTAMP_MAX_PASSES = 128;
-const GPU_TIMESTAMP_QUERY_COUNT = GPU_TIMESTAMP_MAX_PASSES * 2;
-const GPU_TIMESTAMP_BYTE_LENGTH = GPU_TIMESTAMP_QUERY_COUNT * 8;
+const GPU_SAMPLE_INTERVAL_MS = 1000;
+const DEFAULT_GPU_TIMESTAMP_PASS_CAPACITY = 128;
+// Two slots allow one sampled frame to map asynchronously while rendering continues.
+// Do not replace this ring with per-frame onSubmittedWorkDone() synchronization.
 const GPU_TIMESTAMP_RING_SIZE = 2;
 
 export interface PerformanceProfilerMetadata {
@@ -66,6 +66,7 @@ type GpuPassTimestampWrites = {
 
 export interface PerformanceProfilerGpuOptions {
   device?: GPUDevice;
+  passCapacity?: number;
 }
 
 export class PerformanceFrameProfiler implements PipelineProfileRecorder {
@@ -79,8 +80,12 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   private device?: GPUDevice;
   private gpuSlots: GpuTimestampSlot[] = [];
   private activeGpuSlot: GpuTimestampSlot | null = null;
-  private frameCounter = 0;
+  private currentFrameStartedAt = 0;
+  private lastGpuSampleAt = Number.NEGATIVE_INFINITY;
+  private gpuResourceGeneration = 0;
   private shouldSampleGpuFrame = false;
+  private shouldCollectCpuPassEntries = false;
+  private gpuPassCapacity = DEFAULT_GPU_TIMESTAMP_PASS_CAPACITY;
 
   constructor(
     metadata: PerformanceProfilerMetadata,
@@ -89,18 +94,22 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   ) {
     this.metadata = metadata;
     this.device = gpuOptions.device;
+    this.gpuPassCapacity = this.normalizePassCapacity(gpuOptions.passCapacity);
     this.configureGpuResources();
   }
 
   updateMetadata(metadata: PerformanceProfilerMetadata, gpuOptions: PerformanceProfilerGpuOptions = {}): void {
     const deviceChanged = gpuOptions.device !== undefined && gpuOptions.device !== this.device;
     const timestampAvailabilityChanged = metadata.timestampAvailable !== this.metadata.timestampAvailable;
+    const nextPassCapacity = this.normalizePassCapacity(gpuOptions.passCapacity ?? this.gpuPassCapacity);
+    const passCapacityChanged = nextPassCapacity !== this.gpuPassCapacity;
     this.metadata = metadata;
     if (gpuOptions.device !== undefined) {
       this.device = gpuOptions.device;
     }
+    this.gpuPassCapacity = nextPassCapacity;
 
-    if (deviceChanged || timestampAvailabilityChanged) {
+    if (deviceChanged || timestampAvailabilityChanged || passCapacityChanged) {
       this.configureGpuResources();
     } else if (metadata.timestampAvailable && this.gpuSlots.length === 0) {
       this.configureGpuResources();
@@ -109,7 +118,12 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
 
   beginFrame(videoFrameMetadata?: VideoFrameCallbackMetadata): void {
     const now = performance.now();
+    this.currentFrameStartedAt = now;
     this.passEntries.length = 0;
+    // This decision also controls completeFrame(). Do not re-check the interval at
+    // frame end: a frame crossing the 500 ms boundary would publish empty pass rows.
+    // Per-pass CPU timing remains limited to actual HUD snapshot frames.
+    this.shouldCollectCpuPassEntries = now - this.lastSnapshotAt >= SNAPSHOT_INTERVAL_MS;
     this.activeGpuSlot = null;
     this.gpuSlots.forEach(slot => {
       if (!slot.pending) {
@@ -119,10 +133,11 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
       }
     });
 
-    this.frameCounter += 1;
+    // Use wall-clock cadence rather than decoded-frame count. Anime commonly runs at
+    // 23.976/24 fps, where a 60-frame interval would leave GPU data stale for 2.5 s.
     this.shouldSampleGpuFrame = this.metadata.timestampAvailable
       && this.gpuSlots.length > 0
-      && (this.frameCounter === 1 || this.frameCounter % GPU_SAMPLE_INTERVAL_FRAMES === 0);
+      && now - this.lastGpuSampleAt >= GPU_SAMPLE_INTERVAL_MS;
 
     this.frameTimes.push(now);
     while (this.frameTimes.length > 0 && now - this.frameTimes[0] > FPS_WINDOW_MS) {
@@ -153,6 +168,11 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   }
 
   recordNamedPass(label: string, group: string, encode: () => void): void {
+    if (!this.shouldCollectCpuPassEntries) {
+      encode();
+      return;
+    }
+
     const startedAt = performance.now();
     encode();
     const cpuMs = performance.now() - startedAt;
@@ -167,6 +187,9 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   }
 
   addInstantEntry(label: string, group: string, cpuMs: number): void {
+    if (!this.shouldCollectCpuPassEntries) {
+      return;
+    }
     this.passEntries.push({
       label,
       group,
@@ -176,11 +199,13 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   }
 
   completeFrame(timings: CompleteFrameTimings): void {
-    const now = performance.now();
-    if (now - this.lastSnapshotAt < SNAPSHOT_INTERVAL_MS) {
+    // beginFrame() locks this flag before pass encoding, so every emitted snapshot
+    // contains the pass entries collected for that same frame.
+    if (!this.shouldCollectCpuPassEntries) {
       return;
     }
 
+    const now = performance.now();
     this.lastSnapshotAt = now;
     const timingSource = this.getSnapshotTimingSource();
 
@@ -235,16 +260,29 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
 
     const byteLength = slot.queryCount * 8;
     const passes = slot.passes.slice();
+    const resourceGeneration = this.gpuResourceGeneration;
     slot.pending = true;
     void slot.readBuffer.mapAsync(GPUMapMode.READ, 0, byteLength)
       .then(() => {
+        // A resize or plan-capacity change may replace all timestamp resources while
+        // this map is pending. Old callbacks must never update or disable the new ring.
+        if (resourceGeneration !== this.gpuResourceGeneration || !this.gpuSlots.includes(slot)) {
+          try {
+            slot.readBuffer.unmap();
+          } catch {
+            // The retired buffer may already have been destroyed.
+          }
+          return;
+        }
         const mapped = slot.readBuffer.getMappedRange(0, byteLength);
         const copy = mapped.slice(0);
         slot.readBuffer.unmap();
         this.applyGpuTimestampResults(copy, passes);
       })
       .catch(() => {
-        this.disableGpuTimestamps();
+        if (resourceGeneration === this.gpuResourceGeneration && this.gpuSlots.includes(slot)) {
+          this.disableGpuTimestamps();
+        }
       })
       .finally(() => {
         slot.pending = false;
@@ -317,7 +355,9 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
     }
 
     const slot = this.getActiveGpuSlot();
-    if (!slot || slot.queryCount + 2 > GPU_TIMESTAMP_QUERY_COUNT) {
+    if (!slot || slot.queryCount + 2 > this.gpuPassCapacity * 2) {
+      // Capacity is supplied from the compiled plan. If the plan changes mid-frame,
+      // skip excess pass timings rather than writing outside the query set.
       return undefined;
     }
 
@@ -350,6 +390,9 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
     slot.queryCount = 0;
     slot.passes.length = 0;
     this.activeGpuSlot = slot;
+    // Advance the cadence only after the first pass has secured a real slot. Frames
+    // skipped before encoding, or frames blocked by pending maps, retry immediately.
+    this.lastGpuSampleAt = this.currentFrameStartedAt;
     return slot;
   }
 
@@ -357,6 +400,7 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
     this.destroyGpuResources();
     this.lastGpuMsByKey.clear();
     this.activeGpuSlot = null;
+    this.lastGpuSampleAt = Number.NEGATIVE_INFINITY;
     this.shouldSampleGpuFrame = false;
 
     if (!this.metadata.timestampAvailable || !this.device) {
@@ -364,17 +408,21 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
     }
 
     try {
+      // Two timestamps are required per flattened pass. The previous fixed 128-pass
+      // allocation truncated large A+A/ARNet plans, so this follows compiled capacity.
+      const queryCount = this.gpuPassCapacity * 2;
+      const byteLength = queryCount * 8;
       this.gpuSlots = Array.from({ length: GPU_TIMESTAMP_RING_SIZE }, () => ({
         querySet: this.device!.createQuerySet({
           type: 'timestamp',
-          count: GPU_TIMESTAMP_QUERY_COUNT,
+          count: queryCount,
         }),
         resolveBuffer: this.device!.createBuffer({
-          size: GPU_TIMESTAMP_BYTE_LENGTH,
+          size: byteLength,
           usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
         }),
         readBuffer: this.device!.createBuffer({
-          size: GPU_TIMESTAMP_BYTE_LENGTH,
+          size: byteLength,
           usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
         }),
         passes: [],
@@ -388,6 +436,9 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   }
 
   private destroyGpuResources(): void {
+    // Invalidate pending map callbacks before retiring their buffers. Without this
+    // generation boundary, an old rejection can disable freshly-created resources.
+    this.gpuResourceGeneration += 1;
     for (const slot of this.gpuSlots) {
       try {
         slot.querySet.destroy();
@@ -437,5 +488,12 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
 
   private buildEntryKey(label: string, group: string): string {
     return `${group}\u0000${label}`;
+  }
+
+  private normalizePassCapacity(value: number | undefined): number {
+    if (value === undefined || !Number.isFinite(value)) {
+      return DEFAULT_GPU_TIMESTAMP_PASS_CAPACITY;
+    }
+    return Math.max(1, Math.ceil(value));
   }
 }

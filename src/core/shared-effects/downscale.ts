@@ -1,4 +1,8 @@
-import type { PipelinePass, PipelineProfileRecorder } from '../effects/backend-types';
+import type {
+  PipelinePass,
+  PipelineProfileRecorder,
+  TerminalTextureTarget,
+} from '../effects/backend-types';
 import {
   createBindGroupChecked,
   getOrCreateBindGroupLayout,
@@ -15,6 +19,8 @@ interface DownscalePipelineDescriptor {
   inputTexture: GPUTexture;
   targetDimensions: { width: number; height: number };
   name?: string;
+  outputTexture?: GPUTexture;
+  terminalTarget?: TerminalTextureTarget;
 }
 
 interface DeviceCache {
@@ -23,10 +29,15 @@ interface DeviceCache {
   sampler: GPUSampler;
 }
 
-const cacheByDevice = new WeakMap<GPUDevice, DeviceCache>();
+const cacheByDevice = new WeakMap<GPUDevice, Map<GPUTextureFormat, DeviceCache>>();
 
-function getDeviceCache(device: GPUDevice): DeviceCache {
-  const cached = cacheByDevice.get(device);
+function getDeviceCache(device: GPUDevice, outputFormat: GPUTextureFormat): DeviceCache {
+  let deviceCaches = cacheByDevice.get(device);
+  if (!deviceCaches) {
+    deviceCaches = new Map();
+    cacheByDevice.set(device, deviceCaches);
+  }
+  const cached = deviceCaches.get(outputFormat);
   if (cached) {
     return cached;
   }
@@ -57,7 +68,7 @@ function getDeviceCache(device: GPUDevice): DeviceCache {
     ],
   }));
 
-  const pipeline = getOrCreateRenderPipeline(device, 'core/downscale/pipeline/rgba16float', () => ({
+  const pipeline = getOrCreateRenderPipeline(device, `core/downscale/pipeline/${outputFormat}`, () => ({
     layout: device.createPipelineLayout({
       label: 'shared downscale pipeline layout',
       bindGroupLayouts: [bindGroupLayout],
@@ -69,7 +80,7 @@ function getDeviceCache(device: GPUDevice): DeviceCache {
     fragment: {
       module: fragmentModule,
       entryPoint: 'main',
-      targets: [{ format: 'rgba16float' }],
+      targets: [{ format: outputFormat }],
     },
     primitive: {
       topology: 'triangle-list',
@@ -86,12 +97,14 @@ function getDeviceCache(device: GPUDevice): DeviceCache {
     pipeline,
     sampler,
   };
-  cacheByDevice.set(device, deviceCache);
+  deviceCaches.set(outputFormat, deviceCache);
   return deviceCache;
 }
 
 export class Downscale implements PipelinePass {
   readonly profileLabel: string;
+
+  readonly presentsToTerminal: boolean;
 
   profileGroup?: string;
 
@@ -99,30 +112,42 @@ export class Downscale implements PipelinePass {
   private readonly bindGroup: GPUBindGroup;
   private readonly pipeline: GPURenderPipeline;
   private readonly name: string;
+  private readonly renderPassDescriptor?: GPURenderPassDescriptor;
+  private readonly ownsOutputTexture: boolean;
+  private readonly terminalTarget?: TerminalTextureTarget;
 
   constructor({
     device,
     inputTexture,
     targetDimensions,
     name = 'downscale',
+    outputTexture,
+    terminalTarget,
   }: DownscalePipelineDescriptor) {
     this.name = name;
     this.profileLabel = name;
+    this.terminalTarget = terminalTarget;
+    this.presentsToTerminal = Boolean(terminalTarget);
 
-    const cache = getDeviceCache(device);
+    const cache = getDeviceCache(device, terminalTarget?.format ?? 'rgba16float');
     this.pipeline = cache.pipeline;
 
-    this.outputTexture = borrowTexture({
-      device,
-      width: targetDimensions.width,
-      height: targetDimensions.height,
-      format: 'rgba16float',
-      usage: GPUTextureUsage.TEXTURE_BINDING
-      | GPUTextureUsage.RENDER_ATTACHMENT
-      | GPUTextureUsage.STORAGE_BINDING,
-      labelGroup: 'core/downscale/output',
-      label: `${name} output texture`,
-    });
+    this.ownsOutputTexture = !outputTexture && !terminalTarget;
+    this.outputTexture = outputTexture ?? (terminalTarget ? inputTexture : borrowTexture({
+        device,
+        width: targetDimensions.width,
+        height: targetDimensions.height,
+        format: 'rgba16float',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        labelGroup: 'core/downscale/output',
+        label: `${name} output texture`,
+      }));
+    if (!terminalTarget && outputTexture && (
+      this.outputTexture.width !== targetDimensions.width
+      || this.outputTexture.height !== targetDimensions.height
+    )) {
+      throw new Error(`${name}: preallocated output texture has incorrect dimensions.`);
+    }
 
     this.bindGroup = createBindGroupChecked(device, `core/downscale/${name}`, () => ({
       layout: cache.bindGroupLayout,
@@ -137,6 +162,9 @@ export class Downscale implements PipelinePass {
         },
       ],
     }));
+    if (!terminalTarget) {
+      this.renderPassDescriptor = this.createRenderPassDescriptor(this.outputTexture.createView());
+    }
   }
 
   updateParam(param: string, value: any): void {
@@ -153,22 +181,12 @@ export class Downscale implements PipelinePass {
   }
 
   private encodePass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
-    const descriptor: GPURenderPassDescriptor = {
-      colorAttachments: [
-        {
-          view: this.outputTexture.createView(),
-          clearValue: {
-            r: 0.0, g: 0.0, b: 0.0, a: 1.0,
-          },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
-    };
+    const descriptor = this.renderPassDescriptor
+      ?? this.createRenderPassDescriptor(this.terminalTarget!.getCurrentView());
     const pass = encoder.beginRenderPass(profile?.createRenderPassDescriptor?.(this, descriptor) ?? descriptor);
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
-    pass.draw(6);
+    pass.draw(3);
     pass.end();
   }
 
@@ -177,6 +195,19 @@ export class Downscale implements PipelinePass {
   }
 
   destroy(): void {
-    releaseTexture(this.outputTexture);
+    if (this.ownsOutputTexture) {
+      releaseTexture(this.outputTexture);
+    }
+  }
+
+  private createRenderPassDescriptor(view: GPUTextureView): GPURenderPassDescriptor {
+    return {
+      colorAttachments: [{
+        view,
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    };
   }
 }

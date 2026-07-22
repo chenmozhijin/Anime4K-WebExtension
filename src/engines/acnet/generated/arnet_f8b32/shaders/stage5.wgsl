@@ -30,12 +30,17 @@ fn sample_FEAT_TEX_1(pos: vec2u, offset: vec2i) -> vec4f {
   return textureLoad(tex_FEAT_TEX_1, coord, 0);
 }
 
+
 @group(0) @binding(3) var out_tex: texture_storage_2d<rgba16float, write>;
 
 @compute
 @workgroup_size(WG_X, WG_Y)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
   let outputSize = textureDimensions(out_tex);
+
   if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
     return;
   }

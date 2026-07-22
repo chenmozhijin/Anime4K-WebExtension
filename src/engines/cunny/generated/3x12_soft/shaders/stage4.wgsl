@@ -22,6 +22,7 @@ fn sample_conv3_vec4(pos: vec2u, offset: vec2i, lane: vec2i, packedScale: vec2i)
 @group(0) @binding(2) var linearSampler: sampler;
 @group(0) @binding(3) var out_tex: texture_storage_2d<rgba16float, write>;
 
+
 fn sample_original_luma(coord: vec2i) -> f32 {
   let outputSize = textureDimensions(out_tex);
   let uv = (vec2f(coord) + vec2f(0.5)) / vec2f(outputSize);
@@ -31,8 +32,12 @@ fn sample_original_luma(coord: vec2i) -> f32 {
 
 @compute
 @workgroup_size(WG_X, WG_Y)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
   let sourceSize = textureDimensions(tex_LUMA);
+
   if (pixel.x >= sourceSize.x || pixel.y >= sourceSize.y) {
     return;
   }

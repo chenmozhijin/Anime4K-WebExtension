@@ -1,4 +1,9 @@
-import type { PipelinePass, PipelineProfileRecorder } from '../../../core/effects/backend-types';
+import type {
+  PipelinePass,
+  PipelineProfileRecorder,
+  TerminalTextureTarget,
+} from '../../../core/effects/backend-types';
+import type { OptimizationFeatureFlags } from '../../../core/optimization-flags';
 
 export interface Anime4KPipeline {
   /**
@@ -16,6 +21,7 @@ export interface Anime4KPipeline {
    */
   readonly profileLabel?: string;
   profileGroup?: string;
+  readonly presentsToTerminal?: boolean;
 
   pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;
 
@@ -65,10 +71,13 @@ export interface ClampHighlightsPipelineDescriptor {
   device: GPUDevice;
   inputTexture: GPUTexture;
   name?: string;
+  optimizationFlags?: OptimizationFeatureFlags;
 }
 
 export interface Anime4KPipelineDescriptor extends OriginalPipelineDescriptor {
   device: GPUDevice;
+  terminalTarget?: TerminalTextureTarget;
+  optimizationFlags?: OptimizationFeatureFlags;
 }
 
 export interface Anime4KPresetPipelineDescriptor extends Anime4KPipelineDescriptor {

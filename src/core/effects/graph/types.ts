@@ -1,4 +1,5 @@
 import type { Dimensions } from '../../../types';
+import type { OptimizationFeatureFlags } from '../../optimization-flags';
 
 export type TextureSymbol = string;
 
@@ -30,6 +31,23 @@ export interface ComputeGraphStage extends GraphStageBase {
   extraLayoutEntries?: GPUBindGroupLayoutEntry[];
   extraBindGroupEntries?: GPUBindGroupEntry[];
   extraLayoutKey?: string;
+  optimizedShaderWGSL?: string;
+  optimizedWorkgroupSize?: Dimensions;
+  optimizationFlag?: keyof OptimizationFeatureFlags;
+}
+
+export interface MultiComputeGraphStage {
+  id: string;
+  name?: string;
+  op: 'multi-compute';
+  inputs: TextureSymbol[];
+  outputs: TextureSymbol[];
+  shaderWGSL: string;
+  baselineShaders: string[];
+  cacheKeyPrefix: string;
+  outputSize?: DimensionExpression;
+  workgroupSize?: Dimensions;
+  optimizationFlag?: keyof OptimizationFeatureFlags;
 }
 
 export interface DepthToSpaceGraphStage extends GraphStageBase {
@@ -40,6 +58,7 @@ export interface DepthToSpaceGraphStage extends GraphStageBase {
 
 export interface RenderCompositeGraphStage extends GraphStageBase {
   op: 'render-composite';
+  terminalDirect?: boolean;
   inputs: TextureSymbol[];
   fragmentWGSL: string;
   outputSize: DimensionExpression;
@@ -65,12 +84,25 @@ export interface LumaRecomposeGraphStage extends GraphStageBase {
   workgroupSize?: Dimensions;
 }
 
+export interface ModelTailGraphStage extends GraphStageBase {
+  op: 'model-tail';
+  terminalDirect?: boolean;
+  source: TextureSymbol;
+  features: TextureSymbol[];
+  headShaders: string[];
+  kind: 'restore' | 'upscale';
+  outputSize: DimensionExpression;
+  cacheKeyPrefix: string;
+}
+
 export type GraphStage =
   | ComputeGraphStage
+  | MultiComputeGraphStage
   | DepthToSpaceGraphStage
   | RenderCompositeGraphStage
   | ResizeGraphStage
-  | LumaRecomposeGraphStage;
+  | LumaRecomposeGraphStage
+  | ModelTailGraphStage;
 
 export interface EffectGraph {
   input: TextureSymbol;

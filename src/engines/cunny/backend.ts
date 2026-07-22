@@ -9,11 +9,14 @@ export const cunnyBackend = createEffectBackend({
   descriptors: cunnyEffectDescriptors,
   loaders: cunnyGeneratedModelLoaders,
   createPipeline(model, context) {
-    return new CuNNyGeneratedPipeline({
+    return CuNNyGeneratedPipeline.create({
       device: context.device,
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       model,
+      optimizationFlags: context.optimizationFlags,
+      terminalTarget: context.terminalTarget,
+      capabilities: context.capabilities,
     });
   },
 });

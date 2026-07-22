@@ -23,10 +23,15 @@ fn sample_conv2_vec4(pos: vec2u, offset: vec2i, lane: vec2i, packedScale: vec2i)
 @group(0) @binding(3) var out_tex: texture_storage_2d<rgba16float, write>;
 
 
+
 @compute
 @workgroup_size(WG_X, WG_Y)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
   let sourceSize = textureDimensions(tex_LUMA);
+
   if (pixel.x >= sourceSize.x || pixel.y >= sourceSize.y) {
     return;
   }

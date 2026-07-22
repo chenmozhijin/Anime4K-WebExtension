@@ -169,6 +169,7 @@ class MockCommandEncoder {
 
 class MockDevice {
   readonly queue = new MockQueue() as unknown as GPUQueue;
+  features = new Set<GPUFeatureName>() as unknown as GPUSupportedFeatures;
   readonly limits = {
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
@@ -306,7 +307,12 @@ class MockAdapter {
     this.features = new Set(features) as unknown as GPUSupportedFeatures;
   }
 
-  async requestDevice(_descriptor?: GPUDeviceDescriptor): Promise<GPUDevice> {
+  async requestDevice(descriptor?: GPUDeviceDescriptor): Promise<GPUDevice> {
+    // Adapter support and device enablement are distinct in WebGPU. Mirror the
+    // requested descriptor so capability tests catch accidental use of unsupported state.
+    this.device.features = new Set(
+      [...(descriptor?.requiredFeatures ?? [])] as GPUFeatureName[],
+    ) as unknown as GPUSupportedFeatures;
     return this.device as unknown as GPUDevice;
   }
 }

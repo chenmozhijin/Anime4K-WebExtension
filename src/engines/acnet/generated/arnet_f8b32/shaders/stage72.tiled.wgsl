@@ -1,0 +1,90 @@
+const WG_X: u32 = 8u;
+const WG_Y: u32 = 8u;
+const BT709_LUMA: vec3f = vec3f(0.2126, 0.7152, 0.0722);
+
+fn luma709(color: vec3f) -> f32 {
+  return dot(color, BT709_LUMA);
+}
+
+@group(0) @binding(0) var tex_TMP1_TEX_0: texture_2d<f32>;
+
+fn sample_TMP1_TEX_0(pos: vec2u, offset: vec2i) -> vec4f {
+  let size = vec2i(textureDimensions(tex_TMP1_TEX_0));
+  let coord = clamp(vec2i(pos) + offset, vec2i(0, 0), size - vec2i(1, 1));
+  return textureLoad(tex_TMP1_TEX_0, coord, 0);
+}
+
+@group(0) @binding(1) var tex_TMP1_TEX_1: texture_2d<f32>;
+
+fn sample_TMP1_TEX_1(pos: vec2u, offset: vec2i) -> vec4f {
+  let size = vec2i(textureDimensions(tex_TMP1_TEX_1));
+  let coord = clamp(vec2i(pos) + offset, vec2i(0, 0), size - vec2i(1, 1));
+  return textureLoad(tex_TMP1_TEX_1, coord, 0);
+}
+
+@group(0) @binding(2) var tex_TMP2_TEX_0: texture_2d<f32>;
+
+fn sample_TMP2_TEX_0(pos: vec2u, offset: vec2i) -> vec4f {
+  let size = vec2i(textureDimensions(tex_TMP2_TEX_0));
+  let coord = clamp(vec2i(pos) + offset, vec2i(0, 0), size - vec2i(1, 1));
+  return textureLoad(tex_TMP2_TEX_0, coord, 0);
+}
+var<workgroup> tile_TMP1_TEX_0: array<array<vec4f, 10>, 10>;
+var<workgroup> tile_TMP1_TEX_1: array<array<vec4f, 10>, 10>;
+var<workgroup> tile_TMP2_TEX_0: array<array<vec4f, 10>, 10>;
+
+@group(0) @binding(3) var out_tex: texture_storage_2d<rgba16float, write>;
+
+@compute
+@workgroup_size(WG_X, WG_Y)
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
+  let outputSize = textureDimensions(out_tex);
+
+  let groupOrigin = pixel.xy - localId.xy;
+  for (var tileY = localId.y; tileY < 10u; tileY += WG_Y) {
+    for (var tileX = localId.x; tileX < 10u; tileX += WG_X) {
+      tile_TMP1_TEX_0[tileY][tileX] = sample_TMP1_TEX_0(
+        groupOrigin,
+        vec2i(i32(tileX) - 1, i32(tileY) - 1),
+      );
+      tile_TMP1_TEX_1[tileY][tileX] = sample_TMP1_TEX_1(
+        groupOrigin,
+        vec2i(i32(tileX) - 1, i32(tileY) - 1),
+      );
+      tile_TMP2_TEX_0[tileY][tileX] = sample_TMP2_TEX_0(
+        groupOrigin,
+        vec2i(i32(tileX) - 1, i32(tileY) - 1),
+      );
+    }
+  }
+  workgroupBarrier();
+
+  if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
+    return;
+  }
+
+  var result: vec4f = vec4f(0.13072205, -0.013858167, 0.08982042, -0.15027256);
+      result += mat4x4<f32>(-0.090395436, -0.0709968, 0.0545654, 0.07288416, 0.039965097, -0.29541984, 0.100417584, 0.0005079908, -0.037446473, 0.07810106, -0.17597173, 0.024847044, -0.110939965, -0.08300383, 0.15536946, -0.028423231) * tile_TMP1_TEX_0[localId.y + 0u][localId.x + 0u];
+      result += mat4x4<f32>(-0.0306183, -0.18563013, -0.021522427, 0.1975746, -0.04102184, 0.13015506, 0.16834019, -0.14044939, -0.32894707, -0.081531085, 0.028205434, 0.036232308, -0.045463413, -0.089280434, 0.058352076, 0.25726798) * tile_TMP1_TEX_0[localId.y + 0u][localId.x + 1u];
+      result += mat4x4<f32>(0.08382405, 0.017307026, 0.002922902, 0.007280025, -0.15698145, -0.086560644, 0.06316087, 0.10399598, -0.14340055, 0.036682207, 0.19074196, -0.028267242, 0.011861948, -0.08556915, -0.037114717, -0.119623885) * tile_TMP1_TEX_0[localId.y + 0u][localId.x + 2u];
+      result += mat4x4<f32>(0.046351027, 0.12856802, 0.16210085, 0.014842893, -0.2820362, -0.15367891, 0.20662369, -0.012453962, 0.02937238, 0.15388858, -0.30944145, 0.17564149, -0.1829023, -0.3284626, 0.19318941, 0.039262198) * tile_TMP1_TEX_0[localId.y + 1u][localId.x + 0u];
+      result += mat4x4<f32>(-0.17797321, -0.2238766, 0.35064, -0.04102111, -0.13168092, -0.29139644, 0.21784021, 0.26964313, 0.15981792, 0.19921312, -0.3742738, 0.11485942, -0.3001538, -0.5457894, 0.13481635, 0.027310466) * tile_TMP1_TEX_0[localId.y + 1u][localId.x + 1u];
+      result += mat4x4<f32>(-0.06676716, -0.37050816, 0.046709046, 0.1834836, -0.11600217, 0.086741336, 0.049210414, -0.0936416, 0.13852344, 0.11432844, 0.07325621, -0.23252429, -0.0851241, -0.25521994, 0.2849965, -0.0489818) * tile_TMP1_TEX_0[localId.y + 1u][localId.x + 2u];
+      result += mat4x4<f32>(-0.068493634, -0.16920796, -0.10440477, 0.06879888, 0.16126996, 0.44881508, 0.060162276, -0.04210076, -0.17964835, -0.015793858, -0.055649348, 0.20703232, -0.047390733, -0.11399301, 0.14273162, -0.027753435) * tile_TMP1_TEX_0[localId.y + 2u][localId.x + 0u];
+      result += mat4x4<f32>(-0.22169358, -0.27597752, 0.24754892, 0.12238065, 0.08881795, 0.050591037, -0.08203517, 0.16032563, -0.22590621, -0.020914437, 0.07430555, 0.32486254, 0.06372736, 0.1409774, 0.48669025, 0.08745575) * tile_TMP1_TEX_0[localId.y + 2u][localId.x + 1u];
+      result += mat4x4<f32>(0.0025713413, 0.043771084, -0.022784323, -0.015129823, -0.012325209, -0.13135904, 0.19953106, 0.063990876, 0.15235068, 0.13823923, -0.3118578, -0.12783536, -0.030553259, -0.05704166, -0.016117517, -0.10232471) * tile_TMP1_TEX_0[localId.y + 2u][localId.x + 2u];
+      result += mat4x4<f32>(-0.04250017, -0.20477967, -0.022301322, 0.30565995, -0.06227284, -0.14162748, 0.0344733, 0.17574073, 0.014719311, 0.052086547, -0.13247184, -0.14828514, 0.0027154242, -0.11554325, 0.031074828, 0.010229888) * tile_TMP1_TEX_1[localId.y + 0u][localId.x + 0u];
+      result += mat4x4<f32>(-0.023865117, -0.081133395, -0.018546548, -0.19775611, -0.16751654, -0.032737285, -0.035582658, 0.012246322, 0.3572946, 0.016862424, -0.3514365, 0.06664307, 0.41974926, 0.106404565, -0.036700398, 0.011943197) * tile_TMP1_TEX_1[localId.y + 0u][localId.x + 1u];
+      result += mat4x4<f32>(0.07073541, -0.03005075, -0.062363707, -0.13762355, 0.25011194, 0.10728699, -0.15997748, -0.07469803, 0.0694657, 0.1498987, 0.040326923, -0.3956967, 0.15936609, 0.080937505, -0.04371887, -0.08478798) * tile_TMP1_TEX_1[localId.y + 0u][localId.x + 2u];
+      result += mat4x4<f32>(-0.122334644, -0.42306596, -0.15447316, -0.3816874, 0.3191545, 0.0939959, -0.047434445, 0.07610862, 0.030274667, 0.21434247, -0.0051476494, 0.48907518, 0.0090371305, -0.025780573, -0.032789744, -0.083876684) * tile_TMP1_TEX_1[localId.y + 1u][localId.x + 0u];
+      result += mat4x4<f32>(0.04906274, -0.14814371, -0.028810618, 0.097771406, 0.3881592, 0.07556426, 0.1337687, -0.23148695, -0.1909804, 0.3954789, -0.156424, 0.16117999, -0.049020104, -0.13192374, 0.17356996, -0.52626634) * tile_TMP1_TEX_1[localId.y + 1u][localId.x + 1u];
+      result += mat4x4<f32>(-0.11058363, 0.16504899, -0.10555332, 0.08873468, -0.07233277, 0.25292006, 0.11551501, -0.030324094, -0.43997866, -0.5566776, 0.19491437, 0.07044507, -0.32844105, -0.083167516, 0.0053920005, 0.060750216) * tile_TMP1_TEX_1[localId.y + 1u][localId.x + 2u];
+      result += mat4x4<f32>(-0.03735392, -0.043175552, 0.10020535, 0.079872064, 0.09260848, 0.34875137, 0.06438283, 0.16439164, -0.20563589, -0.12800682, 0.11053605, -0.15104419, 0.00781496, 0.05414038, 0.11175494, -0.100316584) * tile_TMP1_TEX_1[localId.y + 2u][localId.x + 0u];
+      result += mat4x4<f32>(0.11646397, 0.09963075, 0.20437776, -0.3170815, 0.039853357, 0.2697721, -0.028883575, -0.10488219, 0.1362559, -0.05823225, -0.29926342, 0.1597536, 0.16364154, 0.35544026, -0.087290674, -0.062331084) * tile_TMP1_TEX_1[localId.y + 2u][localId.x + 1u];
+      result += mat4x4<f32>(-0.17858203, 0.025712421, 0.2078427, 0.047108695, 0.07154414, 0.20411384, -0.23857668, 0.3306868, 0.117862806, -0.24086991, -0.38770017, -0.002313303, -0.17144258, -0.011391245, 0.055144414, 0.2561239) * tile_TMP1_TEX_1[localId.y + 2u][localId.x + 2u];
+      result = result * 0.2 + tile_TMP2_TEX_0[localId.y + 1u][localId.x + 1u];
+  textureStore(out_tex, pixel.xy, result);
+}

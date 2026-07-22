@@ -2,6 +2,7 @@ import type { EffectGraph, GraphStage, TextureSymbol } from '../../../../../core
 import {
   createConvStage,
   createGraph,
+  createMultiOutputConvStage,
   createOverlayStage,
 } from '../../graph-helpers';
 import conv2dtfWGSL from './shaders/conv2dtf.wgsl';
@@ -169,15 +170,13 @@ function addBranchStages(
   block: number,
   inputs: TextureSymbol[],
 ) {
-  for (let branch = 0; branch < 6; branch += 1) {
-    const output = branchName(block, branch);
-    stages.push(createConvStage({
-      id: output,
-      inputs,
-      output,
-      shaderWGSL: branchShaders[block][branch],
-    }));
-  }
+  stages.push(createMultiOutputConvStage({
+    id: `${convName(block * 3)}-branches`,
+    inputs,
+    outputs: branchOutputs(block),
+    shaders: branchShaders[block],
+    optimizationFlag: 'ganMultiOutputDispatch',
+  }));
 }
 
 export function createGANx4UULGraph(): EffectGraph {
@@ -191,17 +190,15 @@ export function createGANx4UULGraph(): EffectGraph {
     const residual = convName(3 * (block - 1) + 1);
     const bridge = convName(3 * (block - 1) + 2);
 
-    stages.push(createConvStage({
-      id: residual,
+    stages.push(createMultiOutputConvStage({
+      id: `${residual}-pair`,
       inputs: previousOutputs,
-      output: residual,
-      shaderWGSL: skipShaders[2 * (block - 1)],
-    }));
-    stages.push(createConvStage({
-      id: bridge,
-      inputs: previousOutputs,
-      output: bridge,
-      shaderWGSL: skipShaders[2 * (block - 1) + 1],
+      outputs: [residual, bridge],
+      shaders: [
+        skipShaders[2 * (block - 1)],
+        skipShaders[2 * (block - 1) + 1],
+      ],
+      optimizationFlag: 'ganMultiOutputDispatch',
     }));
 
     residuals.push(residual);
@@ -226,15 +223,13 @@ export function createGANx4UULGraph(): EffectGraph {
     ...residuals,
     'conv2d_25_tf',
   ];
-  for (let branch = 0; branch < 6; branch += 1) {
-    const output = upsampleName(branch);
-    stages.push(createConvStage({
-      id: output,
-      inputs: upsampleInputs,
-      output,
-      shaderWGSL: upsampleShaders[branch],
-    }));
-  }
+  stages.push(createMultiOutputConvStage({
+    id: 'conv0ups-branches',
+    inputs: upsampleInputs,
+    outputs: Array.from({ length: 6 }, (_, branch) => upsampleName(branch)),
+    shaders: upsampleShaders,
+    optimizationFlag: 'ganMultiOutputDispatch',
+  }));
 
   const upsampleOutputs = Array.from({ length: 6 }, (_, branch) => upsampleName(branch));
   for (let branch = 0; branch < 6; branch += 1) {

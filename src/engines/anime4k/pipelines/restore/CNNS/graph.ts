@@ -1,8 +1,7 @@
 import type { EffectGraph } from '../../../../../core/effects/graph';
 import {
-  createConvStage,
   createGraph,
-  createOverlayStage,
+  createRestoreTailStage,
   createSerialConvStages,
 } from '../../graph-helpers';
 import conv2dtfWGSL from './shaders/conv2dtf.wgsl';
@@ -19,14 +18,7 @@ const convShaders = [
 export function createCNNSGraph(): EffectGraph {
   const stages: EffectGraph['stages'] = createSerialConvStages(convShaders);
 
-  stages.push(createConvStage({
-    id: 'output',
-    inputs: ['conv2'],
-    output: 'restore',
-    shaderWGSL: outputWGSL,
-  }));
-
-  stages.push(createOverlayStage({ addon: 'restore' }));
+  stages.push(createRestoreTailStage({ features: ['conv2'], headShader: outputWGSL }));
 
   return createGraph(stages);
 }

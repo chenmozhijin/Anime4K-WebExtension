@@ -4,15 +4,17 @@ import { Anime4KPipeline, ClampHighlightsPipelineDescriptor } from '../../interf
 import luminationXWGSL from './shaders/luminationX.wgsl';
 import luminationYWGSL from './shaders/luminationY.wgsl';
 import clampWGSL from './shaders/clamp.wgsl';
+import fusedWGSL from './shaders/fused.wgsl';
+import { defaultOptimizationFeatureFlags } from '../../../../../core/optimization-flags';
 
 export class ClampHighlights implements Anime4KPipeline {
   readonly name: string;
 
   readonly outputTexture: GPUTexture;
 
-  readonly statsXTexture: GPUTexture;
+  readonly statsXTexture: GPUTexture | null;
 
-  readonly statsYTexture: GPUTexture;
+  readonly statsYTexture: GPUTexture | null;
 
   private readonly passes: ComputeTexturePass[];
 
@@ -20,12 +22,30 @@ export class ClampHighlights implements Anime4KPipeline {
     device,
     inputTexture,
     name = 'clamp highlights',
+    optimizationFlags = defaultOptimizationFeatureFlags,
   }: ClampHighlightsPipelineDescriptor) {
     this.name = name;
     const outputSize = {
       width: inputTexture.width,
       height: inputTexture.height,
     };
+
+    if (optimizationFlags.fusedClampHighlights) {
+      const fusedPass = new ComputeTexturePass({
+        device,
+        inputTextures: [inputTexture],
+        shaderWGSL: fusedWGSL,
+        name: `${name} Fused`,
+        cacheKeyPrefix: 'anime4k/helper/ClampHighlights/fused',
+        outputSize,
+        outputUsage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+      });
+      this.passes = [fusedPass];
+      this.statsXTexture = null;
+      this.statsYTexture = null;
+      this.outputTexture = fusedPass.outputTexture;
+      return;
+    }
 
     const luminationXPass = new ComputeTexturePass({
       device,

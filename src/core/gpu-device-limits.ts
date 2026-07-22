@@ -5,5 +5,7 @@ export function getRequiredDeviceLimits(adapter: GPUAdapter): NonNullable<GPUDev
     maxBufferSize: limits.maxBufferSize,
     maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
     maxComputeWorkgroupStorageSize: limits.maxComputeWorkgroupStorageSize,
+    maxStorageTexturesPerShaderStage: limits.maxStorageTexturesPerShaderStage,
+    maxSampledTexturesPerShaderStage: limits.maxSampledTexturesPerShaderStage,
   };
 }

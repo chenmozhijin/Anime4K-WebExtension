@@ -4,12 +4,17 @@ import {
   type GeneratedLumaStageConfig,
 } from '../../../../core/generated-models/luma-model-pipeline';
 import outputRecomposeWGSL from '../helpers/OutputRecompose/shaders/outputRecompose.wgsl';
+import outputRecomposeTerminalWGSL from '../helpers/OutputRecompose/shaders/outputRecomposeTerminal.wgsl';
+import type { OptimizationFeatureFlags } from '../../../../core/optimization-flags';
+import type { TerminalTextureTarget } from '../../../../core/effects/backend-types';
 
 export interface ArtCNNPipelineDescriptor {
   device: GPUDevice;
   inputTexture: GPUTexture;
   nativeDimensions: Dimensions;
   targetDimensions: Dimensions;
+  optimizationFlags?: OptimizationFeatureFlags;
+  terminalTarget?: TerminalTextureTarget;
 }
 
 export interface ArtCNNVariantConfig {
@@ -70,7 +75,10 @@ export class ArtCNNUpscalePipeline extends GeneratedLumaModelPipeline {
       stageDispatchSize: 'native',
       stageWorkgroupSize: { width: 12, height: 16 },
       outputRecomposeShaderWGSL: outputRecomposeWGSL,
+      outputRecomposeTerminalWGSL,
       outputRecomposeWorkgroupSize: { width: 12, height: 16 },
+      optimizationFlags: options.optimizationFlags,
+      terminalTarget: options.terminalTarget,
     });
   }
 }

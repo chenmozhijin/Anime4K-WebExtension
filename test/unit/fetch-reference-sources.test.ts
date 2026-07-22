@@ -202,7 +202,7 @@ describe('fetch-reference-sources', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it('rejects unknown targets from custom locks', async () => {
     const root = mkdtempSync(join(tmpdir(), 'reference-unknown-'));

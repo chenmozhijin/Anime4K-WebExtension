@@ -11,10 +11,14 @@ export class CNNUL implements Anime4KPipeline {
   constructor({
     device,
     inputTexture,
+    terminalTarget,
+    optimizationFlags,
   }: Anime4KPipelineDescriptor) {
     this.graphRunner = new EffectGraphRunner({
       device,
       inputTexture,
+      terminalTarget,
+      optimizationFlags,
       graph: createCNNULGraph(),
     });
     this.pipelines = this.graphRunner.pipelines;

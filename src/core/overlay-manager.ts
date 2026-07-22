@@ -723,6 +723,7 @@ export class OverlayManager {
   }
 
   private renderPerformanceHudMini(snapshot: FramePerformanceSnapshot): string {
+    const cpuLabel = this.hudMessage('hudLabelCpu', 'CPU');
     const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
     const gpuText = snapshot.timestampAvailable
       ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
@@ -730,7 +731,7 @@ export class OverlayManager {
     return `
       <button class="hud-mini" data-hud-action="toggle" type="button">
         <span>${this.formatFps(snapshot.fps)} ${this.escapeHtml(this.hudMessage('hudLabelFps', 'FPS'))}</span>
-        <span>${this.formatMs(snapshot.frameMs)}</span>
+        <span>${this.escapeHtml(cpuLabel)} ${this.formatMs(snapshot.frameMs)}</span>
         <span>${this.escapeHtml(gpuText)}</span>
         <span>${this.escapeHtml(this.hudMessage('hudLabelDrop', 'Drop'))} ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
       </button>
@@ -739,12 +740,14 @@ export class OverlayManager {
 
   private renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string {
     const groups = this.prepareHudRows(snapshot.groupEntries);
-    const canShowPassTimings = snapshot.mode === 'gpu'
+    const hasGpuPassTimings = snapshot.mode === 'gpu'
       && snapshot.timestampAvailable
       && groups.some(entry => typeof entry.gpuMs === 'number');
-    const total = groups.reduce((sum, entry) => sum + this.getEntryDisplayMs(entry), 0);
+    const canShowPassTimings = groups.length > 0 && (snapshot.mode !== 'gpu' || hasGpuPassTimings);
+    const renderTotalMs = this.sumEntryDisplayMs(groups);
+    const renderTotalLabel = this.formatRenderTotalMs(groups);
     const bar = groups.map((entry, index) => {
-      const width = total > 0 ? Math.max(2, (this.getEntryDisplayMs(entry) / total) * 100) : 0;
+      const width = renderTotalMs > 0 ? Math.max(2, (this.getEntryDisplayMs(entry) / renderTotalMs) * 100) : 0;
       return `<span style="width:${width.toFixed(2)}%;background:${HUD_COLORS[index % HUD_COLORS.length]}"></span>`;
     }).join('');
     const rows = groups.map((entry, index) => `
@@ -787,13 +790,13 @@ export class OverlayManager {
             ? ''
             : canShowPassTimings
               ? `
-                <div class="hud-stack" title="${this.formatMs(snapshot.frameMs)} / ${this.formatMs(snapshot.budgetMs)}">${bar}</div>
+                <div class="hud-stack" title="${this.escapeHtml(renderTotalLabel)} / ${this.formatMs(snapshot.budgetMs)}">${bar}</div>
                 ${rows}
                 <div class="hud-rule"></div>
                 <div class="hud-row hud-total">
                   <span></span>
                   <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelTotal', 'Total'))}</span>
-                  <span class="hud-ms">${this.formatMs(snapshot.frameMs)}</span>
+                  <span class="hud-ms">${this.escapeHtml(renderTotalLabel)}</span>
                 </div>
               `
               : this.renderGpuDiagnosticsHint(snapshot)}
@@ -874,6 +877,7 @@ export class OverlayManager {
     const hasGpuPassTimings = snapshot.mode === 'gpu'
       && snapshot.timestampAvailable
       && snapshot.groupEntries.some(entry => typeof entry.gpuMs === 'number');
+    const canIncludePassTimings = snapshot.groupEntries.length > 0 && (snapshot.mode !== 'gpu' || hasGpuPassTimings);
     const lines = [
       this.hudMessage('hudSnapshotTitle', 'Anime4K Performance Monitor'),
       `${this.hudMessage('hudLabelGpu', 'GPU')}: ${snapshot.gpuName}`,
@@ -888,7 +892,7 @@ export class OverlayManager {
       `${this.hudMessage('hudLabelDrop', 'Drop')}: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%`,
     ];
 
-    if (!hasGpuPassTimings) {
+    if (!canIncludePassTimings) {
       lines.push(this.getPassTimingHint(snapshot));
       return lines.join('\n');
     }
@@ -908,15 +912,28 @@ export class OverlayManager {
   }
 
   private formatEntryMs(entry: PassTimingEntry): string {
+    const cpuLabel = this.hudMessage('hudLabelCpu', 'CPU');
     if (typeof entry.gpuMs === 'number') {
-      return `${this.formatMs(entry.cpuMs)} / ${this.hudMessage('hudLabelGpu', 'GPU')} ${this.formatMs(entry.gpuMs)}`;
+      return `${cpuLabel} ${this.formatMs(entry.cpuMs)} / ${this.hudMessage('hudLabelGpu', 'GPU')} ${this.formatMs(entry.gpuMs)}`;
     }
 
-    return this.formatMs(entry.cpuMs);
+    return `${cpuLabel} ${this.formatMs(entry.cpuMs)}`;
   }
 
   private getEntryDisplayMs(entry: PassTimingEntry): number {
-    return entry.gpuMs ?? entry.cpuMs;
+    return entry.cpuMs + (entry.gpuMs ?? 0);
+  }
+
+  private sumEntryDisplayMs(entries: PassTimingEntry[]): number {
+    return entries.reduce((sum, entry) => sum + this.getEntryDisplayMs(entry), 0);
+  }
+
+  private formatRenderTotalMs(entries: PassTimingEntry[]): string {
+    const cpuLabel = this.hudMessage('hudLabelCpu', 'CPU');
+    const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
+    const total = this.sumEntryDisplayMs(entries);
+    const hasGpu = entries.some(entry => typeof entry.gpuMs === 'number');
+    return `${hasGpu ? `${cpuLabel}+${gpuLabel}` : cpuLabel} ${this.formatMs(total)}`;
   }
 
   private getPassTimingHint(snapshot: FramePerformanceSnapshot): string {

@@ -261,6 +261,7 @@ describe('effect verification tooling', () => {
       '--no-build',
       '--no-reference-cache',
       '--run-id=baseline-2026-07-03',
+      '--output=test-results/verify/effects/custom-summary.json',
     ]);
     expect(args.filter).toBe('artcnn');
     expect(args.fixture).toBe('checker_edges');
@@ -272,6 +273,7 @@ describe('effect verification tooling', () => {
     expect(args.noBuild).toBe(true);
     expect(args.referenceCache).toBe(false);
     expect(args.runId).toBe('baseline-2026-07-03');
+    expect(args.output).toBe(resolve(repoRoot, 'test-results/verify/effects/custom-summary.json'));
   });
 
   it('keys reference cache by shader, runner, input, dimensions, and scale', () => {
@@ -340,10 +342,13 @@ describe('effect verification tooling', () => {
     expect(parseProductionBundleArgs(['--dist=dist-firefox']).distDirs).toEqual(['dist-firefox']);
   });
 
-  it('keeps production bundle scan in the CI aggregate command', () => {
+  it('keeps release software gates in the CI aggregate command', () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
+    expect(packageJson.scripts['test:ci']).toContain('npm run test:coverage');
     expect(packageJson.scripts['test:ci']).toContain('npm run build:chrome');
-    expect(packageJson.scripts['test:ci']).toContain('npm run check:production-bundle -- --dist dist-chrome');
+    expect(packageJson.scripts['test:ci']).toContain('npm run build:firefox');
+    expect(packageJson.scripts['test:ci']).toContain('npm run check:production-bundle');
+    expect(packageJson.scripts['test:ci']).toContain('npm run check:release-version');
   });
 
   it('fails production bundle scans when verify-only strings leak into assets', () => {

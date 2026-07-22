@@ -11,10 +11,14 @@ export class CNNM implements Anime4KPipeline {
   constructor({
     device,
     inputTexture,
+    terminalTarget,
+    optimizationFlags,
   }: Anime4KPipelineDescriptor) {
     this.graphRunner = new EffectGraphRunner({
       device,
       inputTexture,
+      terminalTarget,
+      optimizationFlags,
       graph: createCNNMGraph(),
     });
     this.pipelines = this.graphRunner.pipelines;

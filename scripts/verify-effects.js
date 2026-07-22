@@ -8,6 +8,7 @@ const { createManifest, repoRoot } = require('./verify/lib/manifest');
 const { requireUcrt64Root } = require('./verify/lib/native-tools');
 const { decodePng, encodePng } = require('./verify/lib/png');
 const { startStaticServer } = require('./verify/lib/static-server');
+const { computeImageMetrics } = require('./verify/lib/image-metrics');
 
 const artifactsRoot = path.join(repoRoot, 'test-results/verify/effects');
 const browserOutDir = path.join(repoRoot, 'test-results/verify/browser');
@@ -16,6 +17,32 @@ const workRoot = path.join(repoRoot, '.cache', 'verify-effects', 'work');
 const lumaRunnerPath = path.join(repoRoot, '.cache', 'verify-tools', 'native', 'libplacebo-luma-runner.exe');
 const rgbaRunnerPath = path.join(repoRoot, '.cache', 'verify-tools', 'native', 'libplacebo-rgba-runner.exe');
 const BT709 = [0.2126, 0.7152, 0.0722];
+const disabledOptimizationFlags = Object.freeze({
+  textureLifetimeReuse: false,
+  vectorizedPixelShuffle: false,
+  fusedPixelShuffleRecompose: false,
+  cunnyWorkgroupTile: false,
+  fusedClampHighlights: false,
+  acnetWorkgroupTile: false,
+  anime4kWorkgroupTile: false,
+  multiOutputDispatch: false,
+  ganMultiOutputDispatch: false,
+  fusedModelTail: false,
+  terminalDirect: false,
+  externalTexture: false,
+  perceptualShaderF16: false,
+  kernelAutotune: false,
+});
+const exactOptimizationFlags = Object.freeze({
+  ...disabledOptimizationFlags,
+  textureLifetimeReuse: true,
+  cunnyWorkgroupTile: true,
+  acnetWorkgroupTile: true,
+  anime4kWorkgroupTile: true,
+  multiOutputDispatch: true,
+  ganMultiOutputDispatch: true,
+  kernelAutotune: true,
+});
 
 function parseArgs(argv) {
   const args = {
@@ -30,10 +57,15 @@ function parseArgs(argv) {
     noBuild: false,
     referenceCache: true,
     runId: null,
+    optimizationAudit: false,
+    terminalAudit: false,
+    output: path.join(artifactsRoot, 'summary.json'),
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--keep-artifacts') args.keepArtifacts = true;
+    else if (arg === '--optimization-audit') args.optimizationAudit = true;
+    else if (arg === '--terminal-audit') args.terminalAudit = true;
     else if (arg === '--fixture-exact') args.fixtureExact = true;
     else if (arg === '--no-build') args.noBuild = true;
     else if (arg === '--no-reference-cache') args.referenceCache = false;
@@ -51,6 +83,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--shard=')) args.shard = parseShard(arg.slice('--shard='.length));
     else if (arg === '--run-id') args.runId = argv[++index];
     else if (arg.startsWith('--run-id=')) args.runId = arg.slice('--run-id='.length);
+    else if (arg === '--output') args.output = path.resolve(repoRoot, argv[++index]);
+    else if (arg.startsWith('--output=')) args.output = path.resolve(repoRoot, arg.slice('--output='.length));
     else throw new Error(`Unknown verify:effects option: ${arg}`);
   }
   return args;
@@ -301,13 +335,33 @@ function compareF32(reference, candidate, width, options) {
     })
     : null;
   const { meanAbs, maxAbs, maxPosition } = full;
-  const passed = meanAbs <= options.meanAbs && maxAbs <= options.maxAbs;
+  let nonFiniteCount = 0;
+  let belowZeroCount = 0;
+  let aboveOneCount = 0;
+  let alphaMaxAbs = 0;
+  for (let index = 0; index < candidate.length; index += 1) {
+    const value = candidate[index];
+    if (!Number.isFinite(value)) nonFiniteCount += 1;
+    else if (value < 0) belowZeroCount += 1;
+    else if (value > 1) aboveOneCount += 1;
+    if (components === 4 && index % 4 === 3) {
+      alphaMaxAbs = Math.max(alphaMaxAbs, Math.abs(reference[index] - value));
+    }
+  }
+  const perceptual = computeImageMetrics(reference, candidate, width, components);
+  const passed = nonFiniteCount === 0
+    && meanAbs <= options.meanAbs
+    && maxAbs <= options.maxAbs;
   return {
     passed,
     meanAbs,
     maxAbs,
     maxPosition,
     cropped,
+    nonFiniteCount,
+    outputRange: { belowZeroCount, aboveOneCount },
+    alphaMaxAbs: components === 4 ? alphaMaxAbs : null,
+    perceptual,
     thresholds: {
       meanAbs: options.meanAbs,
       maxAbs: options.maxAbs,
@@ -431,21 +485,97 @@ async function closeVerifyPage(page) {
 
 async function runCandidate(page, effect, fixture, options = {}) {
   return page.evaluate(
-    async ({ effectId, width, height, rgba, outputMode, includePreview }) => {
+    async ({ effectId, width, height, rgba, outputMode, includePreview, optimizationFlags, terminalPresentation }) => {
       if (!window.__runEffectVerification) {
         throw new Error('Verification runner is not loaded.');
       }
-      return window.__runEffectVerification({ effectId, width, height, rgba, outputMode, includePreview });
+      return window.__runEffectVerification({
+        effectId,
+        width,
+        height,
+        rgba,
+        outputMode,
+        includePreview,
+        optimizationFlags,
+        terminalPresentation,
+      });
     },
     {
       effectId: effect.id,
       width: fixture.width,
       height: fixture.height,
       rgba: Array.from(fixture.rgba),
-      outputMode: effect.outputMode,
+      outputMode: options.outputMode ?? effect.outputMode,
       includePreview: Boolean(options.includePreview),
+      optimizationFlags: options.optimizationFlags,
+      terminalPresentation: Boolean(options.terminalPresentation),
     },
   );
+}
+
+async function runTerminalPresentationAudit(page, effect, fixture, caseTimeoutMs) {
+  const run = options => {
+    const promise = runCandidate(page, effect, fixture, {
+      includePreview: true,
+      outputMode: 'final',
+      ...options,
+    });
+    return caseTimeoutMs
+      ? withTimeout(promise, caseTimeoutMs, `terminal audit ${effect.id} / ${fixture.id}`)
+      : promise;
+  };
+  const baseline = await run({ optimizationFlags: { terminalDirect: false } });
+  const terminal = await run({
+    optimizationFlags: { terminalDirect: true },
+    terminalPresentation: true,
+  });
+  if (!terminal.terminalPresented) {
+    return { passed: true, skipped: true, reason: 'effect has no certified terminal presenter' };
+  }
+  if (
+    baseline.width !== terminal.width
+    || baseline.height !== terminal.height
+    || !baseline.rgba
+    || !terminal.rgba
+  ) {
+    return { passed: false, skipped: false, reason: 'terminal and baseline dimensions or previews differ' };
+  }
+  const reference = Float32Array.from(baseline.rgba, value => value / 255);
+  const candidate = Float32Array.from(terminal.rgba, value => value / 255);
+  const comparison = compareF32(reference, candidate, baseline.width, {
+    components: 4,
+    meanAbs: 0.25 / 255,
+    maxAbs: 2 / 255,
+    cropBorderPx: 0,
+  });
+  const perceptual = comparison.perceptual;
+  const perceptualPassed = comparison.passed
+    && (perceptual?.psnr ?? Infinity) >= 50
+    && (perceptual?.ssim ?? 1) >= 0.9995
+    && (perceptual?.deltaE2000?.p99 ?? 0) <= 0.5
+    && (perceptual?.deltaE2000?.max ?? 0) <= 2;
+  return {
+    ...comparison,
+    passed: perceptualPassed,
+    skipped: false,
+    correctnessClass: 'perceptual',
+    perceptualThresholds: {
+      psnr: 50,
+      ssim: 0.9995,
+      deltaE2000P99: 0.5,
+      deltaE2000Max: 2,
+    },
+    baselinePlan: {
+      passCount: baseline.passCount,
+      peakTextureBytes: baseline.peakTextureBytes,
+      textureSlotCount: baseline.textureSlotCount,
+    },
+    terminalPlan: {
+      passCount: terminal.passCount,
+      peakTextureBytes: terminal.peakTextureBytes,
+      textureSlotCount: terminal.textureSlotCount,
+    },
+  };
 }
 
 function createCaseList(manifest, fixtures) {
@@ -547,6 +677,14 @@ function createSummaryPayload({
     },
     cases,
   };
+}
+
+function writeJsonAtomic(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(value, null, 2));
+  fs.rmSync(filePath, { force: true });
+  fs.renameSync(temporaryPath, filePath);
 }
 
 function writeProcessLogs(caseDir, prefix, result) {
@@ -675,7 +813,17 @@ async function readCandidatePreview({ page, effect, fixture, caseTimeoutMs }) {
     : previewPromise;
 }
 
-async function runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeoutMs, runId, useReferenceCache }) {
+async function runOneLumaMath({
+  page,
+  effect,
+  fixture,
+  keepArtifacts,
+  caseTimeoutMs,
+  runId,
+  useReferenceCache,
+  optimizationAudit,
+  terminalAudit,
+}) {
   const timings = createEmptyTimings();
   const totalStart = nowMs();
   const workspace = createCaseWorkspace(effect, fixture, keepArtifacts);
@@ -703,7 +851,12 @@ async function runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeou
   timings.referenceMs = nowMs() - referenceStart;
 
   const candidateStart = nowMs();
-  const candidatePromise = runCandidate(page, effect, fixture, { includePreview: keepArtifacts });
+  const candidatePromise = runCandidate(page, effect, fixture, {
+    includePreview: keepArtifacts,
+    // Native raw-math verification needs the dedicated luma surface. The fused
+    // runtime path is audited separately below using the final RGBA output.
+    optimizationFlags: { fusedPixelShuffleRecompose: false },
+  });
   const candidateResult = caseTimeoutMs
     ? await withTimeout(candidatePromise, caseTimeoutMs, `candidate ${effect.id} / ${fixture.id}`)
     : await candidatePromise;
@@ -723,9 +876,80 @@ async function runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeou
   const comparison = dimensionFailure
     ? { passed: false, reason: dimensionFailure }
     : compareF32(readF32(referenceRawPath), Float32Array.from(candidateResult.lumaF32), expectedWidth, effect.compare);
+  let optimizationComparison = null;
+  let pixelShuffleFusionComparison = null;
+  if (!dimensionFailure && optimizationAudit) {
+    const [baselineResult, exactResult] = await Promise.all([
+      runCandidate(page, effect, fixture, { optimizationFlags: disabledOptimizationFlags }),
+      runCandidate(page, effect, fixture, { optimizationFlags: exactOptimizationFlags }),
+    ]);
+    const exactComparison = baselineResult.width !== exactResult.width
+      || baselineResult.height !== exactResult.height
+      || !baselineResult.lumaF32
+      || !exactResult.lumaF32
+      ? { passed: false, reason: 'exact optimization dimensions or output mode differ' }
+      : compareF32(
+        Float32Array.from(baselineResult.lumaF32),
+        Float32Array.from(exactResult.lumaF32),
+        expectedWidth,
+        { components: 1, meanAbs: 1e-6, maxAbs: 1 / 1024, cropBorderPx: 0 },
+      );
+    const perceptualComparison = baselineResult.width !== candidateResult.width
+      || baselineResult.height !== candidateResult.height
+      || !baselineResult.lumaF32
+      ? { passed: false, reason: 'optimization baseline dimensions or output mode differ' }
+      : compareF32(
+        Float32Array.from(baselineResult.lumaF32),
+        Float32Array.from(candidateResult.lumaF32),
+        expectedWidth,
+        {
+          components: 1,
+          meanAbs: 0.25 / 255,
+          maxAbs: 2 / 255,
+          psnr: 50,
+          ssim: 0.9995,
+          cropBorderPx: 0,
+        },
+      );
+    optimizationComparison = {
+      passed: exactComparison.passed && perceptualComparison.passed,
+      exact: exactComparison,
+      perceptual: perceptualComparison,
+    };
+
+    if (effect.id.startsWith('acnet/')) {
+      const [fusionBaseline, fusionCandidate] = await Promise.all([
+        runCandidate(page, effect, fixture, {
+          outputMode: 'rgba',
+          optimizationFlags: { fusedPixelShuffleRecompose: false },
+        }),
+        runCandidate(page, effect, fixture, {
+          outputMode: 'rgba',
+          optimizationFlags: { fusedPixelShuffleRecompose: true },
+        }),
+      ]);
+      pixelShuffleFusionComparison = fusionBaseline.width !== fusionCandidate.width
+        || fusionBaseline.height !== fusionCandidate.height
+        || !fusionBaseline.rgbaF32
+        || !fusionCandidate.rgbaF32
+        ? { passed: false, reason: 'pixel shuffle fusion dimensions or RGBA output differ' }
+        : compareF32(
+          Float32Array.from(fusionBaseline.rgbaF32),
+          Float32Array.from(fusionCandidate.rgbaF32),
+          expectedWidth,
+          { components: 4, meanAbs: 1e-6, maxAbs: 1 / 1024, cropBorderPx: 0 },
+        );
+    }
+  }
+  const terminalComparison = terminalAudit
+    ? await runTerminalPresentationAudit(page, effect, fixture, caseTimeoutMs)
+    : null;
   timings.compareMs = nowMs() - compareStart;
   timings.totalMs = nowMs() - totalStart;
-  const passed = Boolean(comparison.passed);
+  const passed = Boolean(comparison.passed)
+    && (optimizationComparison?.passed ?? true)
+    && (pixelShuffleFusionComparison?.passed ?? true)
+    && (terminalComparison?.passed ?? true);
   if (!passed && workspace.usesTemporaryWorkDir) {
     referenceInfo.output = path.join(workspace.artifactDir, path.basename(referenceRawPath));
   }
@@ -760,10 +984,19 @@ async function runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeou
       candidate: { width: candidateResult.width, height: candidateResult.height },
     },
     adapterInfo: candidateResult.adapterInfo,
+    candidatePlan: {
+      passCount: candidateResult.passCount,
+      peakTextureBytes: candidateResult.peakTextureBytes,
+      textureSlotCount: candidateResult.textureSlotCount,
+      terminalPresented: candidateResult.terminalPresented,
+    },
     referenceInfo,
     referenceCache: referenceInfo.referenceCache,
     timings,
     comparisonPassed: passed,
+    optimizationComparison,
+    pixelShuffleFusionComparison,
+    terminalComparison,
     ...comparison,
     passed,
   };
@@ -785,7 +1018,17 @@ async function runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeou
   }
 }
 
-async function runOneRgbMath({ page, effect, fixture, keepArtifacts, caseTimeoutMs, runId, useReferenceCache }) {
+async function runOneRgbMath({
+  page,
+  effect,
+  fixture,
+  keepArtifacts,
+  caseTimeoutMs,
+  runId,
+  useReferenceCache,
+  optimizationAudit,
+  terminalAudit,
+}) {
   const timings = createEmptyTimings();
   const totalStart = nowMs();
   const workspace = createCaseWorkspace(effect, fixture, keepArtifacts);
@@ -838,9 +1081,56 @@ async function runOneRgbMath({ page, effect, fixture, keepArtifacts, caseTimeout
       expectedWidth,
       { ...effect.compare, components: 4 },
     );
+  let optimizationComparison = null;
+  if (!dimensionFailure && optimizationAudit) {
+    const [baselineResult, exactResult] = await Promise.all([
+      runCandidate(page, effect, fixture, { optimizationFlags: disabledOptimizationFlags }),
+      runCandidate(page, effect, fixture, { optimizationFlags: exactOptimizationFlags }),
+    ]);
+    const exactComparison = baselineResult.width !== exactResult.width
+      || baselineResult.height !== exactResult.height
+      || !baselineResult.rgbaF32
+      || !exactResult.rgbaF32
+      ? { passed: false, reason: 'exact optimization dimensions or output mode differ' }
+      : compareF32(
+        Float32Array.from(baselineResult.rgbaF32),
+        Float32Array.from(exactResult.rgbaF32),
+        expectedWidth,
+        { components: 4, meanAbs: 1e-6, maxAbs: 1 / 1024, cropBorderPx: 0 },
+      );
+    const perceptualComparison = baselineResult.width !== candidateResult.width
+      || baselineResult.height !== candidateResult.height
+      || !baselineResult.rgbaF32
+      ? { passed: false, reason: 'optimization baseline dimensions or output mode differ' }
+      : compareF32(
+        Float32Array.from(baselineResult.rgbaF32),
+        Float32Array.from(candidateResult.rgbaF32),
+        expectedWidth,
+        {
+          components: 4,
+          meanAbs: 0.25 / 255,
+          maxAbs: 2 / 255,
+          psnr: 50,
+          ssim: 0.9995,
+          deltaE2000P99: 0.5,
+          deltaE2000Max: 2,
+          cropBorderPx: 0,
+        },
+      );
+    optimizationComparison = {
+      passed: exactComparison.passed && perceptualComparison.passed,
+      exact: exactComparison,
+      perceptual: perceptualComparison,
+    };
+  }
+  const terminalComparison = terminalAudit
+    ? await runTerminalPresentationAudit(page, effect, fixture, caseTimeoutMs)
+    : null;
   timings.compareMs = nowMs() - compareStart;
   timings.totalMs = nowMs() - totalStart;
-  const passed = Boolean(comparison.passed);
+  const passed = Boolean(comparison.passed)
+    && (optimizationComparison?.passed ?? true)
+    && (terminalComparison?.passed ?? true);
   if (!passed && workspace.usesTemporaryWorkDir) {
     referenceInfo.output = path.join(workspace.artifactDir, path.basename(referenceRawPath));
   }
@@ -875,10 +1165,18 @@ async function runOneRgbMath({ page, effect, fixture, keepArtifacts, caseTimeout
       candidate: { width: candidateResult.width, height: candidateResult.height },
     },
     adapterInfo: candidateResult.adapterInfo,
+    candidatePlan: {
+      passCount: candidateResult.passCount,
+      peakTextureBytes: candidateResult.peakTextureBytes,
+      textureSlotCount: candidateResult.textureSlotCount,
+      terminalPresented: candidateResult.terminalPresented,
+    },
     referenceInfo,
     referenceCache: referenceInfo.referenceCache,
     timings,
     comparisonPassed: passed,
+    optimizationComparison,
+    terminalComparison,
     ...comparison,
     passed,
   };
@@ -900,13 +1198,14 @@ async function runOneRgbMath({ page, effect, fixture, keepArtifacts, caseTimeout
   }
 }
 
-async function runOne({ page, effect, fixture, keepArtifacts, caseTimeoutMs, runId, useReferenceCache }) {
+async function runOne(options) {
+  const { effect } = options;
   const validationMode = effect.validationMode;
   if (validationMode === 'luma-math') {
-    return runOneLumaMath({ page, effect, fixture, keepArtifacts, caseTimeoutMs, runId, useReferenceCache });
+    return runOneLumaMath(options);
   }
   if (validationMode === 'rgb-math') {
-    return runOneRgbMath({ page, effect, fixture, keepArtifacts, caseTimeoutMs, runId, useReferenceCache });
+    return runOneRgbMath(options);
   }
   throw new Error(`Unsupported validation mode: ${validationMode ?? '(missing)'}`);
 }
@@ -934,13 +1233,13 @@ async function main() {
 
   const failures = [];
   const cases = [];
-  const summaryPath = path.join(artifactsRoot, 'summary.json');
+  const summaryPath = args.output;
   const startedAt = new Date().toISOString();
   const runId = args.runId
     ?? process.env.VERIFY_RUN_ID
     ?? startedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
   const writeSummary = () => {
-    fs.writeFileSync(summaryPath, JSON.stringify(createSummaryPayload({
+    writeJsonAtomic(summaryPath, createSummaryPayload({
       runId,
       startedAt,
       finishedAt: null,
@@ -948,7 +1247,7 @@ async function main() {
       cases,
       caseTotal: selectedCases.length,
       args,
-    }), null, 2));
+    }));
   };
   let caseCount = 0;
   try {
@@ -972,6 +1271,8 @@ async function main() {
           caseTimeoutMs: args.caseTimeoutMs,
           runId,
           useReferenceCache: args.referenceCache,
+          optimizationAudit: args.optimizationAudit,
+          terminalAudit: args.terminalAudit,
         });
         if (result.passed) {
           console.log('ok');

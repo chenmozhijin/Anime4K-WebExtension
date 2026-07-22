@@ -161,4 +161,104 @@ describe('VideoFrameUploader', () => {
     expect(uploader.getMode()).toBe('canvas');
     expect(uploader.isFallbackEnabled()).toBe(true);
   });
+
+  it('encodes the external texture path into the caller command buffer', () => {
+    const externalTexture = {} as GPUExternalTexture;
+    const bindGroupLayout = {} as GPUBindGroupLayout;
+    const pipeline = {} as GPURenderPipeline;
+    const sampler = {} as GPUSampler;
+    const bindGroup = {} as GPUBindGroup;
+    const draw = vi.fn();
+    const pass = {
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      draw,
+      end: vi.fn(),
+    };
+    const beginRenderPass = vi.fn(() => pass);
+    const device = {
+      queue: { copyExternalImageToTexture: vi.fn() },
+      importExternalTexture: vi.fn(() => externalTexture),
+      createShaderModule: vi.fn(() => ({})),
+      createBindGroupLayout: vi.fn(() => bindGroupLayout),
+      createPipelineLayout: vi.fn(() => ({})),
+      createRenderPipeline: vi.fn(() => pipeline),
+      createSampler: vi.fn(() => sampler),
+      createBindGroup: vi.fn(() => bindGroup),
+    } as unknown as GPUDevice;
+    const video = createVideo(1920, 1080);
+    const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const uploader = new VideoFrameUploader();
+    uploader.setExternalTextureEnabled(true);
+
+    uploader.copyFrame(device, video, texture, { beginRenderPass } as unknown as GPUCommandEncoder);
+    uploader.copyFrame(device, video, texture, { beginRenderPass } as unknown as GPUCommandEncoder);
+
+    expect(uploader.getMode()).toBe('external');
+    expect(device.importExternalTexture).toHaveBeenCalledWith({ source: video });
+    expect(device.queue.copyExternalImageToTexture).not.toHaveBeenCalled();
+    expect(pass.setPipeline).toHaveBeenCalledWith(pipeline);
+    expect(pass.setBindGroup).toHaveBeenCalledWith(0, bindGroup);
+    expect(draw).toHaveBeenCalledWith(3);
+    expect(texture.createView).toHaveBeenCalledOnce();
+    expect(device.createShaderModule).toHaveBeenCalledOnce();
+    expect(device.createRenderPipeline).toHaveBeenCalledOnce();
+    const descriptors = beginRenderPass.mock.calls as unknown as Array<[GPURenderPassDescriptor]>;
+    expect(descriptors[0][0]).toBe(descriptors[1][0]);
+  });
+
+  it('fuses external texture upload with ClampHighlights using explicit source dimensions', () => {
+    const clampPipeline = { label: 'clamp' } as GPURenderPipeline;
+    const bindGroupLayout = {} as GPUBindGroupLayout;
+    const uniformBuffer = { destroy: vi.fn() } as unknown as GPUBuffer;
+    const bindGroup = {} as GPUBindGroup;
+    const writeBuffer = vi.fn();
+    const createBindGroup = vi.fn((_descriptor: GPUBindGroupDescriptor) => bindGroup);
+    const pass = {
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      draw: vi.fn(),
+      end: vi.fn(),
+    };
+    const device = {
+      queue: {
+        copyExternalImageToTexture: vi.fn(),
+        writeBuffer,
+      },
+      importExternalTexture: vi.fn(() => ({})),
+      createShaderModule: vi.fn(() => ({})),
+      createBindGroupLayout: vi.fn(() => bindGroupLayout),
+      createPipelineLayout: vi.fn(() => ({})),
+      createRenderPipeline: vi.fn(() => clampPipeline),
+      createSampler: vi.fn(() => ({})),
+      createBuffer: vi.fn(() => uniformBuffer),
+      createBindGroup,
+    } as unknown as GPUDevice;
+    const uploader = new VideoFrameUploader();
+    const video = createVideo(1920, 1080);
+    const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    uploader.setExternalTextureEnabled(true);
+    uploader.setExternalClampHighlightsEnabled(true);
+
+    uploader.copyFrame(device, video, texture, {
+      beginRenderPass: vi.fn(() => pass),
+    } as unknown as GPUCommandEncoder);
+
+    expect(pass.setPipeline).toHaveBeenCalledWith(clampPipeline);
+    expect(device.createShaderModule).toHaveBeenCalledOnce();
+    expect(device.createRenderPipeline).toHaveBeenCalledOnce();
+    expect(device.createBuffer).toHaveBeenCalledWith(expect.objectContaining({
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    }));
+    expect(writeBuffer).toHaveBeenCalledOnce();
+    expect(Array.from(writeBuffer.mock.calls[0][2] as Uint32Array))
+      .toEqual([1920, 1080, 0, 0]);
+    const descriptor = createBindGroup.mock.calls[0][0] as GPUBindGroupDescriptor;
+    expect(descriptor.entries).toHaveLength(3);
+    expect(descriptor.entries[2]).toMatchObject({ binding: 2, resource: { buffer: uniformBuffer } });
+
+    uploader.dispose();
+    expect(uniformBuffer.destroy).toHaveBeenCalledOnce();
+  });
 });

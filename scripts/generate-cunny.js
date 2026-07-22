@@ -181,6 +181,18 @@ function parseGMappings(stage) {
   return mappings;
 }
 
+function parseSharedDeclaration(stage) {
+  const source = stage.bodyLines.join('\n');
+  const match = source.match(/shared\s+(F|V4)\s+G\[(\d+)\]\[10\]\[10\]/);
+  if (!match) {
+    throw new Error(`${stage.desc}: missing shared G declaration.`);
+  }
+  return {
+    type: match[1] === 'F' ? 'f32' : 'vec4f',
+    channels: Number(match[2]),
+  };
+}
+
 function makeSampleExpression(mapping, offsetExpr) {
   const safe = sanitizeName(mapping.source);
   if (mapping.source === 'LUMA') {
@@ -236,8 +248,10 @@ function translateImageStore(statement, stage) {
   throw new Error(`${stage.desc}: unsupported imageStore ${statement}`);
 }
 
-function translatePostBarrier(stage, gMappings) {
+function translatePostBarrier(stage, gMappings, useWorkgroupTile) {
   const hookBody = extractHookBody(stage);
+  // CuNNy's math after the source barrier is authoritative. Reconstructing only this
+  // section prevents the translated shader from duplicating the original preload code.
   const postBarrier = hookBody.split(/barrier\s*\(\)\s*;/)[1];
   if (!postBarrier) {
     throw new Error(`${stage.desc}: missing barrier.`);
@@ -273,9 +287,13 @@ function translatePostBarrier(stage, gMappings) {
       if (!mapping) {
         throw new Error(`${stage.desc}: missing G[${gLoad[2]}] mapping.`);
       }
-      const offsetX = Number(gLoad[4]) - 1;
-      const offsetY = Number(gLoad[3]) - 1;
-      lines.push(`${gLoad[1]} = ${makeSampleExpression(mapping, `vec2i(${offsetX}, ${offsetY})`)};`);
+      if (useWorkgroupTile) {
+        lines.push(`${gLoad[1]} = G[${gLoad[2]}][localId.y + ${gLoad[3]}u][localId.x + ${gLoad[4]}u];`);
+      } else {
+        const offsetX = Number(gLoad[4]) - 1;
+        const offsetY = Number(gLoad[3]) - 1;
+        lines.push(`${gLoad[1]} = ${makeSampleExpression(mapping, `vec2i(${offsetX}, ${offsetY})`)};`);
+      }
       continue;
     }
 
@@ -313,19 +331,41 @@ function makeTextureHelpers(stage, gMappings) {
   return helpers.join('\n\n');
 }
 
-function makeWGSL(stage) {
+function makeWGSL(stage, useWorkgroupTile) {
   const gMappings = parseGMappings(stage);
+  const shared = useWorkgroupTile ? parseSharedDeclaration(stage) : null;
+  if (shared && gMappings.size !== shared.channels) {
+    throw new Error(`${stage.desc}: expected ${shared.channels} shared channels, mapped ${gMappings.size}.`);
+  }
   const textureHelpers = makeTextureHelpers(stage, gMappings);
   const samplerBinding = stage.binds.length;
   const outputBinding = stage.binds.length + 1;
   const isFinalStage = !stage.save;
-  const body = translatePostBarrier({ ...stage, final: isFinalStage }, gMappings);
+  const body = translatePostBarrier({ ...stage, final: isFinalStage }, gMappings, useWorkgroupTile);
   const originalLumaHelper = isFinalStage ? `
 fn sample_original_luma(coord: vec2i) -> f32 {
   let outputSize = textureDimensions(out_tex);
   let uv = (vec2f(coord) + vec2f(0.5)) / vec2f(outputSize);
   return luma709(textureSampleLevel(tex_LUMA, linearSampler, uv, 0.0).rgb);
 }
+` : '';
+  const tileLoads = [...gMappings.entries()].map(([channel, mapping]) =>
+    `      G[${channel}][tileY][tileX] = ${makeSampleExpression(
+      mapping,
+      'vec2i(i32(tileX), i32(tileY)) - vec2i(localId.xy) - vec2i(1, 1)',
+    )};`).join('\n');
+  const sharedDeclaration = shared
+    ? `var<workgroup> G: array<array<array<${shared.type}, 10>, 10>, ${shared.channels}>;`
+    : '';
+  // Keep cooperative loading and the barrier before the bounds return. Edge lanes may
+  // be outside the image but still provide halo values needed by in-range neighbors.
+  const tilePreamble = useWorkgroupTile ? `
+  for (var tileY = localId.y; tileY < 10u; tileY += WG_Y) {
+    for (var tileX = localId.x; tileX < 10u; tileX += WG_X) {
+${tileLoads}
+    }
+  }
+  workgroupBarrier();
 ` : '';
 
   return `// SPDX-License-Identifier: LGPL-3.0-or-later
@@ -343,12 +383,17 @@ ${textureHelpers}
 
 @group(0) @binding(${samplerBinding}) var linearSampler: sampler;
 @group(0) @binding(${outputBinding}) var out_tex: texture_storage_2d<rgba16float, write>;
+${sharedDeclaration}
 ${originalLumaHelper}
 
 @compute
 @workgroup_size(WG_X, WG_Y)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+fn computeMain(
+  @builtin(global_invocation_id) pixel: vec3u,
+  @builtin(local_invocation_id) localId: vec3u,
+) {
   let sourceSize = textureDimensions(tex_LUMA);
+${tilePreamble}
   if (pixel.x >= sourceSize.x || pixel.y >= sourceSize.y) {
     return;
   }
@@ -397,12 +442,17 @@ function generateModel(variant, filePath) {
   stages.forEach((stage, index) => {
     const shaderName = `stage${index}.wgsl`;
     const shaderVar = `stage${index}WGSL`;
-    const wgsl = makeWGSL(stage);
+    const wgsl = makeWGSL(stage, false);
+    const tiledShaderName = `stage${index}.tiled.wgsl`;
     writeFile(path.join(shaderDir, shaderName), wgsl);
+    writeFile(path.join(shaderDir, tiledShaderName), makeWGSL(stage, true));
     imports.push(`import ${shaderVar} from './shaders/${shaderName}';`);
     stageConfigs.push(`    {
       name: ${JSON.stringify(stage.desc)},
       shaderWGSL: ${shaderVar},
+      optimizedShaderWGSL: createCuNNyWorkgroupTileVariant(${shaderVar}),
+      kernelVariants: createCuNNyWorkgroupTileVariants(${shaderVar}),
+      optimizationFlag: 'cunnyWorkgroupTile',
       bindings: ${JSON.stringify(stage.binds)},
       outputName: ${JSON.stringify(stageOutputName(stage, index))},
       outputScale: ${JSON.stringify({ x: stage.widthScale, y: stage.heightScale })},
@@ -411,7 +461,8 @@ function generateModel(variant, filePath) {
   });
 
   const exportName = `CuNNy${toPascalCase(slug)}Config`;
-  writeFile(path.join(modelDir, 'index.ts'), `${generatedTsHeader}${imports.join('\n')}
+  writeFile(path.join(modelDir, 'index.ts'), `${generatedTsHeader}import { createCuNNyWorkgroupTileVariant, createCuNNyWorkgroupTileVariants } from '../../../../core/generated-models/workgroup-tile-variant';
+${imports.join('\n')}
 import type { CuNNyGeneratedModelConfig } from '../../pipeline';
 
 export const ${exportName}: CuNNyGeneratedModelConfig = {

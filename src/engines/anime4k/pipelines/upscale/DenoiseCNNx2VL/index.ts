@@ -11,10 +11,14 @@ export class DenoiseCNNx2VL implements Anime4KPipeline {
   constructor({
     device,
     inputTexture,
+    terminalTarget,
+    optimizationFlags,
   }: Anime4KPipelineDescriptor) {
     this.graphRunner = new EffectGraphRunner({
       device,
       inputTexture,
+      terminalTarget,
+      optimizationFlags,
       graph: createDenoiseCNNx2VLGraph(),
     });
     this.pipelines = this.graphRunner.pipelines;

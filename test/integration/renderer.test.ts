@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
 import { createMockCanvasContext, createWebGpuMock, installWebGpuMock } from '../support/webgpu';
-import type { FramePerformanceSnapshot } from '../../src/types';
+import type { EnhancementEffect, FramePerformanceSnapshot } from '../../src/types';
+import type { OptimizationFeatureFlags } from '../../src/core/optimization-flags';
 
 const compileEffectChain = vi.fn();
 
@@ -114,9 +115,17 @@ async function createRendererHarness(options: {
   performanceMonitorMode?: 'off' | 'lite' | 'gpu';
   onPerformanceSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
   webgpuFeatures?: GPUFeatureName[];
+  externalTexture?: boolean;
+  effects?: EnhancementEffect[];
+  optimizationFlags?: Partial<OptimizationFeatureFlags>;
 } = {}) {
   installChromeMock();
   const webgpu = installWebGpuMock({ features: options.webgpuFeatures });
+  if (options.externalTexture) {
+    Object.assign(webgpu.device, {
+      importExternalTexture: vi.fn(() => ({} as GPUExternalTexture)),
+    });
+  }
   const videoHarness = options.video ?? createMockVideo();
   const { plan, destroySpy } = createCompiledPlan(webgpu.device as unknown as GPUDevice);
   compileEffectChain.mockResolvedValue(plan);
@@ -136,7 +145,7 @@ async function createRendererHarness(options: {
   const renderer = await Renderer.create({
     video: videoHarness.video,
     canvas,
-    effects: [],
+    effects: options.effects ?? [],
     effectsSignature: 'test',
     targetDimensions: { width: 320, height: 180 },
     onError: options.onError,
@@ -144,6 +153,7 @@ async function createRendererHarness(options: {
     performanceModeName: 'Test Mode',
     performanceTier: 'balanced',
     onPerformanceSnapshot: options.onPerformanceSnapshot,
+    optimizationFlags: options.optimizationFlags,
   });
 
   return {
@@ -169,6 +179,99 @@ describe('renderer lifecycle', () => {
 
     expect(compileEffectChain).toHaveBeenCalled();
     expect(destroySpy).toHaveBeenCalledOnce();
+  });
+
+  it('omits a leading ClampHighlights only while the direct external path is active', async () => {
+    const clamp = {
+      id: 'anime4k/Helper/ClampHighlights',
+      backendId: 'anime4k',
+      key: 'ClampHighlights',
+    };
+    const upscale = {
+      id: 'anime4k/Upscale/CNNx2M',
+      backendId: 'anime4k',
+      key: 'CNNx2M',
+    };
+    const { renderer } = await createRendererHarness({
+      externalTexture: true,
+      effects: [clamp, upscale],
+      optimizationFlags: { externalTexture: true },
+    });
+
+    expect(compileEffectChain).toHaveBeenLastCalledWith(expect.objectContaining({
+      effects: [upscale],
+    }));
+    expect((renderer as any).externalClampHighlightsActive).toBe(true);
+    expect((renderer as any).frameUploader.getMode()).toBe('external');
+
+    renderer.destroy();
+  });
+
+  it('retains a non-leading ClampHighlights in the compiled external-texture chain', async () => {
+    const upscale = {
+      id: 'anime4k/Upscale/CNNx2M',
+      backendId: 'anime4k',
+      key: 'CNNx2M',
+    };
+    const clamp = {
+      id: 'anime4k/Helper/ClampHighlights',
+      backendId: 'anime4k',
+      key: 'ClampHighlights',
+    };
+    const { renderer } = await createRendererHarness({
+      externalTexture: true,
+      effects: [upscale, clamp],
+      optimizationFlags: { externalTexture: true },
+    });
+
+    expect(compileEffectChain).toHaveBeenLastCalledWith(expect.objectContaining({
+      effects: [upscale, clamp],
+    }));
+    expect((renderer as any).externalClampHighlightsActive).toBe(false);
+    expect((renderer as any).frameUploader.getMode()).toBe('external');
+
+    renderer.destroy();
+  });
+
+  it('restores native upload and the full effect chain after an external upload failure', async () => {
+    const clamp = {
+      id: 'anime4k/Helper/ClampHighlights',
+      backendId: 'anime4k',
+      key: 'ClampHighlights',
+    };
+    const upscale = {
+      id: 'anime4k/Upscale/CNNx2M',
+      backendId: 'anime4k',
+      key: 'CNNx2M',
+    };
+    const { renderer, webgpu } = await createRendererHarness({
+      externalTexture: true,
+      effects: [clamp, upscale],
+      optimizationFlags: { externalTexture: true },
+    });
+    const copySpy = vi.spyOn(renderer as any, 'copyVideoFrameToTexture')
+      .mockImplementationOnce(() => {
+        throw new Error('mock external import failure');
+      });
+
+    await expect((renderer as any).processFrame()).resolves.toBe(false);
+    await vi.waitFor(() => {
+      expect(compileEffectChain).toHaveBeenCalledTimes(2);
+    });
+
+    expect(compileEffectChain).toHaveBeenLastCalledWith(expect.objectContaining({
+      effects: [clamp, upscale],
+    }));
+    expect((renderer as any).frameUploader.getMode()).toBe('native');
+    expect((renderer as any).externalClampHighlightsActive).toBe(false);
+    expect((renderer as any).optimizationFlags.externalTexture).toBe(false);
+
+    copySpy.mockRestore();
+    const copiedBefore = (webgpu.device.queue as unknown as { copiedImages: number }).copiedImages;
+    await expect((renderer as any).processFrame()).resolves.toBe(true);
+    expect((webgpu.device.queue as unknown as { copiedImages: number }).copiedImages).toBe(copiedBefore + 1);
+
+    renderer.destroy();
   });
 
   it('fails initialization when WebGPU validation errors are captured during pipeline build', async () => {
@@ -576,6 +679,44 @@ describe('renderer lifecycle', () => {
       message: 'Failed to recover from device loss',
     });
     expect((renderer as any).isRecovering).toBe(false);
+  });
+
+  it('shares one device across simultaneous renderers and destroys it after the final owner', async () => {
+    installChromeMock();
+    const webgpu = installWebGpuMock();
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+    compileEffectChain.mockImplementation(({ device }: { device: GPUDevice }) =>
+      Promise.resolve(createCompiledPlan(device).plan));
+    const createCanvas = () => {
+      const canvas = document.createElement('canvas');
+      const context = createMockCanvasContext(webgpu.device as unknown as GPUDevice);
+      vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => type === 'webgpu' ? context : null);
+      return canvas;
+    };
+    const { Renderer } = await import('../../src/core/renderer');
+    vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+
+    const first = await Renderer.create({
+      video: createMockVideo().video,
+      canvas: createCanvas(),
+      effects: [],
+      effectsSignature: 'shared-device-first',
+      targetDimensions: { width: 320, height: 180 },
+    });
+    const second = await Renderer.create({
+      video: createMockVideo().video,
+      canvas: createCanvas(),
+      effects: [],
+      effectsSignature: 'shared-device-second',
+      targetDimensions: { width: 320, height: 180 },
+    });
+    const deviceDestroySpy = vi.spyOn(webgpu.device, 'destroy');
+
+    expect(requestDeviceSpy).toHaveBeenCalledOnce();
+    first.destroy();
+    expect(deviceDestroySpy).not.toHaveBeenCalled();
+    second.destroy();
+    expect(deviceDestroySpy).toHaveBeenCalledOnce();
   });
 
   it('cleans up frame callbacks, GPU resources, and context state on destroy without double-disposing', async () => {

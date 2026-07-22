@@ -3,6 +3,51 @@
 Current recorded verification results are summarized in
 [`BASELINE.md`](./BASELINE.md).
 
+## Release validation policy
+
+This project is primarily maintained by one maintainer. Release readiness is
+therefore determined by the reproducible core checks that can be run in CI and
+on the maintainer's available hardware. A complete cross-vendor hardware lab is
+not a release requirement.
+
+Required release gates are type checking, automated tests and coverage,
+Chrome/Firefox production builds, production-bundle scanning, WGSL compilation,
+and the applicable correctness checks for changed effects and preset chains.
+WebGPU performance, temporal, and external-texture checks are run on the
+maintainer's available browser and GPU environment.
+
+The broader Edge, Firefox, AMD, Intel, Apple Silicon, macOS, and Linux matrix is
+coverage metadata and a source of follow-up work. A report status such as
+`pending-hardware-matrix` records those untested combinations; it does not by
+itself prevent a release when the required local and CI gates pass. Release
+notes should identify the validated environment and known limitations.
+
+Optimizations that lack sufficient cross-hardware evidence remain disabled by
+default. In particular, uncertified perceptual `shader-f16` paths must not be
+enabled globally merely to satisfy performance targets on one device.
+
+### Local GPU release checklist
+
+GitHub-hosted CI intentionally excludes checks that require a real WebGPU
+adapter. Before publishing a draft release that changes GPU execution, run the
+applicable checks on the maintainer machine and record the browser, adapter,
+and relevant limitations in the release notes:
+
+```powershell
+npm run verify:wgsl
+npm run verify:kernel-variants
+npm run verify:preset-chains -- --no-build
+npm run generate:video-fixtures -- --smoke --output test-results/video-fixtures-smoke
+npm run verify:external-texture -- --smoke
+npm run verify:temporal -- --smoke --no-build
+npm run test:gpu:smoke
+npm run test:gpu:benchmark
+```
+
+These commands remain local release evidence. They are not GitHub branch
+protection checks, and missing third-party hardware coverage does not prevent a
+release when the reproducible software gates pass.
+
 ## Supported validation modes
 
 `verify:effects` is intentionally raw-math only. It supports:

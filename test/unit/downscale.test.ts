@@ -102,7 +102,7 @@ describe('Downscale', () => {
     expect(beginRenderPass).toHaveBeenCalledTimes(1);
     expect(setPipeline).toHaveBeenCalledTimes(1);
     expect(setBindGroup).toHaveBeenCalledWith(0, expect.any(Object));
-    expect(draw).toHaveBeenCalledWith(6);
+    expect(draw).toHaveBeenCalledWith(3);
     expect(end).toHaveBeenCalledTimes(1);
     expect(pipeline.getOutputTexture()).toBe(outputTexture);
 

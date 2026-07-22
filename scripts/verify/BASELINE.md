@@ -196,5 +196,11 @@ The following checks passed after the verification and report-hygiene changes:
 - Verification artifacts under `test-results/verify` are local run outputs and
   are not required as source files.
 - The baseline intentionally validates raw math, not perceptual quality.
+- This is a single-maintainer project. Passing the reproducible core validation
+  gates is sufficient for release readiness; completing every browser, OS, and
+  GPU-vendor combination is a non-blocking coverage goal.
+- Untested hardware combinations must be described as unverified rather than
+  unsupported. Experimental optimizations without adequate cross-hardware
+  evidence remain disabled by default.
 - The next review target is production shader diffs introduced while aligning
   Anime4K math with the original GLSL reference.

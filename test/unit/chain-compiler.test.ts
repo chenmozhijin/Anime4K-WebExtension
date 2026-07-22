@@ -302,4 +302,53 @@ describe('compileEffectChain', () => {
     ]);
     expect(plan.warmupSteps).toBe(6);
   });
+
+  it('only offers terminal presentation to a size-equivalent final effect', async () => {
+    const effect: EffectReference = {
+      id: 'terminal-effect',
+      backendId: 'terminal-backend',
+      key: 'terminal-effect',
+    };
+    const outputTexture = { label: 'terminal-output' } as GPUTexture;
+    const compileContext = vi.fn();
+    mockGetEffectDescriptor.mockReturnValue(createDescriptor({ ...effect }));
+    mockGetRuntimeBackend.mockResolvedValue({
+      compileEffect: async (_effect: EffectReference, context: any) => {
+        compileContext(context);
+        return {
+          pipelines: [{
+            profileLabel: 'Terminal Overlay',
+            presentsToTerminal: true,
+            pass: vi.fn(),
+            getOutputTexture: () => outputTexture,
+          }],
+          outputTexture,
+          outputDimensions: { width: 320, height: 180 },
+          requiredModules: [],
+          warmupSteps: 1,
+        };
+      },
+    });
+    const terminalTarget = {
+      width: 320,
+      height: 180,
+      format: 'rgba8unorm' as GPUTextureFormat,
+      getCurrentView: vi.fn(),
+    };
+
+    const plan = await compileEffectChain({
+      device,
+      inputTexture,
+      effects: [effect],
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 320, height: 180 },
+      terminalTarget,
+    });
+
+    expect(compileContext.mock.calls[0][0].terminalTarget).toBe(terminalTarget);
+    expect(plan.terminalPresenter).toEqual({
+      kind: 'direct-canvas',
+      passLabel: 'Terminal Overlay',
+    });
+  });
 });

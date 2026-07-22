@@ -21,6 +21,7 @@ interface DeviceResourceCache {
   bindGroupLayouts: Map<BindGroupLayoutKey, GPUBindGroupLayout>;
   renderPipelines: Map<PipelineKey, GPURenderPipeline>;
   computePipelines: Map<PipelineKey, GPUComputePipeline>;
+  pendingComputePipelines: Map<PipelineKey, Promise<GPUComputePipeline>>;
   samplers: Map<SamplerKey, GPUSampler>;
   errorListeners: Set<(error: GpuResourceError) => void>;
   pendingErrorScopes: Set<Promise<void>>;
@@ -35,6 +36,7 @@ function createDeviceCache(): DeviceResourceCache {
     bindGroupLayouts: new Map(),
     renderPipelines: new Map(),
     computePipelines: new Map(),
+    pendingComputePipelines: new Map(),
     samplers: new Map(),
     errorListeners: new Set(),
     pendingErrorScopes: new Set(),
@@ -221,6 +223,50 @@ export function getOrCreateComputePipeline(
   );
   deviceCache.computePipelines.set(key, pipeline);
   return pipeline;
+}
+
+export async function getOrCreateComputePipelineAsync(
+  device: GPUDevice,
+  key: PipelineKey,
+  descriptorFactory: () => GPUComputePipelineDescriptor,
+): Promise<GPUComputePipeline> {
+  const deviceCache = getDeviceCache(device);
+  const cached = deviceCache.computePipelines.get(key);
+  if (cached) {
+    deviceCache.stats.pipelineHits += 1;
+    return cached;
+  }
+  const pending = deviceCache.pendingComputePipelines.get(key);
+  if (pending) {
+    deviceCache.stats.pipelineHits += 1;
+    return pending;
+  }
+
+  deviceCache.stats.pipelineMisses += 1;
+  const asyncDevice = device as GPUDevice & {
+    createComputePipelineAsync?: (descriptor: GPUComputePipelineDescriptor) => Promise<GPUComputePipeline>;
+  };
+  const descriptor = descriptorFactory();
+  const pipelinePromise = (typeof asyncDevice.createComputePipelineAsync === 'function'
+    ? asyncDevice.createComputePipelineAsync(descriptor)
+    : Promise.resolve(device.createComputePipeline(descriptor)))
+    .then(pipeline => {
+      deviceCache.computePipelines.set(key, pipeline);
+      return pipeline;
+    })
+    .catch(error => {
+      reportGpuResourceError(device, {
+        source: `compute-pipeline:${key}`,
+        message: error instanceof Error ? error.message : String(error),
+        kind: inferGpuErrorKind(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      deviceCache.pendingComputePipelines.delete(key);
+    });
+  deviceCache.pendingComputePipelines.set(key, pipelinePromise);
+  return pipelinePromise;
 }
 
 export function getOrCreateSampler(

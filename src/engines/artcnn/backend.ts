@@ -48,6 +48,8 @@ export const artcnnBackend = createEffectBackend({
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       targetDimensions: context.targetDimensions,
+      optimizationFlags: context.optimizationFlags,
+      terminalTarget: context.terminalTarget,
     });
   },
 });

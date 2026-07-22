@@ -1,9 +1,7 @@
 import type { EffectGraph } from '../../../../../core/effects/graph';
 import {
-  createConvStage,
-  createDepthToSpaceStage,
   createGraph,
-  createOverlayStage,
+  createUpscaleTailStage,
   createSerialConvStages,
 } from '../../graph-helpers';
 import conv2dtfWGSL from './shaders/conv2dtf.wgsl';
@@ -20,16 +18,11 @@ const convShaders = [
 export function createCNNx2SGraph(): EffectGraph {
   const stages: EffectGraph['stages'] = createSerialConvStages(convShaders);
 
-  stages.push(createConvStage({
-    id: 'conv2d_last_tf',
-    inputs: ['conv2'],
-    output: 'conv-last',
-    shaderWGSL: conv2dlasttfWGSL,
+  stages.push(createUpscaleTailStage({
+    features: ['conv2'],
+    headShaders: [conv2dlasttfWGSL],
+    terminalDirect: true,
   }));
-
-  stages.push(createDepthToSpaceStage('conv-last'));
-
-  stages.push(createOverlayStage({ addon: 'depth', outputSizeScale: 2 }));
 
   return createGraph(stages);
 }

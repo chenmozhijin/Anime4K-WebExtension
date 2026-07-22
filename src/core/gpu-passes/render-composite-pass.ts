@@ -7,6 +7,7 @@ import {
 } from '../gpu-resource-cache';
 import { borrowTexture, releaseTexture } from '../texture-pool';
 import type { PipelinePass, PipelineProfileRecorder } from '../effects/backend-types';
+import type { TerminalTextureTarget } from '../effects/backend-types';
 
 const compositeVertexWGSL = `
 struct VertexOutput {
@@ -17,21 +18,15 @@ struct VertexOutput {
 @vertex
 fn vert_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
   const pos = array(
-    vec2( 1.0,  1.0),
-    vec2( 1.0, -1.0),
     vec2(-1.0, -1.0),
-    vec2( 1.0,  1.0),
-    vec2(-1.0, -1.0),
-    vec2(-1.0,  1.0),
+    vec2( 3.0, -1.0),
+    vec2(-1.0,  3.0),
   );
 
   const uv = array(
-    vec2(1.0, 0.0),
-    vec2(1.0, 1.0),
     vec2(0.0, 1.0),
-    vec2(1.0, 0.0),
-    vec2(0.0, 1.0),
-    vec2(0.0, 0.0),
+    vec2(2.0, 1.0),
+    vec2(0.0, -1.0),
   );
 
   var output : VertexOutput;
@@ -51,6 +46,8 @@ export interface RenderCompositePassDescriptor {
   samplerKey?: string;
   outputFormat?: GPUTextureFormat;
   outputUsage?: GPUTextureUsageFlags;
+  outputTexture?: GPUTexture;
+  terminalTarget?: TerminalTextureTarget;
 }
 
 function hashString(value: string): string {
@@ -75,6 +72,14 @@ export class RenderCompositePass implements PipelinePass {
 
   readonly name: string;
 
+  readonly presentsToTerminal: boolean;
+
+  private readonly renderPassDescriptor?: GPURenderPassDescriptor;
+
+  private readonly ownsOutputTexture: boolean;
+
+  private readonly terminalTarget?: TerminalTextureTarget;
+
   constructor({
     device,
     inputTextures,
@@ -84,27 +89,37 @@ export class RenderCompositePass implements PipelinePass {
     cacheKeyPrefix = 'core/gpu-passes/RenderCompositePass',
     samplerKey = `${cacheKeyPrefix}/sampler/linear-linear`,
     outputFormat = 'rgba16float',
-    outputUsage = GPUTextureUsage.TEXTURE_BINDING
-      | GPUTextureUsage.RENDER_ATTACHMENT
-      | GPUTextureUsage.STORAGE_BINDING,
+    outputUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    outputTexture,
+    terminalTarget,
   }: RenderCompositePassDescriptor) {
     if (!fragmentWGSL) {
       throw Error(`${name}: shader not defined.`);
     }
     this.name = name;
     this.profileLabel = name;
+    this.terminalTarget = terminalTarget;
+    this.presentsToTerminal = Boolean(terminalTarget);
     const inputLength = inputTextures.length;
     const fragmentHash = hashString(fragmentWGSL);
 
-    this.outputTexture = borrowTexture({
-      device,
-      width: outputSize.width,
-      height: outputSize.height,
-      format: outputFormat,
-      usage: outputUsage,
-      labelGroup: `${cacheKeyPrefix}/output/${inputLength}`,
-      label: `${name}: output texture`,
-    });
+    this.ownsOutputTexture = !outputTexture && !terminalTarget;
+    // Terminal mode needs no intermediate texture; inputTextures[0] is a contract and
+    // lifetime anchor only. Such a pass must remain the final consumer in the chain.
+    this.outputTexture = outputTexture ?? (terminalTarget ? inputTextures[0] : borrowTexture({
+        device,
+        width: outputSize.width,
+        height: outputSize.height,
+        format: outputFormat,
+        usage: outputUsage,
+        labelGroup: `${cacheKeyPrefix}/output/${inputLength}`,
+        label: `${name}: output texture`,
+      }));
+    if (!terminalTarget && outputTexture && (
+      this.outputTexture.width !== outputSize.width || this.outputTexture.height !== outputSize.height
+    )) {
+      throw new Error(`${name}: preallocated output texture has incorrect dimensions.`);
+    }
 
     const vertexModule = getOrCreateShaderModule(device, `${cacheKeyPrefix}/shader/vertex`, () => ({
       label: `${name}: vertex module`,
@@ -132,7 +147,8 @@ export class RenderCompositePass implements PipelinePass {
       entries: bindGroupLayoutEntries,
     }));
 
-    this.pipeline = getOrCreateRenderPipeline(device, `${cacheKeyPrefix}/pipeline/${fragmentHash}/${inputLength}/${outputFormat}`, () => ({
+    const renderTargetFormat = terminalTarget?.format ?? outputFormat;
+    this.pipeline = getOrCreateRenderPipeline(device, `${cacheKeyPrefix}/pipeline/${fragmentHash}/${inputLength}/${renderTargetFormat}`, () => ({
       layout: device.createPipelineLayout({
         label: `${name}: pipeline layout`,
         bindGroupLayouts: [bindGroupLayout],
@@ -144,7 +160,7 @@ export class RenderCompositePass implements PipelinePass {
       fragment: {
         module: fragmentModule,
         entryPoint: 'main',
-        targets: [{ format: outputFormat }],
+        targets: [{ format: renderTargetFormat }],
       },
       primitive: {
         topology: 'triangle-list',
@@ -171,6 +187,9 @@ export class RenderCompositePass implements PipelinePass {
       layout: bindGroupLayout,
       entries: bindGroupEntries,
     }));
+    if (!terminalTarget) {
+      this.renderPassDescriptor = this.createRenderPassDescriptor(this.outputTexture.createView());
+    }
   }
 
   pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
@@ -183,23 +202,12 @@ export class RenderCompositePass implements PipelinePass {
   }
 
   private encodePass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void {
-    const descriptor: GPURenderPassDescriptor = {
-      colorAttachments: [{
-        view: this.outputTexture.createView(),
-        clearValue: {
-          r: 0.0,
-          g: 0.0,
-          b: 0.0,
-          a: 1.0,
-        },
-        loadOp: 'clear',
-        storeOp: 'store',
-      }],
-    };
+    const descriptor = this.renderPassDescriptor
+      ?? this.createRenderPassDescriptor(this.terminalTarget!.getCurrentView());
     const pass = encoder.beginRenderPass(profile?.createRenderPassDescriptor?.(this, descriptor) ?? descriptor);
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
-    pass.draw(6);
+    pass.draw(3);
     pass.end();
   }
 
@@ -208,6 +216,19 @@ export class RenderCompositePass implements PipelinePass {
   }
 
   destroy(): void {
-    releaseTexture(this.outputTexture);
+    if (this.ownsOutputTexture) {
+      releaseTexture(this.outputTexture);
+    }
+  }
+
+  private createRenderPassDescriptor(view: GPUTextureView): GPURenderPassDescriptor {
+    return {
+      colorAttachments: [{
+        view,
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    };
   }
 }

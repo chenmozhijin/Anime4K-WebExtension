@@ -9,11 +9,14 @@ export const acnetBackend = createEffectBackend({
   descriptors: acnetEffectDescriptors,
   loaders: acnetGeneratedModelLoaders,
   createPipeline(model, context) {
-    return new ACNetGeneratedPipeline({
+    return ACNetGeneratedPipeline.create({
       device: context.device,
       inputTexture: context.inputTexture,
       nativeDimensions: context.currentDimensions,
       model,
+      optimizationFlags: context.optimizationFlags,
+      terminalTarget: context.terminalTarget,
+      capabilities: context.capabilities,
     });
   },
 });
