@@ -45,7 +45,7 @@ describe('migration utilities', () => {
 
     await migrateToLatest();
 
-    expect(chromeMock.__mock.syncState._configVersion).toBe(3);
+    expect(chromeMock.__mock.syncState._configVersion).toBe(4);
     expect(chromeMock.__mock.syncState.customModes).toHaveLength(1);
     expect(chromeMock.__mock.syncState.customModes[0].effects[0].backendId).toBe('anime4k');
     expect(chromeMock.__mock.syncState.enhancementModes).toBeUndefined();
@@ -57,8 +57,49 @@ describe('migration utilities', () => {
 
     await ensureLatestConfig();
 
-    expect(chromeMock.__mock.syncState._configVersion).toBe(3);
-    expect(chromeMock.__mock.syncState.selectedModeId).toBe('builtin-mode-a');
+    expect(chromeMock.__mock.syncState._configVersion).toBe(4);
+    expect(chromeMock.__mock.syncState.selectedModeId).toBe('recommended-detail-preserving');
     expect(chromeMock.__mock.localState.performanceTier).toBe('balanced');
+  });
+
+  it('preserves valid compatibility and custom selections during migration', async () => {
+    const chromeMock = installChromeMock({
+      sync: {
+        _configVersion: 3,
+        selectedModeId: 'custom-keep',
+        customModes: [{
+          id: 'custom-keep',
+          name: 'Keep me',
+          isBuiltIn: false,
+          effects: [],
+        }],
+      },
+    });
+    const { migrateToLatest } = await import('../../src/utils/migration');
+
+    await migrateToLatest();
+    expect(chromeMock.__mock.syncState.selectedModeId).toBe('custom-keep');
+
+    const compatibilityMock = installChromeMock({
+      sync: {
+        _configVersion: 3,
+        selectedModeId: 'builtin-mode-ca',
+      },
+    });
+    await migrateToLatest();
+    expect(compatibilityMock.__mock.syncState.selectedModeId).toBe('builtin-mode-ca');
+  });
+
+  it('falls back to detail-preserving when the selected mode is invalid', async () => {
+    const chromeMock = installChromeMock({
+      sync: {
+        _configVersion: 3,
+        selectedModeId: 'missing-mode',
+      },
+    });
+    const { migrateToLatest } = await import('../../src/utils/migration');
+
+    await migrateToLatest();
+    expect(chromeMock.__mock.syncState.selectedModeId).toBe('recommended-detail-preserving');
   });
 });

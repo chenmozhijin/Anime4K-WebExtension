@@ -217,6 +217,7 @@ describe('options import sections', () => {
     }));
     vi.doMock('../../src/utils/settings', () => ({
       BUILTIN_MODES: [],
+      buildEnhancementModes: vi.fn((customModes: CustomMode[]) => customModes),
       getEffectsForMode: vi.fn((mode: CustomMode) => mode.effects),
       saveSettings,
       synchronizeEffectsForCustomModes: vi.fn((modes: CustomMode[]) => modes),
@@ -303,6 +304,7 @@ describe('options import sections', () => {
     }));
     vi.doMock('../../src/utils/settings', () => ({
       BUILTIN_MODES: [],
+      buildEnhancementModes: vi.fn((customModes: CustomMode[]) => customModes),
       getEffectsForMode: vi.fn((mode: CustomMode) => mode.effects),
       saveSettings,
       synchronizeEffectsForCustomModes: vi.fn((modes: CustomMode[]) => modes),
@@ -400,6 +402,7 @@ describe('options import sections', () => {
     }));
     vi.doMock('../../src/utils/settings', () => ({
       BUILTIN_MODES: [],
+      buildEnhancementModes: vi.fn((customModes: CustomMode[]) => customModes),
       getEffectsForMode: vi.fn((mode: CustomMode) => mode.effects),
       saveSettings,
       synchronizeEffectsForCustomModes: vi.fn((modes: CustomMode[]) => modes),

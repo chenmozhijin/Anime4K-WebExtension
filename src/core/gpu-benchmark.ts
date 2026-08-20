@@ -9,7 +9,7 @@ import type {
     EnhancementEffect,
     BenchmarkFailureReason,
 } from '../types';
-import { resolveAnime4kPresetEffectChain } from '../engines/anime4k/preset-resolver';
+import { normalizeEffectReference } from './effects/registry';
 import { compileEffectChain } from './effects/chain-compiler';
 import {
     clearGpuResourceCache,
@@ -29,6 +29,23 @@ const TARGET_WIDTH = 3840;  // 目标 4K
 const TARGET_HEIGHT = 2160;
 const TARGET_FRAME_TIME_24FPS = 1000 / 24; // 约 41.67ms
 const logger = createLogger('gpu-benchmark');
+
+export const BENCHMARK_EFFECT_IDS: Readonly<Record<PerformanceTier, string>> = {
+    performance: 'cunny/Upscale/DS/Faster',
+    balanced: 'cunny/Upscale/DS/4x16',
+    quality: 'cunny/Upscale/DS/4x32',
+    ultra: 'cunny/Upscale/DS/8x32',
+};
+
+export function getBenchmarkEffects(tier: PerformanceTier): EnhancementEffect[] {
+    const effectId = BENCHMARK_EFFECT_IDS[tier];
+    const effect = normalizeEffectReference({ id: effectId });
+    if (!effect) {
+        throw new Error(`Benchmark effect is not registered: ${effectId}`);
+    }
+
+    return [effect];
+}
 
 export interface BenchmarkProgress {
     tier: string;
@@ -260,7 +277,7 @@ export async function runGPUBenchmark(
                 );
                 await device.queue.onSubmittedWorkDone();
 
-                const warmupEffects = resolveAnime4kPresetEffectChain('A+A', 'performance');
+                const warmupEffects = getBenchmarkEffects('performance');
                 await runEffectChainTest(device, warmupTexture, warmupEffects, gpuErrorMonitor);
                 logger.debug('Global warmup complete.');
             } finally {
@@ -306,8 +323,8 @@ export async function runGPUBenchmark(
             }
 
             try {
-                // 获取该档位的 Mode A+A 效果链
-                const effects = resolveAnime4kPresetEffectChain('A+A', tier);
+                // 获取该档位的固定 Benchmark 效果链
+                const effects = getBenchmarkEffects(tier);
 
                 // 运行测试
                 const testAbortController = new AbortController();

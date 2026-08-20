@@ -345,6 +345,21 @@
   "builtInModes": {
     "message": "Built-in Modes"
   },
+  "recommendedPresets": {
+    "message": "Recommended Presets"
+  },
+  "compatibilityModes": {
+    "message": "Compatibility Modes"
+  },
+  "recommendedDetailPreserving": {
+    "message": "Detail Preserving"
+  },
+  "recommendedCompressionCleanup": {
+    "message": "Compression Cleanup"
+  },
+  "recommendedSoftStyle": {
+    "message": "Soft Style"
+  },
   "customModes": {
     "message": "Custom Modes"
   },

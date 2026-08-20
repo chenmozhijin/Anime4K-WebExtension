@@ -6,7 +6,8 @@ import type {
   PerformanceTier,
 } from '../../../types';
 import {
-  BUILTIN_MODES,
+  buildEnhancementModes,
+  DEFAULT_RECOMMENDED_PRESET_MODE_ID,
   getEffectsForMode,
   saveSettings,
   synchronizeEffectsForCustomModes,
@@ -107,7 +108,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
   const restoreModesSnapshot = (snapshot: ModesSnapshot): void => {
     const settingsState = deps.getSettingsState();
     settingsState.customModes = snapshot.customModes.map(cloneCustomMode);
-    settingsState.enhancementModes = [...BUILTIN_MODES, ...settingsState.customModes];
+    settingsState.enhancementModes = buildEnhancementModes(settingsState.customModes);
     settingsState.selectedModeId = snapshot.selectedModeId;
     effectBrowserState = { ...snapshot.effectBrowserState };
     render();
@@ -125,7 +126,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
   ) => {
     const settingsState = deps.getSettingsState();
     settingsState.customModes = synchronizeEffectsForCustomModes(settingsState.customModes);
-    settingsState.enhancementModes = [...BUILTIN_MODES, ...settingsState.customModes];
+    settingsState.enhancementModes = buildEnhancementModes(settingsState.customModes);
     render();
 
     if (modifiedModeId) {
@@ -176,7 +177,63 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
 
     requiredModesContainer.textContent = '';
 
+    const modeGroups: Array<{
+      id: 'custom' | 'recommended' | 'compatibility';
+      labelKey: string;
+      fallbackLabel: string;
+      modes: EnhancementMode[];
+    }> = [
+      {
+        id: 'custom',
+        labelKey: 'customModes',
+        fallbackLabel: 'Custom Modes',
+        modes: [],
+      },
+      {
+        id: 'recommended',
+        labelKey: 'recommendedPresets',
+        fallbackLabel: 'Recommended Presets',
+        modes: [],
+      },
+      {
+        id: 'compatibility',
+        labelKey: 'compatibilityModes',
+        fallbackLabel: 'Compatibility Modes',
+        modes: [],
+      },
+    ];
+
     settingsState.enhancementModes.forEach(mode => {
+      if (!mode.isBuiltIn) {
+        modeGroups[0].modes.push(mode);
+      } else if ('isRecommended' in mode && mode.isRecommended === true) {
+        modeGroups[1].modes.push(mode);
+      } else {
+        modeGroups[2].modes.push(mode);
+      }
+    });
+
+    const modeGroupCards = new Map<typeof modeGroups[number]['id'], HTMLElement>();
+    modeGroups.forEach(group => {
+      const groupSection = document.createElement('section');
+      groupSection.className = 'mode-group';
+      groupSection.dataset.modeGroup = group.id;
+
+      const groupHeader = document.createElement('div');
+      groupHeader.className = 'mode-group-header';
+      const groupTitle = document.createElement('h2');
+      groupTitle.className = 'mode-group-title';
+      groupTitle.textContent = chrome.i18n.getMessage(group.labelKey) || group.fallbackLabel;
+      groupHeader.appendChild(groupTitle);
+
+      const groupCards = document.createElement('div');
+      groupCards.className = 'mode-group-cards';
+      groupSection.append(groupHeader, groupCards);
+      requiredModesContainer.appendChild(groupSection);
+      modeGroupCards.set(group.id, groupCards);
+    });
+
+    modeGroups.forEach(group => group.modes.forEach(mode => {
       const isCustomMode = !mode.isBuiltIn;
       const card = document.createElement('div');
       card.className = 'mode-card collapsed';
@@ -320,7 +377,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
               settingsState.customModes = settingsState.customModes.filter(item => item.id !== deletedModeId);
               const shouldPersistSelectedModeId = settingsState.selectedModeId === deletedModeId;
               if (shouldPersistSelectedModeId) {
-                settingsState.selectedModeId = 'builtin-mode-a';
+                settingsState.selectedModeId = DEFAULT_RECOMMENDED_PRESET_MODE_ID;
               }
               await persistCustomModes(deletedModeId, shouldPersistSelectedModeId, snapshot);
             },
@@ -498,8 +555,8 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       }
 
       updateCardDraggableState();
-      requiredModesContainer.appendChild(card);
-    });
+      modeGroupCards.get(group.id)?.appendChild(card);
+    }));
   }
 
   function bindEvents(): void {
@@ -556,7 +613,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
 
         await saveSettings({ customModes: nextCustomModes });
         settingsState.customModes = nextCustomModes;
-        settingsState.enhancementModes = [...BUILTIN_MODES, ...nextCustomModes];
+        settingsState.enhancementModes = buildEnhancementModes(nextCustomModes);
         render();
         deps.notifyUpdate();
         showNotice({ kind: 'success', message: chrome.i18n.getMessage('importSuccess') });

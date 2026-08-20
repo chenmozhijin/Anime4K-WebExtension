@@ -38,13 +38,29 @@ describe('gpu benchmark', () => {
       requiredModules: ['test:benchmark'],
     });
 
-    const { runGPUBenchmark } = await import('../../src/core/gpu-benchmark');
+    const { BENCHMARK_EFFECT_IDS, runGPUBenchmark } = await import('../../src/core/gpu-benchmark');
     const result = await runGPUBenchmark();
 
     expect(result.tier).toBeDefined();
     expect(compileEffectChain).toHaveBeenCalled();
     expect(destroySpy).toHaveBeenCalled();
     expect(chromeMock.__mock.localState._benchmarkInProgress).toBeUndefined();
+
+    expect(BENCHMARK_EFFECT_IDS).toEqual({
+      performance: 'cunny/Upscale/DS/Faster',
+      balanced: 'cunny/Upscale/DS/4x16',
+      quality: 'cunny/Upscale/DS/4x32',
+      ultra: 'cunny/Upscale/DS/8x32',
+    });
+    expect(compileEffectChain.mock.calls.slice(0, 5).map(([options]) => (
+      (options as { effects: Array<{ id: string }> }).effects.map(effect => effect.id)
+    ))).toEqual([
+      ['cunny/Upscale/DS/Faster'],
+      ['cunny/Upscale/DS/Faster'],
+      ['cunny/Upscale/DS/4x16'],
+      ['cunny/Upscale/DS/4x32'],
+      ['cunny/Upscale/DS/8x32'],
+    ]);
   });
 
   it('fails explicitly when GPU validation errors are captured during benchmark compilation', async () => {

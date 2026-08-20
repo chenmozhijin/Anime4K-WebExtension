@@ -85,4 +85,28 @@ describe('settings utilities', () => {
       expect((error as InstanceType<typeof SettingsSaveError>).message).toBe('Failed to save settings to sync.');
     }
   });
+
+  it('saves and restores recommended, compatibility, and custom mode selections', async () => {
+    const chromeMock = installChromeMock({
+      sync: {
+        selectedModeId: 'recommended-detail-preserving',
+        customModes: [{
+          id: 'custom-settings',
+          name: 'Settings Custom',
+          isBuiltIn: false,
+          effects: [],
+        }],
+      },
+    });
+    const { getSettings, saveSettings } = await import('../../src/utils/settings');
+
+    expect((await getSettings()).selectedModeId).toBe('recommended-detail-preserving');
+
+    await saveSettings({ selectedModeId: 'builtin-mode-aa' });
+    expect((await getSettings()).selectedModeId).toBe('builtin-mode-aa');
+
+    await saveSettings({ selectedModeId: 'custom-settings' });
+    expect((await getSettings()).selectedModeId).toBe('custom-settings');
+    expect(chromeMock.__mock.syncState.selectedModeId).toBe('custom-settings');
+  });
 });

@@ -52,6 +52,12 @@ describe('popup UI', () => {
         { id: 'builtin-mode-a', name: 'Mode A', backendId: 'anime4k' },
         { id: 'builtin-mode-b', name: 'Mode B', backendId: 'anime4k' },
       ],
+      RECOMMENDED_PRESET_MODES: [
+        { id: 'recommended-detail-preserving', presetId: 'detail-preserving', name: 'Detail Preserving', nameKey: 'recommendedDetailPreserving', effectFamily: 'CuNNy' },
+        { id: 'recommended-compression-cleanup', presetId: 'compression-cleanup', name: 'Compression Cleanup', nameKey: 'recommendedCompressionCleanup', effectFamily: 'ARNet' },
+        { id: 'recommended-soft-style', presetId: 'soft-style', name: 'Soft Style', nameKey: 'recommendedSoftStyle', effectFamily: 'ArtCNN' },
+      ],
+      DEFAULT_RECOMMENDED_PRESET_MODE_ID: 'recommended-detail-preserving',
       getSettings: vi.fn().mockResolvedValue({
         enhancementModes: [{ id: 'builtin-mode-a', name: 'Mode A' }],
         customModes: [{ id: 'custom-artcnn', name: 'ArtCNN Custom Mode' }],
@@ -94,11 +100,18 @@ describe('popup UI', () => {
     await flushPromises(6);
 
     expect(document.getElementById('version-info')?.textContent).toBe('9.9.9');
-    expect(document.querySelectorAll('#mode-select option')).toHaveLength(3);
+    expect(document.querySelectorAll('#mode-select option')).toHaveLength(6);
     const modeGroups = Array.from(document.querySelectorAll('#mode-select optgroup'));
-    expect(modeGroups[0].querySelectorAll('option')).toHaveLength(2);
-    expect(modeGroups[0].textContent).not.toContain('ArtCNN');
-    expect(modeGroups[1].textContent).toContain('ArtCNN Custom Mode');
+    expect(modeGroups).toHaveLength(3);
+    expect(modeGroups[0].querySelectorAll('option')).toHaveLength(3);
+    expect(modeGroups[1].querySelectorAll('option')).toHaveLength(2);
+    expect(modeGroups[1].textContent).not.toContain('ArtCNN');
+    expect(modeGroups[2].textContent).toContain('ArtCNN Custom Mode');
+    expect(Array.from(modeGroups[0].querySelectorAll('option')).map(option => option.textContent)).toEqual([
+      'recommendedDetailPreserving (CuNNy)',
+      'recommendedCompressionCleanup (ARNet)',
+      'recommendedSoftStyle (ArtCNN)',
+    ]);
     expect(document.querySelector('.tier-btn.active')?.getAttribute('data-tier')).toBe('quality');
     expect(showNotice).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'warning',
@@ -183,6 +196,12 @@ describe('popup UI', () => {
         { id: 'builtin-mode-a', name: 'Mode A', backendId: 'anime4k' },
         { id: 'builtin-mode-b', name: 'Mode B', backendId: 'anime4k' },
       ],
+      RECOMMENDED_PRESET_MODES: [
+        { id: 'recommended-detail-preserving', presetId: 'detail-preserving', name: 'Detail Preserving', nameKey: 'recommendedDetailPreserving', effectFamily: 'CuNNy' },
+        { id: 'recommended-compression-cleanup', presetId: 'compression-cleanup', name: 'Compression Cleanup', nameKey: 'recommendedCompressionCleanup', effectFamily: 'ARNet' },
+        { id: 'recommended-soft-style', presetId: 'soft-style', name: 'Soft Style', nameKey: 'recommendedSoftStyle', effectFamily: 'ArtCNN' },
+      ],
+      DEFAULT_RECOMMENDED_PRESET_MODE_ID: 'recommended-detail-preserving',
       getSettings,
       getLocalSettings,
       saveSettings,

@@ -5,6 +5,8 @@ export type PerformanceTimingSource = 'cpu' | 'gpu' | 'mixed' | 'unavailable';
 
 // Anime4K preset ids are kept for backward compatibility with existing built-in modes.
 export type Anime4KPresetId = 'A' | 'B' | 'C' | 'A+A' | 'B+B' | 'C+A';
+export type RecommendedPresetId = 'detail-preserving' | 'compression-cleanup' | 'soft-style';
+export type RecommendedPresetModeId = `recommended-${RecommendedPresetId}`;
 
 export type EffectCategory = 'restore' | 'upscale' | 'denoise' | 'deblur' | 'helper' | 'resize' | 'custom';
 
@@ -69,8 +71,18 @@ export interface BuiltInMode {
   baseMode: Anime4KPresetId;
   name: string;
   backendId: string;
-  presetKey: string;
+  presetKey: Anime4KPresetId;
   isBuiltIn: true;
+}
+
+export interface RecommendedPresetMode {
+  id: RecommendedPresetModeId;
+  presetId: RecommendedPresetId;
+  name: string;
+  nameKey: string;
+  effectFamily: string;
+  isBuiltIn: true;
+  isRecommended: true;
 }
 
 export interface CustomMode {
@@ -80,7 +92,7 @@ export interface CustomMode {
   effects: EnhancementEffect[];
 }
 
-export type EnhancementMode = BuiltInMode | CustomMode;
+export type EnhancementMode = BuiltInMode | RecommendedPresetMode | CustomMode;
 
 export interface GPUBenchmarkResult {
   tier: PerformanceTier;

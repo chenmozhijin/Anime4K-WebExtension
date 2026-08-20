@@ -7,7 +7,7 @@ import type {
 } from '../../types';
 
 export const DEFAULT_SYNCED_SETTINGS: SyncedSettings = {
-  selectedModeId: 'builtin-mode-a',
+  selectedModeId: 'recommended-detail-preserving',
   targetResolutionSetting: 'x2',
   whitelistEnabled: false,
   whitelist: [],

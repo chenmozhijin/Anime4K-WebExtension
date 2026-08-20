@@ -1,3 +1,5 @@
+import './notice.css';
+
 type NoticeKind = 'info' | 'success' | 'warning' | 'error';
 
 type NoticeAction = {
@@ -30,53 +32,11 @@ function getOrCreateGlobalContainer(): HTMLElement {
 
   const container = document.createElement('div');
   container.setAttribute(GLOBAL_NOTICE_CONTAINER_ATTR, '');
+  container.className = 'anime4k-notice-root';
   container.setAttribute('aria-live', 'polite');
   container.setAttribute('aria-relevant', 'additions');
-  Object.assign(container.style, {
-    position: 'fixed',
-    top: '20px',
-    right: '20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    zIndex: '2147483647',
-    maxWidth: '360px',
-    pointerEvents: 'none',
-  });
   document.body.appendChild(container);
   return container;
-}
-
-function getPalette(kind: NoticeKind) {
-  if (kind === 'success') {
-    return {
-      border: '#1f7a4c',
-      background: '#e9f8ef',
-      color: '#12442a',
-    };
-  }
-
-  if (kind === 'warning') {
-    return {
-      border: '#b7791f',
-      background: '#fff7e6',
-      color: '#7a4b00',
-    };
-  }
-
-  if (kind === 'error') {
-    return {
-      border: '#b42318',
-      background: '#fef3f2',
-      color: '#7a271a',
-    };
-  }
-
-  return {
-    border: '#1d4ed8',
-    background: '#eff6ff',
-    color: '#1e3a8a',
-  };
 }
 
 export function clearNotices(container?: HTMLElement | null): void {
@@ -86,65 +46,30 @@ export function clearNotices(container?: HTMLElement | null): void {
 
 export function showNotice(options: NoticeOptions): HTMLElement {
   const root = options.container ?? getOrCreateGlobalContainer();
-  const palette = getPalette(options.kind);
   const notice = document.createElement('div');
   notice.setAttribute(NOTICE_ATTR, '');
+  notice.className = 'anime4k-notice';
+  notice.dataset.kind = options.kind;
   notice.setAttribute('role', isAssertiveNotice(options.kind) ? 'alert' : 'status');
   notice.setAttribute('aria-live', isAssertiveNotice(options.kind) ? 'assertive' : 'polite');
   notice.setAttribute('aria-atomic', 'true');
   notice.tabIndex = -1;
-  Object.assign(notice.style, {
-    border: `1px solid ${palette.border}`,
-    background: palette.background,
-    color: palette.color,
-    borderRadius: '10px',
-    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
-    padding: '12px 14px',
-    fontSize: '13px',
-    lineHeight: '1.5',
-    fontFamily: 'system-ui, sans-serif',
-    pointerEvents: 'auto',
-  });
 
   const content = document.createElement('div');
+  content.className = 'anime4k-notice-message';
   content.textContent = options.message;
   notice.appendChild(content);
 
   if (options.actions?.length) {
     const actions = document.createElement('div');
-    Object.assign(actions.style, {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '8px',
-      marginTop: '10px',
-    });
+    actions.className = 'anime4k-notice-actions';
 
     options.actions.forEach(action => {
       const actionButton = document.createElement('button');
       actionButton.type = 'button';
       actionButton.textContent = action.label;
-      Object.assign(actionButton.style, {
-        borderRadius: '999px',
-        padding: '6px 12px',
-        fontSize: '12px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        border: '1px solid currentColor',
-        background: 'transparent',
-        color: 'inherit',
-      });
-
-      if (action.emphasis === 'primary') {
-        actionButton.style.background = palette.border;
-        actionButton.style.borderColor = palette.border;
-        actionButton.style.color = '#ffffff';
-      }
-
-      if (action.emphasis === 'danger') {
-        actionButton.style.background = '#b42318';
-        actionButton.style.borderColor = '#b42318';
-        actionButton.style.color = '#ffffff';
-      }
+      actionButton.className = 'anime4k-notice-action';
+      actionButton.dataset.emphasis = action.emphasis ?? 'normal';
 
       actionButton.addEventListener('click', () => {
         void Promise.resolve(action.onClick()).finally(() => {
@@ -163,15 +88,7 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   dismissButton.type = 'button';
   dismissButton.textContent = chrome.i18n.getMessage('dismiss');
   dismissButton.setAttribute('aria-label', chrome.i18n.getMessage('dismiss'));
-  Object.assign(dismissButton.style, {
-    marginTop: '10px',
-    border: 'none',
-    background: 'transparent',
-    color: 'inherit',
-    fontWeight: '600',
-    cursor: 'pointer',
-    padding: '0',
-  });
+  dismissButton.className = 'anime4k-notice-dismiss';
   dismissButton.addEventListener('click', () => notice.remove());
   notice.appendChild(dismissButton);
   notice.addEventListener('keydown', event => {

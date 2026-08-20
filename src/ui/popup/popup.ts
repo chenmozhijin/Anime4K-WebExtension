@@ -2,6 +2,8 @@ import './popup.css';
 import '../common-vars.css';
 import {
   BUILTIN_MODES,
+  DEFAULT_RECOMMENDED_PRESET_MODE_ID,
+  RECOMMENDED_PRESET_MODES,
   getLocalSettings,
   getSettings,
   saveSettings,
@@ -73,8 +75,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }) => {
     modeSelect.innerHTML = '';
 
+    const recommendedGroup = document.createElement('optgroup');
+    recommendedGroup.label = chrome.i18n.getMessage('recommendedPresets');
+    RECOMMENDED_PRESET_MODES.forEach(mode => {
+      const option = document.createElement('option');
+      option.value = mode.id;
+      const name = chrome.i18n.getMessage(mode.nameKey) || mode.name;
+      option.textContent = `${name} (${mode.effectFamily})`;
+      recommendedGroup.appendChild(option);
+    });
+    modeSelect.appendChild(recommendedGroup);
+
     const builtInGroup = document.createElement('optgroup');
-    builtInGroup.label = chrome.i18n.getMessage('builtInModes');
+    builtInGroup.label = chrome.i18n.getMessage('compatibilityModes');
     BUILTIN_MODES.forEach(mode => {
       const option = document.createElement('option');
       option.value = mode.id;
@@ -83,19 +96,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     modeSelect.appendChild(builtInGroup);
 
-    if (settings.customModes.length > 0) {
-      const customGroup = document.createElement('optgroup');
-      customGroup.label = chrome.i18n.getMessage('customModes');
-      settings.customModes.forEach(mode => {
-        const option = document.createElement('option');
-        option.value = mode.id;
-        option.textContent = mode.name;
-        customGroup.appendChild(option);
-      });
-      modeSelect.appendChild(customGroup);
-    }
+    const customGroup = document.createElement('optgroup');
+    customGroup.label = chrome.i18n.getMessage('customModes');
+    settings.customModes.forEach(mode => {
+      const option = document.createElement('option');
+      option.value = mode.id;
+      option.textContent = mode.name;
+      customGroup.appendChild(option);
+    });
+    modeSelect.appendChild(customGroup);
 
-    modeSelect.value = settings.selectedModeId;
+    const validModeIds = new Set([
+      ...RECOMMENDED_PRESET_MODES.map(mode => mode.id),
+      ...BUILTIN_MODES.map(mode => mode.id),
+      ...settings.customModes.map(mode => mode.id),
+    ]);
+    modeSelect.value = validModeIds.has(settings.selectedModeId)
+      ? settings.selectedModeId
+      : DEFAULT_RECOMMENDED_PRESET_MODE_ID;
   };
 
   const updateTierButtons = (tier: PerformanceTier) => {
@@ -157,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (error) {
     logger.error('Error loading settings:', error);
-    modeSelect.value = 'builtin-mode-a';
+    modeSelect.value = DEFAULT_RECOMMENDED_PRESET_MODE_ID;
     resolutionSelect.value = 'x2';
     whitelistToggle.checked = false;
   }

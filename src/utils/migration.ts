@@ -5,6 +5,10 @@
 
 import type { CustomMode, EnhancementEffect, LocalSettings, PerformanceTier, SyncedSettings } from '../types';
 import { normalizeEffectReference } from '../core/effects/registry';
+import {
+  DEFAULT_RECOMMENDED_PRESET_MODE_ID,
+  isKnownEnhancementModeId,
+} from '../features/enhancement/domain/modes';
 import { createLogger } from './logger';
 
 interface LegacyEnhancementMode {
@@ -21,7 +25,7 @@ interface MigrationSyncStorage extends Partial<SyncedSettings> {
 
 type MigrationLocalStorage = Partial<LocalSettings>;
 
-const CURRENT_CONFIG_VERSION = 3;
+const CURRENT_CONFIG_VERSION = 4;
 const logger = createLogger('migration');
 
 function normalizeCustomModes(modes: unknown): CustomMode[] {
@@ -53,13 +57,26 @@ function normalizeCustomModes(modes: unknown): CustomMode[] {
 }
 
 export async function needsMigration(): Promise<boolean> {
-  const data = await chrome.storage.sync.get<MigrationSyncStorage>(['_configVersion', 'enhancementModes', 'customModes']);
+  const data = await chrome.storage.sync.get<MigrationSyncStorage>([
+    '_configVersion',
+    'enhancementModes',
+    'customModes',
+    'selectedModeId',
+  ]);
+  const customModes = normalizeCustomModes(data.customModes);
   return (data._configVersion ?? 0) < CURRENT_CONFIG_VERSION
-    || Boolean(data.enhancementModes);
+    || Boolean(data.enhancementModes)
+    || !isKnownEnhancementModeId(data.selectedModeId, customModes);
+}
+
+function resolveSelectedModeId(value: unknown, customModes: CustomMode[]): string {
+  return isKnownEnhancementModeId(value, customModes)
+    ? value as string
+    : DEFAULT_RECOMMENDED_PRESET_MODE_ID;
 }
 
 export async function migrateToLatest(): Promise<void> {
-  logger.info('Migrating configuration to v3.');
+  logger.info('Migrating configuration to v4.');
 
   const syncData = await chrome.storage.sync.get<MigrationSyncStorage>([
     '_configVersion',
@@ -79,7 +96,7 @@ export async function migrateToLatest(): Promise<void> {
 
   await chrome.storage.sync.set({
     customModes,
-    selectedModeId: syncData.selectedModeId || 'builtin-mode-a',
+    selectedModeId: resolveSelectedModeId(syncData.selectedModeId, customModes),
     targetResolutionSetting: syncData.targetResolutionSetting || 'x2',
     whitelistEnabled: syncData.whitelistEnabled ?? false,
     whitelist: syncData.whitelist || [],
@@ -127,7 +144,7 @@ export async function ensureLatestConfig(): Promise<void> {
   if (!syncData._configVersion) {
     await chrome.storage.sync.set({
       customModes: [],
-      selectedModeId: 'builtin-mode-a',
+      selectedModeId: DEFAULT_RECOMMENDED_PRESET_MODE_ID,
       targetResolutionSetting: 'x2',
       whitelistEnabled: false,
       whitelist: [],

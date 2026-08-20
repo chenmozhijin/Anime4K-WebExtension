@@ -345,6 +345,21 @@
   "builtInModes": {
     "message": "Встроенные режимы"
   },
+  "recommendedPresets": {
+    "message": "Рекомендуемые пресеты"
+  },
+  "compatibilityModes": {
+    "message": "Режимы совместимости"
+  },
+  "recommendedDetailPreserving": {
+    "message": "Сохранение деталей"
+  },
+  "recommendedCompressionCleanup": {
+    "message": "Очистка после сжатия"
+  },
+  "recommendedSoftStyle": {
+    "message": "Мягкий стиль"
+  },
   "customModes": {
     "message": "Пользовательские режимы"
   },

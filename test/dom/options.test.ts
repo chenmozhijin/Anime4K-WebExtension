@@ -30,6 +30,35 @@ describe('options UI', () => {
       presetKey: 'A',
       baseMode: 'A',
     };
+    const recommendedModes = [
+      {
+        id: 'recommended-detail-preserving',
+        presetId: 'detail-preserving',
+        name: 'Detail Preserving',
+        nameKey: 'recommendedDetailPreserving',
+        effectFamily: 'CuNNy',
+        isBuiltIn: true,
+        isRecommended: true,
+      },
+      {
+        id: 'recommended-compression-cleanup',
+        presetId: 'compression-cleanup',
+        name: 'Compression Cleanup',
+        nameKey: 'recommendedCompressionCleanup',
+        effectFamily: 'ARNet',
+        isBuiltIn: true,
+        isRecommended: true,
+      },
+      {
+        id: 'recommended-soft-style',
+        presetId: 'soft-style',
+        name: 'Soft Style',
+        nameKey: 'recommendedSoftStyle',
+        effectFamily: 'ArtCNN',
+        isBuiltIn: true,
+        isRecommended: true,
+      },
+    ];
     const customMode = {
       id: 'custom-1',
       name: 'Custom 1',
@@ -42,7 +71,7 @@ describe('options UI', () => {
       whitelistEnabled: true,
       whitelist: [{ pattern: 'example.com/*', enabled: true }],
       customModes: [customMode],
-      enhancementModes: [builtInMode, customMode],
+      enhancementModes: [...recommendedModes, builtInMode, customMode],
       enableCrossOriginFix: false,
     });
     const getLocalSettings = vi.fn().mockResolvedValue({
@@ -53,6 +82,8 @@ describe('options UI', () => {
 
     vi.doMock('../../src/utils/settings', () => ({
       BUILTIN_MODES: [builtInMode],
+      buildEnhancementModes: vi.fn((customModes: any[]) => [...recommendedModes, builtInMode, ...customModes]),
+      DEFAULT_RECOMMENDED_PRESET_MODE_ID: 'recommended-detail-preserving',
       getSettings,
       saveSettings,
       synchronizeEffectsForCustomModes: vi.fn((modes: unknown) => modes),
@@ -146,6 +177,10 @@ describe('options UI', () => {
         ...effect,
         name: effect.key,
       })),
+      getEffectDescriptorById: vi.fn((id: string) => ({
+        id,
+        name: id,
+      })),
       validateEffectChain: vi.fn(() => ({
         valid: true,
         errors: [],
@@ -155,7 +190,18 @@ describe('options UI', () => {
     document.dispatchEvent(new Event('DOMContentLoaded'));
     await flushPromises();
 
-    expect(document.querySelectorAll('#modes-container .mode-card')).toHaveLength(2);
+    expect(document.querySelectorAll('#modes-container .mode-card')).toHaveLength(5);
+    expect(Array.from(document.querySelectorAll('#modes-container [data-mode-group]'))
+      .map(group => group.getAttribute('data-mode-group')))
+      .toEqual(['custom', 'recommended', 'compatibility']);
+    expect(document.querySelector('[data-mode-group="custom"] [data-mode-id="custom-1"]')).not.toBeNull();
+    expect(document.querySelector('[data-mode-group="recommended"] [data-mode-id="recommended-detail-preserving"]')).not.toBeNull();
+    expect(document.querySelector('[data-mode-group="compatibility"] [data-mode-id="builtin-mode-a"]')).not.toBeNull();
+    expect(document.querySelector('[data-mode-id="recommended-detail-preserving"]')?.textContent)
+      .toContain('Detail Preserving');
+    expect(document.querySelector('[data-mode-id="recommended-detail-preserving"] .effect-browser')).toBeNull();
+    expect((document.querySelector('[data-mode-id="recommended-detail-preserving"] h2') as HTMLElement).contentEditable)
+      .toBe('false');
     expect(document.querySelectorAll('#rules-container tr')).toHaveLength(1);
     expect(document.getElementById('version-number')?.textContent).toBe('1.2.3');
     expect(document.getElementById('about-section')?.textContent).toContain('MIT core');

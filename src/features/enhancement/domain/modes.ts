@@ -7,6 +7,13 @@ import type {
   PerformanceTier,
 } from '../../../types';
 import { normalizeEffectReference, resolvePresetEffects } from '../../../core/effects/registry';
+import {
+  DEFAULT_RECOMMENDED_PRESET_MODE_ID,
+  RECOMMENDED_PRESET_MODES,
+  isRecommendedPresetMode,
+  isRecommendedPresetModeId,
+  resolveRecommendedPresetEffects,
+} from './recommended-presets';
 
 export const BUILTIN_MODES: BuiltInMode[] = [
   { id: 'builtin-mode-a', baseMode: 'A', name: 'Mode A', backendId: 'anime4k', presetKey: 'A', isBuiltIn: true },
@@ -28,7 +35,7 @@ export function synchronizeEffectsForCustomModes(modes: CustomMode[]): CustomMod
 }
 
 export function buildEnhancementModes(customModes: CustomMode[]): EnhancementMode[] {
-  return [...BUILTIN_MODES, ...customModes];
+  return [...RECOMMENDED_PRESET_MODES, ...BUILTIN_MODES, ...customModes];
 }
 
 export function buildEnhancementSettings(
@@ -43,6 +50,10 @@ export function buildEnhancementSettings(
 }
 
 export function getEffectsForMode(mode: EnhancementMode, tier: PerformanceTier): EnhancementEffect[] {
+  if (isRecommendedPresetMode(mode)) {
+    return resolveRecommendedPresetEffects(mode.presetId, tier);
+  }
+
   if (mode.isBuiltIn) {
     return resolvePresetEffects(mode.backendId, mode.presetKey, tier);
   }
@@ -53,3 +64,15 @@ export function getEffectsForMode(mode: EnhancementMode, tier: PerformanceTier):
 export function findModeById(modes: EnhancementMode[], modeId: string): EnhancementMode | undefined {
   return modes.find(mode => mode.id === modeId);
 }
+
+export function isKnownBuiltInModeId(value: unknown): boolean {
+  return typeof value === 'string' && BUILTIN_MODES.some(mode => mode.id === value);
+}
+
+export function isKnownEnhancementModeId(value: unknown, customModes: readonly CustomMode[] = []): boolean {
+  return isRecommendedPresetModeId(value)
+    || isKnownBuiltInModeId(value)
+    || (typeof value === 'string' && customModes.some(mode => mode.id === value));
+}
+
+export { DEFAULT_RECOMMENDED_PRESET_MODE_ID };

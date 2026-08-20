@@ -1,6 +1,6 @@
 import type { Anime4KWebExtSettings, LocalSettings, PerformanceMonitorMode, PerformanceTier } from '../../../types';
 import {
-  BUILTIN_MODES,
+  buildEnhancementModes,
   getLocalSettings,
   getSettings,
   synchronizeEffectsForCustomModes,
@@ -41,7 +41,7 @@ export function createOptionsStateStore(): OptionsStateStore {
   function syncEnhancementModes(): void {
     const currentState = ensureSettingsState();
     currentState.customModes = synchronizeEffectsForCustomModes(currentState.customModes);
-    currentState.enhancementModes = [...BUILTIN_MODES, ...currentState.customModes];
+    currentState.enhancementModes = buildEnhancementModes(currentState.customModes);
   }
 
   async function load(): Promise<void> {

@@ -345,6 +345,21 @@
   "builtInModes": {
     "message": "組み込みモード"
   },
+  "recommendedPresets": {
+    "message": "おすすめプリセット"
+  },
+  "compatibilityModes": {
+    "message": "互換モード"
+  },
+  "recommendedDetailPreserving": {
+    "message": "ディテール保持"
+  },
+  "recommendedCompressionCleanup": {
+    "message": "再圧縮クリーンアップ"
+  },
+  "recommendedSoftStyle": {
+    "message": "ソフトスタイル"
+  },
   "customModes": {
     "message": "カスタムモード"
   },

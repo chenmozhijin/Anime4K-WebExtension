@@ -201,6 +201,34 @@ h1 {
   gap: var(--spacing-4);
 }
 
+.mode-group {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.mode-group + .mode-group {
+  margin-top: var(--spacing-4);
+}
+
+.mode-group-header {
+  align-items: center;
+  border-bottom: 1px solid var(--outline-variant);
+  display: flex;
+  min-height: 36px;
+}
+
+.mode-group-title {
+  color: var(--on-surface-variant);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.mode-group-cards {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
 .mode-card {
   background: var(--surface-container-high);
   border-radius: var(--border-radius-lg);

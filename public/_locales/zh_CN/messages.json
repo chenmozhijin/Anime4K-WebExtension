@@ -345,6 +345,21 @@
   "builtInModes": {
     "message": "内置模式"
   },
+  "recommendedPresets": {
+    "message": "推荐预设"
+  },
+  "compatibilityModes": {
+    "message": "兼容模式"
+  },
+  "recommendedDetailPreserving": {
+    "message": "细节保留"
+  },
+  "recommendedCompressionCleanup": {
+    "message": "重压缩清理"
+  },
+  "recommendedSoftStyle": {
+    "message": "柔和风格"
+  },
   "customModes": {
     "message": "自定义模式"
   },

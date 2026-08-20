@@ -21,6 +21,10 @@ describe('showNotice', () => {
     });
 
     expect(document.querySelector('[data-anime4k-notice-root]')).not.toBeNull();
+    expect(notice.className).toBe('anime4k-notice');
+    expect(notice.dataset.kind).toBe('warning');
+    expect(notice.querySelector('.anime4k-notice-actions')).not.toBeNull();
+    expect(notice.querySelector('.anime4k-notice-action')?.getAttribute('data-emphasis')).toBe('primary');
     expect(notice.getAttribute('role')).toBe('alert');
     expect(notice.getAttribute('aria-live')).toBe('assertive');
     expect(document.activeElement).toBe(notice);
