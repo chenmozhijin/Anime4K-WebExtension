@@ -8,6 +8,7 @@ import { isLikelyVisibleVideo, walkVisibleVideos } from './video-discovery';
 
 type SettingsUpdateMessage = {
   type: string;
+  // Omit for global setting changes; provide only when an existing custom mode's definition changed.
   modifiedModeId?: string;
 };
 

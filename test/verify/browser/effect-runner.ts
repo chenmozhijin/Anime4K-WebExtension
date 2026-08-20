@@ -44,6 +44,8 @@ interface VerifyResponse {
   rgba?: number[];
   lumaF32?: number[];
   rgbaF32?: number[];
+  pngBase64?: string;
+  timings?: VerifyChainTimings;
   adapterInfo: string;
   passCount: number;
   peakTextureBytes: number;
@@ -57,11 +59,22 @@ interface VerifyChainRequest {
   height: number;
   targetWidth: number;
   targetHeight: number;
-  rgba: number[];
+  rgba?: number[];
+  rgbaBase64?: string;
   includePreview?: boolean;
+  includeFloatOutput?: boolean;
   optimizationFlags?: Partial<OptimizationFeatureFlags>;
   terminalPresentation?: boolean;
   kernelVariantOverride?: string;
+  outputEncoding?: 'rgba-array' | 'png-base64';
+}
+
+interface VerifyChainTimings {
+  inputDecodeMs: number;
+  compileMs: number;
+  gpuExecutionMs: number;
+  readbackMs: number;
+  pngEncodeMs: number;
 }
 
 interface VerifyGpuContext {
@@ -72,6 +85,31 @@ interface VerifyGpuContext {
   readbackLumaF32Pipeline?: GPUComputePipeline;
   readbackPackedX2LumaF32Pipeline?: GPUComputePipeline;
   readbackRgbaF32Pipeline?: GPUComputePipeline;
+}
+
+function decodeBase64Bytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function encodeRgbaAsPngBase64(rgba: Uint8Array, width: number, height: number): Promise<string> {
+  const canvas = new OffscreenCanvas(width, height);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to create the PNG encoding canvas.');
+  const pixels = new Uint8ClampedArray(rgba);
+  context.putImageData(new ImageData(pixels, width, height), 0, 0);
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to encode PNG as Base64.'));
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      resolve(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 interface VerifyExternalTextureRequest {
@@ -99,6 +137,7 @@ interface VerifyTemporalRequest {
   baselineFlags: Partial<OptimizationFeatureFlags>;
   optimizedFlags: Partial<OptimizationFeatureFlags>;
   externalTexture?: boolean;
+  motionOnly?: boolean;
   thresholds?: Partial<TemporalThresholds>;
 }
 
@@ -145,7 +184,10 @@ async function getAdapterInfo(adapter: GPUAdapter): Promise<string> {
     : 'WebGPU adapter';
 }
 
-function createInputTexture(device: GPUDevice, request: VerifyRequest): GPUTexture {
+function createInputTexture(
+  device: GPUDevice,
+  request: Pick<VerifyRequest, 'effectId' | 'width' | 'height'> & { rgba: ArrayLike<number> },
+): GPUTexture {
   const texture = device.createTexture({
     label: `verify/input/${request.effectId}`,
     size: { width: request.width, height: request.height },
@@ -748,20 +790,52 @@ async function seekVerificationVideo(video: HTMLVideoElement, time: number): Pro
     return;
   }
   await new Promise<void>((resolve, reject) => {
-    const onSeeked = () => {
+    let seeked = false;
+    let framePresented = typeof video.requestVideoFrameCallback !== 'function';
+    let videoFrameCallbackId: number | undefined;
+    const hardTimeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out seeking verification video to ${target.toFixed(6)}s.`));
+    }, 15000);
+    const maybeResolve = () => {
+      if (!seeked || !framePresented) return;
       cleanup();
       resolve();
+    };
+    const onSeeked = () => {
+      seeked = true;
+      // Chromium may not publish a newly sought surface while paused.
+      if (!framePresented) void video.play().catch(onError);
+      maybeResolve();
     };
     const onError = () => {
       cleanup();
       reject(new Error(`Unable to seek verification video to ${target.toFixed(6)}s.`));
     };
     const cleanup = () => {
+      window.clearTimeout(hardTimeoutId);
+      if (videoFrameCallbackId !== undefined) video.cancelVideoFrameCallback(videoFrameCallbackId);
+      video.pause();
       video.removeEventListener('seeked', onSeeked);
       video.removeEventListener('error', onError);
     };
     video.addEventListener('seeked', onSeeked, { once: true });
     video.addEventListener('error', onError, { once: true });
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      const waitForTargetFrame: VideoFrameRequestCallback = (_now, metadata) => {
+        // Requested samples sit one quarter-frame after their intended PTS.
+        // A half-frame tolerance accepts that decoded frame but rejects the
+        // previously displayed frame from the preceding seek.
+        const delta = metadata.mediaTime - target;
+        if (seeked && delta >= -1 / 48 && delta <= 3 / 48) {
+          framePresented = true;
+          maybeResolve();
+          return;
+        }
+        videoFrameCallbackId = video.requestVideoFrameCallback(waitForTargetFrame);
+      };
+      videoFrameCallbackId = video.requestVideoFrameCallback(waitForTargetFrame);
+    }
     video.currentTime = target;
   });
 }
@@ -824,6 +898,7 @@ window.__runTemporalVerification = async (
     baselinePlan.outputDimensions.width,
     baselinePlan.outputDimensions.height,
     thresholds,
+    request.motionOnly,
   );
   const readback = new RgbaF32PairReadback(
     context,
@@ -1013,6 +1088,14 @@ window.__runEffectVerification = async (request: VerifyRequest): Promise<VerifyR
 };
 
 window.__runChainVerification = async (request: VerifyChainRequest): Promise<VerifyResponse> => {
+  const inputDecodeStartedAt = performance.now();
+  const inputRgba = request.rgbaBase64
+    ? decodeBase64Bytes(request.rgbaBase64)
+    : new Uint8Array(request.rgba ?? []);
+  if (inputRgba.byteLength !== request.width * request.height * 4) {
+    throw new Error(`Chain input has ${inputRgba.byteLength} bytes; expected ${request.width * request.height * 4}.`);
+  }
+  const inputDecodeMs = performance.now() - inputDecodeStartedAt;
   const descriptors = request.effectIds.map(effectId => {
     const descriptor = getEffectDescriptorById(effectId);
     if (!descriptor) {
@@ -1026,7 +1109,7 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
     effectId: request.effectIds.join('+'),
     width: request.width,
     height: request.height,
-    rgba: request.rgba,
+    rgba: inputRgba,
   });
   const targetDimensions = { width: request.targetWidth, height: request.targetHeight };
   const terminalTexture = request.terminalPresentation
@@ -1047,6 +1130,7 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
   device.pushErrorScope('validation');
   setGeneratedKernelVariantOverride(device, request.kernelVariantOverride);
   let plan;
+  const compileStartedAt = performance.now();
   try {
     plan = await compileEffectChain({
       device,
@@ -1065,6 +1149,7 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
   } finally {
     setGeneratedKernelVariantOverride(device);
   }
+  const compileMs = performance.now() - compileStartedAt;
   const compileValidationError = await device.popErrorScope();
   await flushGpuResourceErrors(device);
   if (compileValidationError || resourceErrors.length > 0) {
@@ -1080,10 +1165,12 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
   }
 
   device.pushErrorScope('validation');
+  const gpuExecutionStartedAt = performance.now();
   const encoder = device.createCommandEncoder({ label: 'verify/chain/encoder' });
   plan.pipelines.forEach(pipeline => pipeline.pass(encoder));
   device.queue.submit([encoder.finish()]);
   await device.queue.onSubmittedWorkDone();
+  const gpuExecutionMs = performance.now() - gpuExecutionStartedAt;
   const executionValidationError = await device.popErrorScope();
   if (executionValidationError) {
     plan.pipelines.forEach(pipeline => pipeline.destroy?.());
@@ -1096,6 +1183,7 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
   const finalTexture = plan.terminalPresenter && terminalTexture
     ? terminalTexture
     : plan.outputTexture;
+  const readbackStartedAt = performance.now();
   const rgba = request.includePreview
     ? await readTextureAsRgba8(
       context,
@@ -1104,12 +1192,21 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
       plan.outputDimensions.height,
     )
     : null;
-  const rgbaF32 = await readTextureRgbaAsF32(
-    context,
-    finalTexture,
-    plan.outputDimensions.width,
-    plan.outputDimensions.height,
-  );
+  const readbackMs = performance.now() - readbackStartedAt;
+  const rgbaF32 = request.includeFloatOutput === false
+    ? null
+    : await readTextureRgbaAsF32(
+      context,
+      finalTexture,
+      plan.outputDimensions.width,
+      plan.outputDimensions.height,
+    );
+
+  const pngEncodeStartedAt = performance.now();
+  const pngBase64 = rgba && request.outputEncoding === 'png-base64'
+    ? await encodeRgbaAsPngBase64(rgba, plan.outputDimensions.width, plan.outputDimensions.height)
+    : undefined;
+  const pngEncodeMs = performance.now() - pngEncodeStartedAt;
 
   plan.pipelines.forEach(pipeline => pipeline.destroy?.());
   terminalTexture?.destroy();
@@ -1118,8 +1215,16 @@ window.__runChainVerification = async (request: VerifyChainRequest): Promise<Ver
   return {
     width: plan.outputDimensions.width,
     height: plan.outputDimensions.height,
-    rgba: rgba ? Array.from(rgba) : undefined,
-    rgbaF32: Array.from(rgbaF32),
+    rgba: rgba && request.outputEncoding !== 'png-base64' ? Array.from(rgba) : undefined,
+    pngBase64,
+    timings: {
+      inputDecodeMs,
+      compileMs,
+      gpuExecutionMs,
+      readbackMs,
+      pngEncodeMs,
+    },
+    rgbaF32: rgbaF32 ? Array.from(rgbaF32) : undefined,
     adapterInfo,
     passCount: plan.passCount,
     peakTextureBytes: plan.peakTextureBytes,

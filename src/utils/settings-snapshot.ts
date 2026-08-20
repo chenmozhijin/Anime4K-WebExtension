@@ -33,6 +33,7 @@ const LOCAL_KEYS = new Set([
 let currentSnapshot: SettingsSnapshot | null = null;
 let initPromise: Promise<SettingsSnapshot> | null = null;
 let refreshPromise: Promise<SettingsSnapshot> | null = null;
+let refreshRequestVersion = 0;
 let storageListenerInstalled = false;
 const listeners = new Set<SettingsSnapshotListener>();
 const logger = createLogger('settings-snapshot');
@@ -86,24 +87,41 @@ function ensureStorageListener(): void {
   storageListenerInstalled = true;
 }
 
-export async function refreshSettingsSnapshot(): Promise<SettingsSnapshot> {
-  ensureStorageListener();
+async function drainRefreshRequests(): Promise<SettingsSnapshot> {
+  while (true) {
+    const readVersion = refreshRequestVersion;
+    let settings: Anime4KWebExtSettings;
 
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      const settings = await getSettings();
-      const nextSnapshot = buildSnapshot(settings);
-      currentSnapshot = nextSnapshot;
-      notifyListeners(nextSnapshot);
+    try {
+      settings = await getSettings();
+    } catch (error) {
+      if (readVersion !== refreshRequestVersion) {
+        continue;
+      }
+      throw error;
+    }
+
+    if (readVersion !== refreshRequestVersion) {
+      continue;
+    }
+
+    const nextSnapshot = buildSnapshot(settings);
+    currentSnapshot = nextSnapshot;
+    notifyListeners(nextSnapshot);
+    if (readVersion === refreshRequestVersion) {
       return nextSnapshot;
-    })();
+    }
   }
+}
 
-  try {
-    return await refreshPromise;
-  } finally {
+export function refreshSettingsSnapshot(): Promise<SettingsSnapshot> {
+  ensureStorageListener();
+  refreshRequestVersion += 1;
+
+  refreshPromise ??= drainRefreshRequests().finally(() => {
     refreshPromise = null;
-  }
+  });
+  return refreshPromise;
 }
 
 export async function initSettingsSnapshot(): Promise<SettingsSnapshot> {
@@ -111,7 +129,11 @@ export async function initSettingsSnapshot(): Promise<SettingsSnapshot> {
 
   if (!currentSnapshot) {
     initPromise ??= refreshSettingsSnapshot();
-    currentSnapshot = await initPromise;
+    try {
+      currentSnapshot = await initPromise;
+    } finally {
+      initPromise = null;
+    }
   }
 
   return currentSnapshot;

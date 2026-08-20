@@ -5,6 +5,11 @@ import type {
   PassTimingEntry,
 } from '../types';
 import { createLogger } from '../utils/logger';
+import {
+  getPointerRevealCoordinator,
+  type PointerRevealRegistration,
+  type PointerRevealZone,
+} from './pointer-reveal-coordinator';
 import { getRenderableParent } from './video-discovery';
 
 type StyleMap = Record<string, string>;
@@ -15,6 +20,17 @@ const HUD_COLORS = ['#8b5f50', '#8f8f8f', '#00a889', '#4c78a8', '#f2b84b', '#b55
 const HUD_MIN_WIDTH = 260;
 const HUD_MAX_WIDTH = 640;
 const HUD_DEFAULT_WIDTH = 360;
+const BUTTON_INITIAL_REVEAL_MS = 3000;
+const BUTTON_TOUCH_REVEAL_MS = 3000;
+const BUTTON_EXIT_HIDE_DELAY_MS = 500;
+const BUTTON_REVEAL_ZONE_MIN_WIDTH = 160;
+const BUTTON_REVEAL_ZONE_MIN_HEIGHT = 120;
+const BUTTON_REVEAL_ZONE_MAX_WIDTH = 280;
+const BUTTON_REVEAL_ZONE_MAX_HEIGHT = 240;
+const BUTTON_REVEAL_ZONE_WIDTH_RATIO = 0.22;
+const BUTTON_REVEAL_ZONE_HEIGHT_RATIO = 0.34;
+
+type ButtonPresentationState = 'unrenderable' | 'visible' | 'hidden';
 
 interface PerformanceHudOptions {
   collapsed: boolean;
@@ -51,9 +67,19 @@ export class OverlayManager {
   private readonly host: HTMLElement;
   private readonly shadowRoot: ShadowRoot;
   private readonly button: HTMLButtonElement;
+  private readonly buttonDefaultTabIndex: number;
+  private readonly pointerRevealRegistration: PointerRevealRegistration;
   private canvasHost?: HTMLElement;
   private canvas?: HTMLCanvasElement;
   private hideButtonTimeout?: number;
+  private initialRevealStartedAt: number | null = null;
+  private initialRevealRemainingMs = BUTTON_INITIAL_REVEAL_MS;
+  private delayedHideButtonTimeout?: number;
+  private buttonPresentationState: ButtonPresentationState = 'unrenderable';
+  private pointerInsideRevealZone = false;
+  private pointerInsideButton = false;
+  private revealZone: PointerRevealZone | null = null;
+  private revealZoneVisibleArea = 0;
   private destroyed = false;
   private layoutFrameId: number | null = null;
   private shouldRevealButtonOnNextLayout = false;
@@ -107,10 +133,21 @@ export class OverlayManager {
 
     this.shadowRoot = this.host.attachShadow({ mode: 'closed' });
     this.button = this.createButtonInShadow();
+    this.buttonDefaultTabIndex = this.button.tabIndex;
     this.injectStyles();
+    this.button.addEventListener('focus', this.handleButtonFocus);
+    this.button.addEventListener('blur', this.handleButtonBlur);
+    this.button.addEventListener('pointerenter', this.handleButtonPointerEnter);
+    this.button.addEventListener('pointerleave', this.handleButtonPointerLeave);
+    this.pointerRevealRegistration = getPointerRevealCoordinator().register({
+      onReveal: source => this.showButton(source === 'touch' ? 'touch' : 'proximity'),
+      onPresenceChange: inside => this.handleRevealZonePresenceChange(inside),
+    });
+    this.setButtonPresentationState('unrenderable');
 
     this.resizeObserver = new ResizeObserver(() => this.scheduleLayoutUpdate());
     this.resizeObserver.observe(this.video);
+    this.addVideoStateListeners(this.video);
 
     this.mutationObserver = new MutationObserver(() => {
       this.observeLayoutTargets();
@@ -222,6 +259,8 @@ export class OverlayManager {
 
   public detach(): void {
     this.restoreVideoOpacity();
+    this.removeVideoStateListeners(this.video);
+    this.setButtonPresentationState('unrenderable');
     this.host.remove();
     this.canvasHost?.remove();
   }
@@ -236,9 +275,11 @@ export class OverlayManager {
     this.observedRenderableParent = undefined;
 
     this.restoreVideoOpacity();
+    this.removeVideoStateListeners(this.video);
     this.video.removeAttribute(OverlayManager.SLOT_MARKER_ATTR);
     this.video = newVideo;
     this.video.setAttribute(OverlayManager.SLOT_MARKER_ATTR, this.slotId);
+    this.addVideoStateListeners(newVideo);
 
     const attachmentParent = this.getAttachmentParent(newVideo);
     if (this.attachmentStrategy === 'body' && !this.isAttachedToShadowRoot(newVideo)) {
@@ -283,7 +324,13 @@ export class OverlayManager {
     this.resizeObserver.disconnect();
     this.mutationObserver.disconnect();
     this.observedRenderableParent = undefined;
+    this.removeVideoStateListeners(this.video);
     this.removeGlobalLayoutListeners();
+    this.pointerRevealRegistration.dispose();
+    this.button.removeEventListener('focus', this.handleButtonFocus);
+    this.button.removeEventListener('blur', this.handleButtonBlur);
+    this.button.removeEventListener('pointerenter', this.handleButtonPointerEnter);
+    this.button.removeEventListener('pointerleave', this.handleButtonPointerLeave);
     this.host.remove();
     this.hidePerformanceHud();
     this.hideCanvas();
@@ -293,6 +340,9 @@ export class OverlayManager {
     if (this.hideButtonTimeout) {
       clearTimeout(this.hideButtonTimeout);
     }
+    if (this.delayedHideButtonTimeout) {
+      clearTimeout(this.delayedHideButtonTimeout);
+    }
   }
 
   private scheduleLayoutUpdate(revealButton = false): void {
@@ -300,14 +350,21 @@ export class OverlayManager {
       return;
     }
 
-    this.shouldRevealButtonOnNextLayout ||= revealButton;
+    if (revealButton) {
+      this.shouldRevealButtonOnNextLayout = true;
+      this.initialRevealRemainingMs = BUTTON_INITIAL_REVEAL_MS;
+    }
     if (this.layoutFrameId !== null) {
       return;
     }
 
     this.layoutFrameId = requestAnimationFrame(() => {
       this.layoutFrameId = null;
-      this.updatePosition();
+      const renderable = this.updatePosition();
+      if (!renderable) {
+        return;
+      }
+
       this.scheduleVisibilityCheck();
 
       if (this.shouldRevealButtonOnNextLayout) {
@@ -321,15 +378,33 @@ export class OverlayManager {
     window.addEventListener('resize', this.boundScheduleLayoutUpdate);
     window.addEventListener('scroll', this.boundScheduleLayoutUpdate, true);
     document.addEventListener('fullscreenchange', this.boundScheduleLayoutUpdate);
+    document.addEventListener('visibilitychange', this.boundScheduleLayoutUpdate);
   }
 
   private removeGlobalLayoutListeners(): void {
     window.removeEventListener('resize', this.boundScheduleLayoutUpdate);
     window.removeEventListener('scroll', this.boundScheduleLayoutUpdate, true);
     document.removeEventListener('fullscreenchange', this.boundScheduleLayoutUpdate);
+    document.removeEventListener('visibilitychange', this.boundScheduleLayoutUpdate);
   }
 
   private readonly boundScheduleLayoutUpdate = () => this.scheduleLayoutUpdate();
+
+  private readonly handleVideoStateChange = () => {
+    this.scheduleLayoutUpdate();
+  };
+
+  private addVideoStateListeners(video: HTMLVideoElement): void {
+    video.addEventListener('play', this.handleVideoStateChange);
+    video.addEventListener('pause', this.handleVideoStateChange);
+    video.addEventListener('ended', this.handleVideoStateChange);
+  }
+
+  private removeVideoStateListeners(video: HTMLVideoElement): void {
+    video.removeEventListener('play', this.handleVideoStateChange);
+    video.removeEventListener('pause', this.handleVideoStateChange);
+    video.removeEventListener('ended', this.handleVideoStateChange);
+  }
 
   private restoreVideoOpacity(): void {
     if (this.originalVideoOpacity === null) {
@@ -340,17 +415,236 @@ export class OverlayManager {
     this.originalVideoOpacity = null;
   }
 
-  private updatePosition(): void {
-    if (this.destroyed) {
+  private isVideoRenderable(rect: DOMRect, videoStyle: CSSStyleDeclaration): boolean {
+    if (
+      !this.video.isConnected
+      || this.video.hidden
+      || this.video.getAttribute('aria-hidden') === 'true'
+      || rect.width <= 0
+      || rect.height <= 0
+      || videoStyle.display === 'none'
+      || videoStyle.visibility === 'hidden'
+      || videoStyle.visibility === 'collapse'
+      || document.visibilityState !== 'visible'
+    ) {
+      return false;
+    }
+
+    const viewportWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
+    const viewportHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+    return rect.right > 0
+      && rect.bottom > 0
+      && rect.left < viewportWidth
+      && rect.top < viewportHeight;
+  }
+
+  private updateRevealZone(videoRect: DOMRect): void {
+    const viewportWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
+    const viewportHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+    const centerY = videoRect.top + videoRect.height / 2;
+    const zoneWidth = Math.min(
+      videoRect.width,
+      Math.max(
+        BUTTON_REVEAL_ZONE_MIN_WIDTH,
+        Math.min(BUTTON_REVEAL_ZONE_MAX_WIDTH, videoRect.width * BUTTON_REVEAL_ZONE_WIDTH_RATIO),
+      ),
+    );
+    const zoneHeight = Math.min(
+      videoRect.height,
+      Math.max(
+        BUTTON_REVEAL_ZONE_MIN_HEIGHT,
+        Math.min(BUTTON_REVEAL_ZONE_MAX_HEIGHT, videoRect.height * BUTTON_REVEAL_ZONE_HEIGHT_RATIO),
+      ),
+    );
+    this.revealZone = {
+      left: videoRect.left,
+      right: videoRect.left + zoneWidth,
+      top: centerY - zoneHeight / 2,
+      bottom: centerY + zoneHeight / 2,
+    };
+
+    const intersectionWidth = Math.max(
+      0,
+      Math.min(videoRect.right, viewportWidth) - Math.max(videoRect.left, 0),
+    );
+    const intersectionHeight = Math.max(
+      0,
+      Math.min(videoRect.bottom, viewportHeight) - Math.max(videoRect.top, 0),
+    );
+    this.revealZoneVisibleArea = intersectionWidth * intersectionHeight;
+  }
+
+  private updatePointerRevealTarget(): void {
+    const enabled = this.buttonPresentationState !== 'unrenderable' && this.revealZone !== null;
+    this.pointerRevealRegistration.update({
+      zone: this.revealZone,
+      enabled,
+      revealable: enabled && this.buttonPresentationState === 'hidden',
+      playing: !this.video.paused && !this.video.ended,
+      visibleArea: this.revealZoneVisibleArea,
+    });
+  }
+
+  private setButtonPresentationState(nextState: ButtonPresentationState): void {
+    if (nextState === 'unrenderable') {
+      this.pauseInitialReveal();
+      this.clearButtonTimers();
+      this.pointerInsideRevealZone = false;
+      this.pointerInsideButton = false;
+    }
+
+    this.buttonPresentationState = nextState;
+    this.host.setAttribute('data-anime4k-button-state', nextState);
+    const visible = nextState === 'visible';
+    this.button.classList.toggle('is-visible', visible);
+    this.button.tabIndex = nextState === 'unrenderable' ? -1 : this.buttonDefaultTabIndex;
+    this.updatePointerRevealTarget();
+  }
+
+  private showButton(reason: 'initial' | 'proximity' | 'focus' | 'touch'): void {
+    if (this.destroyed || this.buttonPresentationState === 'unrenderable') {
       return;
     }
 
-    if (!this.video.isConnected || (this.video.offsetWidth === 0 && this.video.offsetHeight === 0)) {
+    this.clearDelayedButtonHide();
+    if (this.hideButtonTimeout !== undefined) {
+      window.clearTimeout(this.hideButtonTimeout);
+      this.hideButtonTimeout = undefined;
+    }
+    this.initialRevealStartedAt = null;
+    this.setButtonPresentationState('visible');
+
+    if (reason === 'initial' || reason === 'touch') {
+      const revealDuration = reason === 'initial'
+        ? this.initialRevealRemainingMs
+        : BUTTON_TOUCH_REVEAL_MS;
+      this.initialRevealStartedAt = reason === 'initial' ? Date.now() : null;
+      this.hideButtonTimeout = window.setTimeout(() => {
+        this.hideButtonTimeout = undefined;
+        this.initialRevealStartedAt = null;
+        this.initialRevealRemainingMs = BUTTON_INITIAL_REVEAL_MS;
+        if (
+          this.isButtonKeyboardFocused()
+          || (reason !== 'touch' && this.pointerInsideButton)
+        ) {
+          return;
+        }
+
+        const pointerInsideZone = this.pointerRevealRegistration.isPointerInside();
+        this.setButtonPresentationState('hidden');
+        if (pointerInsideZone) {
+          this.pointerRevealRegistration.disarmUntilExit();
+        }
+      }, revealDuration);
+    } else {
+      this.initialRevealRemainingMs = BUTTON_INITIAL_REVEAL_MS;
+    }
+  }
+
+  private pauseInitialReveal(): void {
+    if (this.hideButtonTimeout === undefined || this.initialRevealStartedAt === null) {
+      return;
+    }
+
+    const elapsed = Math.max(0, Date.now() - this.initialRevealStartedAt);
+    this.initialRevealRemainingMs = Math.max(0, this.initialRevealRemainingMs - elapsed);
+    window.clearTimeout(this.hideButtonTimeout);
+    this.hideButtonTimeout = undefined;
+    this.initialRevealStartedAt = null;
+    this.shouldRevealButtonOnNextLayout = true;
+  }
+
+  private handleRevealZonePresenceChange(inside: boolean): void {
+    this.pointerInsideRevealZone = inside;
+    if (inside) {
+      this.clearDelayedButtonHide();
+      return;
+    }
+    this.scheduleDelayedButtonHide();
+  }
+
+  private readonly handleButtonPointerEnter = (): void => {
+    this.pointerInsideButton = true;
+    this.clearDelayedButtonHide();
+  };
+
+  private readonly handleButtonPointerLeave = (): void => {
+    this.pointerInsideButton = false;
+    this.scheduleDelayedButtonHide();
+  };
+
+  private readonly handleButtonFocus = (): void => {
+    if (this.button.matches(':focus-visible')) {
+      this.showButton('focus');
+    }
+  };
+
+  private readonly handleButtonBlur = (): void => {
+    this.scheduleDelayedButtonHide();
+  };
+
+  private isButtonKeyboardFocused(): boolean {
+    return this.shadowRoot.activeElement === this.button
+      && this.button.matches(':focus-visible');
+  }
+
+  private scheduleDelayedButtonHide(): void {
+    if (
+      this.buttonPresentationState !== 'visible'
+      || this.hideButtonTimeout !== undefined
+      || this.pointerInsideRevealZone
+      || this.pointerInsideButton
+      || this.isButtonKeyboardFocused()
+      || this.delayedHideButtonTimeout !== undefined
+    ) {
+      return;
+    }
+
+    this.delayedHideButtonTimeout = window.setTimeout(() => {
+      this.delayedHideButtonTimeout = undefined;
+      if (
+        this.buttonPresentationState === 'visible'
+        && !this.pointerInsideRevealZone
+        && !this.pointerInsideButton
+        && !this.isButtonKeyboardFocused()
+      ) {
+        this.setButtonPresentationState('hidden');
+      }
+    }, BUTTON_EXIT_HIDE_DELAY_MS);
+  }
+
+  private clearDelayedButtonHide(): void {
+    if (this.delayedHideButtonTimeout === undefined) {
+      return;
+    }
+    window.clearTimeout(this.delayedHideButtonTimeout);
+    this.delayedHideButtonTimeout = undefined;
+  }
+
+  private clearButtonTimers(): void {
+    if (this.hideButtonTimeout !== undefined) {
+      window.clearTimeout(this.hideButtonTimeout);
+      this.hideButtonTimeout = undefined;
+    }
+    this.clearDelayedButtonHide();
+  }
+
+  private updatePosition(): boolean {
+    if (this.destroyed) {
+      return false;
+    }
+
+    const videoRect = this.video.getBoundingClientRect();
+    const videoStyle = window.getComputedStyle(this.video);
+    if (!this.isVideoRenderable(videoRect, videoStyle)) {
       this.applyStyles(this.host, { display: 'none' }, this.hostStyleCache);
       if (this.canvasHost) {
         this.applyStyles(this.canvasHost, { display: 'none' }, this.canvasHostStyleCache);
       }
-      return;
+      this.revealZone = null;
+      this.revealZoneVisibleArea = 0;
+      this.setButtonPresentationState('unrenderable');
+      return false;
     }
 
     this.applyStyles(this.host, { display: '' }, this.hostStyleCache);
@@ -358,10 +652,15 @@ export class OverlayManager {
       this.applyStyles(this.canvasHost, { display: '' }, this.canvasHostStyleCache);
     }
 
-    const videoStyle = window.getComputedStyle(this.video);
     this.ensureSiblingStrategyParents();
-    const hostStyles = this.buildHostStyles(videoStyle);
+    const hostStyles = this.buildHostStyles(videoStyle, videoRect);
     this.applyStyles(this.host, hostStyles, this.hostStyleCache);
+    this.updateRevealZone(videoRect);
+    if (this.buttonPresentationState === 'unrenderable') {
+      this.setButtonPresentationState('hidden');
+    } else {
+      this.updatePointerRevealTarget();
+    }
 
     if (this.canvasHost) {
       this.applyStyles(this.canvasHost, {
@@ -391,6 +690,7 @@ export class OverlayManager {
         zIndex: '0',
       }, this.canvasStyleCache);
     }
+    return true;
   }
 
   private observeLayoutTargets(): void {
@@ -471,20 +771,19 @@ export class OverlayManager {
     });
   }
 
-  private buildHostStyles(videoStyle: CSSStyleDeclaration): StyleMap {
+  private buildHostStyles(videoStyle: CSSStyleDeclaration, videoRect: DOMRect): StyleMap {
     if (this.attachmentStrategy === 'body') {
       this.ensureBodyStrategyHostParent();
-      const rect = this.video.getBoundingClientRect();
       const hostParent = this.host.parentElement;
       const parentRect = hostParent && hostParent !== document.body
         ? hostParent.getBoundingClientRect()
         : null;
 
       return {
-        top: `${parentRect ? rect.top - parentRect.top : rect.top + window.scrollY}px`,
-        left: `${parentRect ? rect.left - parentRect.left : rect.left + window.scrollX}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        top: `${parentRect ? videoRect.top - parentRect.top : videoRect.top + window.scrollY}px`,
+        left: `${parentRect ? videoRect.left - parentRect.left : videoRect.left + window.scrollX}px`,
+        width: `${videoRect.width}px`,
+        height: `${videoRect.height}px`,
         transform: videoStyle.transform,
         transformOrigin: videoStyle.transformOrigin,
         borderRadius: videoStyle.borderRadius,
@@ -522,11 +821,17 @@ export class OverlayManager {
     }
 
     const initialOpacity = this.button.style.opacity;
-    this.button.style.opacity = '1';
+    const initialVisibility = this.button.style.visibility;
+    const initialPointerEvents = this.button.style.pointerEvents;
+    this.button.style.opacity = '0';
+    this.button.style.visibility = 'visible';
+    this.button.style.pointerEvents = 'auto';
 
     const rect = this.button.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       this.button.style.opacity = initialOpacity;
+      this.button.style.visibility = initialVisibility;
+      this.button.style.pointerEvents = initialPointerEvents;
       return false;
     }
     const centerX = rect.left + rect.width / 2;
@@ -534,6 +839,8 @@ export class OverlayManager {
     const elementAtPoint = document.elementFromPoint(centerX, centerY);
 
     this.button.style.opacity = initialOpacity;
+    this.button.style.visibility = initialVisibility;
+    this.button.style.pointerEvents = initialPointerEvents;
 
     const hitsOverlayHost = elementAtPoint === this.host || this.host.contains(elementAtPoint);
     const isButtonOrChild = this.button.contains(elementAtPoint) || this.button === elementAtPoint;
@@ -554,14 +861,7 @@ export class OverlayManager {
   }
 
   private showButtonTemporarily(): void {
-    if (this.hideButtonTimeout) {
-      clearTimeout(this.hideButtonTimeout);
-    }
-
-    this.button.classList.add('show-initially');
-    this.hideButtonTimeout = window.setTimeout(() => {
-      this.button.classList.remove('show-initially');
-    }, 3000);
+    this.showButton('initial');
   }
 
   private applyStyles(element: HTMLElement, nextStyles: StyleMap, cache: StyleMap): void {
@@ -1081,6 +1381,7 @@ export class OverlayManager {
 
   private createButtonInShadow(): HTMLButtonElement {
     const button = document.createElement('button');
+    button.type = 'button';
     button.innerText = chrome.i18n.getMessage('enhanceButton');
     button.classList.add(ANIME4K_BUTTON_CLASS);
     button.part = 'button';
@@ -1103,6 +1404,7 @@ export class OverlayManager {
         z-index: 2147483647;
         padding: 8px 12px;
         opacity: 0;
+        visibility: visible;
         transition: opacity 0.3s ease-in-out;
         background-color: #6A0DAD;
         color: white;
@@ -1111,16 +1413,33 @@ export class OverlayManager {
         cursor: pointer;
         font-size: 14px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        pointer-events: auto;
+        pointer-events: none;
         isolation: isolate;
       }
 
-      .${ANIME4K_BUTTON_CLASS}.show-initially {
+      .${ANIME4K_BUTTON_CLASS}.is-visible {
         opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
       }
 
-      .${ANIME4K_BUTTON_CLASS}:hover {
+      :host([data-anime4k-button-state="unrenderable"]) .${ANIME4K_BUTTON_CLASS} {
+        visibility: hidden;
+      }
+
+      .${ANIME4K_BUTTON_CLASS}.is-visible:hover {
         opacity: 1 !important;
+      }
+
+      .${ANIME4K_BUTTON_CLASS}.is-visible:focus-visible {
+        outline: 2px solid white;
+        outline-offset: 2px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .${ANIME4K_BUTTON_CLASS} {
+          transition: none;
+        }
       }
 
       .anime4k-performance-hud {

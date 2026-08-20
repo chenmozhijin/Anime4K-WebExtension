@@ -10,6 +10,20 @@
     "lib": ["es2022", "dom"],
     "types": ["chrome", "@webgpu/types", "node"]
   },
-  "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "test-results",
+    "coverage",
+    "dist-*",
+    ".cache",
+    ".local-archive",
+    ".reference",
+    "experiment"
+  ]
 }

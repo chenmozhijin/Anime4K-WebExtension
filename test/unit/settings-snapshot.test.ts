@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
 
 function installDefaultChrome() {
@@ -32,6 +32,17 @@ async function waitForRevision(
   }
 
   throw new Error(`Timed out waiting for revision ${expectedRevision}`);
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 describe('settings snapshot', () => {
@@ -94,5 +105,40 @@ describe('settings snapshot', () => {
 
     expect(revisions).toEqual([1, 2]);
     expect(snapshotModule.getSettingsSnapshot().settings.performanceTier).toBe('quality');
+  });
+
+  it('discards an invalidated read and resolves concurrent callers with the latest snapshot', async () => {
+    installDefaultChrome();
+    const settingsModule = await import('../../src/utils/settings');
+    const initialSettings = await settingsModule.getSettings();
+    const staleRead = createDeferred<typeof initialSettings>();
+    const latestRead = createDeferred<typeof initialSettings>();
+    const getSettings = vi.spyOn(settingsModule, 'getSettings')
+      .mockImplementationOnce(() => staleRead.promise)
+      .mockImplementationOnce(() => latestRead.promise);
+    const snapshotModule = await import('../../src/utils/settings-snapshot');
+    const publishedModes: string[] = [];
+    snapshotModule.subscribeSettingsSnapshot(snapshot => {
+      publishedModes.push(snapshot.settings.selectedModeId);
+    });
+
+    const firstCaller = snapshotModule.refreshSettingsSnapshot();
+    const secondCaller = snapshotModule.refreshSettingsSnapshot();
+    expect(firstCaller).toBe(secondCaller);
+
+    staleRead.resolve(initialSettings);
+    await vi.waitFor(() => expect(getSettings).toHaveBeenCalledTimes(2));
+
+    const latestSettings = {
+      ...initialSettings,
+      selectedModeId: 'builtin-mode-latest',
+    };
+    latestRead.resolve(latestSettings);
+    const [firstResult, secondResult] = await Promise.all([firstCaller, secondCaller]);
+
+    expect(firstResult).toBe(secondResult);
+    expect(firstResult.revision).toBe(1);
+    expect(firstResult.settings.selectedModeId).toBe('builtin-mode-latest');
+    expect(publishedModes).toEqual(['builtin-mode-latest']);
   });
 });

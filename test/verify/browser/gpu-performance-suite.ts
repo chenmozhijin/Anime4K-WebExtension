@@ -1,4 +1,4 @@
-import type { PerformanceTier } from '../../../src/types';
+import type { Anime4KPresetId, PerformanceTier } from '../../../src/types';
 import type {
   PipelinePass,
   PipelineProfileRecorder,
@@ -42,6 +42,7 @@ export interface GpuPerformanceSuiteRequest {
   repeats?: number;
   batchSize?: number;
   tiers?: PerformanceTier[];
+  presetId?: Anime4KPresetId;
   optimizationFlags?: Partial<OptimizationFeatureFlags>;
   effectIds?: string[];
   microKernel?: 'depth-to-space';
@@ -448,8 +449,9 @@ export async function runGpuPerformanceSuite(
   try {
     const effectIds = request.effectIds;
     const workloadKind = request.microKernel ? 'micro-kernel' : effectIds ? 'effects' : 'preset';
+    const presetId = request.presetId ?? 'A+A';
     const workloadId = request.workloadId
-      ?? (request.microKernel ? `micro:${request.microKernel}` : effectIds ? effectIds.join('+') : 'preset:A+A');
+      ?? (request.microKernel ? `micro:${request.microKernel}` : effectIds ? effectIds.join('+') : `preset:${presetId}`);
     const workloadCases = request.microKernel || effectIds
       ? [{ id: workloadId, tier: undefined }]
       : tiers.map(tier => ({ id: tier, tier }));
@@ -461,7 +463,7 @@ export async function runGpuPerformanceSuite(
           throw new Error(`Unknown GPU benchmark effect: ${effectId}`);
         }
         return createEffectReference(descriptor);
-      }) ?? (workloadCase.tier ? resolveAnime4kPresetEffectChain('A+A', workloadCase.tier) : []);
+      }) ?? (workloadCase.tier ? resolveAnime4kPresetEffectChain(presetId, workloadCase.tier) : []);
       const plan = request.microKernel ? null : await compileEffectChain({
           device,
           inputTexture,
@@ -591,7 +593,7 @@ export async function runGpuPerformanceSuite(
     workload: {
       kind: request.microKernel ? 'micro-kernel' : request.effectIds ? 'effects' : 'preset',
       id: request.workloadId
-        ?? (request.microKernel ? `micro:${request.microKernel}` : request.effectIds?.join('+') ?? 'preset:A+A'),
+        ?? (request.microKernel ? `micro:${request.microKernel}` : request.effectIds?.join('+') ?? `preset:${request.presetId ?? 'A+A'}`),
       ...(request.effectIds ? { effectIds: request.effectIds } : {}),
       ...(request.microKernel ? { microKernel: request.microKernel } : {}),
     },

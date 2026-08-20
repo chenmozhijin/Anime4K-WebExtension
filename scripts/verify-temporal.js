@@ -59,11 +59,13 @@ function parseArgs(argv) {
     output: path.join(repoRoot, 'test-results', 'verify', 'temporal.json'),
     preset: 'A+A',
     tier: 'balanced',
+    effects: null,
     targetScale: 1,
     frameCount: null,
     filter: null,
     profiles: ['optimized', 'external'],
     noBuild: false,
+    motionOnly: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -75,6 +77,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--preset=')) args.preset = arg.slice(9);
     else if (arg === '--tier') args.tier = argv[++index];
     else if (arg.startsWith('--tier=')) args.tier = arg.slice(7);
+    else if (arg === '--effects') args.effects = argv[++index].split(',').filter(Boolean);
+    else if (arg.startsWith('--effects=')) args.effects = arg.slice(10).split(',').filter(Boolean);
     else if (arg === '--target-scale') args.targetScale = positiveNumber(argv[++index], '--target-scale');
     else if (arg.startsWith('--target-scale=')) args.targetScale = positiveNumber(arg.slice(15), '--target-scale');
     else if (arg === '--frames') args.frameCount = positiveInteger(argv[++index], '--frames');
@@ -84,6 +88,7 @@ function parseArgs(argv) {
     else if (arg === '--profiles') args.profiles = argv[++index].split(',');
     else if (arg.startsWith('--profiles=')) args.profiles = arg.slice(11).split(',');
     else if (arg === '--no-build') args.noBuild = true;
+    else if (arg === '--motion-only') args.motionOnly = true;
     else if (arg === '--smoke') {
       args.manifest = path.join(repoRoot, 'test-results', 'video-fixtures-smoke', 'manifest.json');
       args.output = path.join(repoRoot, 'test-results', 'verify', 'temporal-smoke.json');
@@ -103,6 +108,11 @@ function buildVerifyBundle() {
     windowsHide: true,
   });
   if (result.status !== 0) throw new Error('Failed to build temporal verification bundle.');
+  syncVerifyHtml();
+}
+
+function syncVerifyHtml() {
+  fs.mkdirSync(browserOutDir, { recursive: true });
   fs.copyFileSync(
     path.join(repoRoot, 'test', 'verify', 'browser', 'index.html'),
     path.join(browserOutDir, 'index.html'),
@@ -146,6 +156,7 @@ async function main() {
     throw new Error(`Video fixture manifest does not exist: ${args.manifest}`);
   }
   if (!args.noBuild) buildVerifyBundle();
+  else syncVerifyHtml();
   const manifest = JSON.parse(fs.readFileSync(args.manifest, 'utf8'));
   const fixtures = manifest.fixtures.filter(fixture =>
     !args.filter || fixture.id.toLowerCase().includes(args.filter));
@@ -164,7 +175,7 @@ async function main() {
     await page.waitForFunction(() => Boolean(
       window.__runTemporalVerification && window.__resolvePresetChain,
     ));
-    effectIds = await page.evaluate(({ preset, tier }) => {
+    effectIds = args.effects ?? await page.evaluate(({ preset, tier }) => {
       if (!window.__resolvePresetChain) throw new Error('Preset resolver is unavailable.');
       return window.__resolvePresetChain(preset, tier);
     }, { preset: args.preset, tier: args.tier });
@@ -193,6 +204,7 @@ async function main() {
               externalTexture: profile === 'external',
             },
             externalTexture: profile === 'external',
+            motionOnly: args.motionOnly,
           });
           cases.push({
             id: fixture.id,
@@ -205,7 +217,8 @@ async function main() {
           process.stdout.write(`${result.metrics.passed ? 'PASS' : 'FAIL'} `
             + `mean=${result.metrics.meanAbs.toExponential(3)} `
             + `max=${result.metrics.maxAbs.toExponential(3)} `
-            + `temporal-p99=${result.metrics.temporalChangeP99.toExponential(3)}\n`);
+            + `temporal-p99=${result.metrics.temporalChangeP99.toExponential(3)} `
+            + `output-motion-p99=${result.metrics.outputTemporalP99.toExponential(3)}\n`);
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           const unsupported = profile === 'external' && /GPUExternalTexture is unavailable/.test(reason);
@@ -235,10 +248,12 @@ async function main() {
     manifest: args.manifest,
     preset: args.preset,
     tier: args.tier,
+    explicitEffects: args.effects,
     effectIds,
     targetScale: args.targetScale,
     framesPerCase: frameCount,
     profiles: args.profiles,
+    motionOnly: args.motionOnly,
     caseCount: cases.length,
     skippedCount: cases.filter(testCase => testCase.skipped).length,
     failureCount: cases.filter(testCase => !testCase.passed).length,

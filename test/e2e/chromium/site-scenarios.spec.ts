@@ -94,6 +94,10 @@ async function expectOverlayHidden(target: Page | FrameLocator): Promise<void> {
   await expect.poll(async () => overlayLocator(target).count()).toBe(0);
 }
 
+async function overlayButtonState(page: Page): Promise<string | null> {
+  return page.locator('[data-anime4k-overlay-host]').first().getAttribute('data-anime4k-button-state');
+}
+
 async function expectSingleOverlayForFixtureVideo(page: Page): Promise<void> {
   await expect.poll(async () => totalOverlayCount(page)).toBe(1);
   await expect.poll(async () => videoOverlaySlotCount(page)).toBe(1);
@@ -189,6 +193,52 @@ test('@site discovers videos inserted after initial page load', async ({ context
   await page.goto(siteServer.scenarioUrl('delayed-video'));
 
   await expectOverlayVisible(page);
+});
+
+test('@site keeps delayed initial reveal and uses a click-through geometric wake region', async ({
+  context,
+  siteServer,
+}) => {
+  const page = await context.newPage();
+  await page.goto(siteServer.scenarioUrl('youtube-like-delayed-layout'));
+
+  await expectOverlayVisible(page);
+  await expect.poll(async () => overlayButtonState(page)).toBe('unrenderable');
+  await page.waitForTimeout(3200);
+  expect(await overlayButtonState(page)).toBe('unrenderable');
+
+  await expect.poll(async () => overlayButtonState(page)).toBe('visible');
+  await page.waitForTimeout(2500);
+  expect(await overlayButtonState(page)).toBe('visible');
+  await expect.poll(async () => overlayButtonState(page)).toBe('hidden');
+
+  const player = page.locator('#youtube-like-player');
+  const controls = page.locator('#youtube-like-control-layer');
+  const playerBox = await player.boundingBox();
+  expect(playerBox).not.toBeNull();
+  const wakeX = playerBox!.x + 72;
+  const wakeY = playerBox!.y + playerBox!.height / 2;
+  const outsideX = playerBox!.x + playerBox!.width - 20;
+  const outsideY = playerBox!.y + 20;
+
+  const hiddenBeforeClick = await player.screenshot();
+  await page.mouse.click(wakeX, wakeY);
+  await page.mouse.move(outsideX, outsideY);
+  await expect(controls).toHaveAttribute('data-click-count', '1');
+  const hiddenAfterClick = await player.screenshot();
+  expect(hiddenAfterClick.equals(hiddenBeforeClick)).toBe(true);
+  expect(await overlayButtonState(page)).toBe('hidden');
+
+  await page.mouse.move(wakeX, wakeY);
+  await page.waitForTimeout(100);
+  await page.mouse.move(outsideX, outsideY);
+  await page.waitForTimeout(180);
+  expect(await overlayButtonState(page)).toBe('hidden');
+
+  await page.mouse.move(wakeX, wakeY);
+  await page.waitForTimeout(120);
+  await page.mouse.move(wakeX + 20, wakeY + 20);
+  await expect.poll(async () => overlayButtonState(page)).toBe('visible');
 });
 
 test('@site injects into nested iframe video pages', async ({ context, siteServer }) => {

@@ -202,7 +202,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         chrome.tabs.sendMessage(tabs[0].id, {
           type: 'SETTINGS_UPDATED',
-          modifiedModeId: modeSelect.value,
         }, (response?: {
           status?: 'SUCCESS' | 'NO_ACTION' | 'PARTIAL_SUCCESS' | 'ERROR';
           message?: string;

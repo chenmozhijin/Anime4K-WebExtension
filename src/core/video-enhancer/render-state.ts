@@ -33,7 +33,7 @@ export function calculateTargetDimensions(
   resolutionSetting: string,
 ): Dimensions {
   const multipliers: Record<string, number> = { x2: 2, x4: 4, x8: 8 };
-  const fixedResolutionHeights: Record<string, number> = {
+  const fixedResolutionShortEdges: Record<string, number> = {
     '720p': 720,
     '1080p': 1080,
     '2k': 1440,
@@ -47,12 +47,21 @@ export function calculateTargetDimensions(
     };
   }
 
-  if (fixedResolutionHeights[resolutionSetting]) {
-    const height = fixedResolutionHeights[resolutionSetting];
+  if (fixedResolutionShortEdges[resolutionSetting]) {
+    const shortEdge = fixedResolutionShortEdges[resolutionSetting];
     const sourceAspect = videoHeight > 0 ? videoWidth / videoHeight : 1;
+    const isPortrait = videoWidth > 0 && videoHeight > videoWidth;
+
+    if (isPortrait) {
+      return {
+        width: shortEdge,
+        height: Math.max(1, Math.round(shortEdge / sourceAspect)),
+      };
+    }
+
     return {
-      width: Math.max(1, Math.round(height * sourceAspect)),
-      height,
+      width: Math.max(1, Math.round(shortEdge * sourceAspect)),
+      height: shortEdge,
     };
   }
 

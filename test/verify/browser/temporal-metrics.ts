@@ -62,6 +62,10 @@ export interface TemporalMetricsSummary {
   temporalChangeP99: number;
   temporalChangeMax: number;
   temporalSampleCount: number;
+  outputTemporalMeanAbs: number;
+  outputTemporalP99: number;
+  outputTemporalMax: number;
+  outputTemporalSampleCount: number;
   frames: TemporalFrameMetrics[];
 }
 
@@ -200,12 +204,17 @@ function percentile(values: number[], fraction: number): number {
 
 export class TemporalMetricsAccumulator {
   private readonly histogram = new Float64Array(TEMPORAL_HISTOGRAM_BINS);
+  private readonly outputTemporalHistogram = new Float64Array(TEMPORAL_HISTOGRAM_BINS);
   private previousError: Float32Array | null = null;
+  private previousReferenceLuma: Float32Array | null = null;
   private totalAbs = 0;
   private sampleCount = 0;
   private maxAbs = 0;
   private temporalSampleCount = 0;
   private temporalChangeMax = 0;
+  private outputTemporalAbs = 0;
+  private outputTemporalMax = 0;
+  private outputTemporalSampleCount = 0;
   private borderAbs = 0;
   private borderSampleCount = 0;
   private borderMaxAbs = 0;
@@ -223,13 +232,16 @@ export class TemporalMetricsAccumulator {
     private readonly width: number,
     private readonly height: number,
     private readonly thresholds: TemporalThresholds = { ...defaultTemporalThresholds },
+    private readonly motionOnly = false,
   ) {}
 
   addFrame(reference: ArrayLike<number>, candidate: ArrayLike<number>, frameIndex: number): TemporalFrameMetrics {
     if (reference.length !== candidate.length || reference.length !== this.width * this.height * 4) {
       throw new Error(`Temporal frame ${frameIndex} dimensions do not match ${this.width}x${this.height}.`);
     }
+    if (this.motionOnly) return this.addMotionOnlyFrame(reference, candidate, frameIndex);
     const currentError = new Float32Array(reference.length);
+    const currentReferenceLuma = new Float32Array(this.width * this.height);
     const deltaEValues = new Array<number>(this.width * this.height);
     let frameAbs = 0;
     let frameSquared = 0;
@@ -299,6 +311,18 @@ export class TemporalMetricsAccumulator {
         }
 
         const refLuma = lumaAt(reference, pixel);
+        currentReferenceLuma[pixel] = refLuma;
+        if (this.previousReferenceLuma) {
+          const outputChange = Math.abs(refLuma - this.previousReferenceLuma[pixel]);
+          const outputHistogramIndex = Math.min(
+            TEMPORAL_HISTOGRAM_BINS - 1,
+            Math.floor(outputChange / TEMPORAL_HISTOGRAM_RANGE * (TEMPORAL_HISTOGRAM_BINS - 1)),
+          );
+          this.outputTemporalHistogram[outputHistogramIndex] += 1;
+          this.outputTemporalAbs += outputChange;
+          this.outputTemporalMax = Math.max(this.outputTemporalMax, outputChange);
+          this.outputTemporalSampleCount += 1;
+        }
         const lumaError = Math.abs(refLuma - lumaAt(candidate, pixel));
         if (refLuma < 0.1) {
           darkAbs += lumaError;
@@ -367,6 +391,7 @@ export class TemporalMetricsAccumulator {
     };
 
     this.previousError = currentError;
+    this.previousReferenceLuma = currentReferenceLuma;
     this.totalAbs += frameAbs;
     this.sampleCount += reference.length;
     this.maxAbs = Math.max(this.maxAbs, frameMaxAbs);
@@ -374,6 +399,96 @@ export class TemporalMetricsAccumulator {
     this.borderSampleCount += frameBorderSamples;
     this.borderMaxAbs = Math.max(this.borderMaxAbs, frameBorderMaxAbs);
     this.alphaMaxAbs = Math.max(this.alphaMaxAbs, frameAlphaMaxAbs);
+    this.nonFiniteCount += frameNonFinite;
+    this.baselineMin = Math.min(this.baselineMin, frameBaselineMin);
+    this.baselineMax = Math.max(this.baselineMax, frameBaselineMax);
+    this.candidateMin = Math.min(this.candidateMin, frameCandidateMin);
+    this.candidateMax = Math.max(this.candidateMax, frameCandidateMax);
+    this.candidateAlphaMin = Math.min(this.candidateAlphaMin, frameCandidateAlphaMin);
+    this.candidateAlphaMax = Math.max(this.candidateAlphaMax, frameCandidateAlphaMax);
+    this.frames.push(metrics);
+    return metrics;
+  }
+
+  private addMotionOnlyFrame(
+    reference: ArrayLike<number>,
+    candidate: ArrayLike<number>,
+    frameIndex: number,
+  ): TemporalFrameMetrics {
+    const currentReferenceLuma = new Float32Array(this.width * this.height);
+    let frameAbs = 0;
+    let frameMaxAbs = 0;
+    let frameNonFinite = 0;
+    let frameBaselineMin = Infinity;
+    let frameBaselineMax = -Infinity;
+    let frameCandidateMin = Infinity;
+    let frameCandidateMax = -Infinity;
+    let frameCandidateAlphaMin = Infinity;
+    let frameCandidateAlphaMax = -Infinity;
+
+    for (let pixel = 0; pixel < this.width * this.height; pixel += 1) {
+      const offset = pixel * 4;
+      for (let component = 0; component < 4; component += 1) {
+        const left = reference[offset + component];
+        const right = candidate[offset + component];
+        if (!Number.isFinite(left) || !Number.isFinite(right)) {
+          frameNonFinite += 1;
+          continue;
+        }
+        const difference = Math.abs(left - right);
+        frameAbs += difference;
+        frameMaxAbs = Math.max(frameMaxAbs, difference);
+        frameBaselineMin = Math.min(frameBaselineMin, left);
+        frameBaselineMax = Math.max(frameBaselineMax, left);
+        frameCandidateMin = Math.min(frameCandidateMin, right);
+        frameCandidateMax = Math.max(frameCandidateMax, right);
+        if (component === 3) {
+          frameCandidateAlphaMin = Math.min(frameCandidateAlphaMin, right);
+          frameCandidateAlphaMax = Math.max(frameCandidateAlphaMax, right);
+        }
+      }
+      const refLuma = lumaAt(reference, pixel);
+      currentReferenceLuma[pixel] = refLuma;
+      if (this.previousReferenceLuma) {
+        const outputChange = Math.abs(refLuma - this.previousReferenceLuma[pixel]);
+        const histogramIndex = Math.min(
+          TEMPORAL_HISTOGRAM_BINS - 1,
+          Math.floor(outputChange / TEMPORAL_HISTOGRAM_RANGE * (TEMPORAL_HISTOGRAM_BINS - 1)),
+        );
+        this.outputTemporalHistogram[histogramIndex] += 1;
+        this.outputTemporalAbs += outputChange;
+        this.outputTemporalMax = Math.max(this.outputTemporalMax, outputChange);
+        this.outputTemporalSampleCount += 1;
+      }
+    }
+
+    const meanAbs = frameAbs / reference.length;
+    const passed = frameNonFinite === 0
+      && meanAbs <= this.thresholds.meanAbs
+      && frameMaxAbs <= this.thresholds.maxAbs;
+    const metrics: TemporalFrameMetrics = {
+      frameIndex,
+      passed,
+      meanAbs,
+      maxAbs: frameMaxAbs,
+      psnr: meanAbs === 0 ? Infinity : 0,
+      ssim: meanAbs === 0 ? 1 : 0,
+      deltaE2000P99: 0,
+      deltaE2000Max: 0,
+      edgeWeightedMeanAbs: meanAbs,
+      darkMeanAbs: meanAbs,
+      borderMeanAbs: 0,
+      borderMaxAbs: 0,
+      alphaMaxAbs: 0,
+      nonFiniteCount: frameNonFinite,
+      baselineRange: { min: frameBaselineMin, max: frameBaselineMax },
+      candidateRange: { min: frameCandidateMin, max: frameCandidateMax },
+      candidateAlphaRange: { min: frameCandidateAlphaMin, max: frameCandidateAlphaMax },
+    };
+    this.previousReferenceLuma = currentReferenceLuma;
+    this.totalAbs += frameAbs;
+    this.sampleCount += reference.length;
+    this.maxAbs = Math.max(this.maxAbs, frameMaxAbs);
     this.nonFiniteCount += frameNonFinite;
     this.baselineMin = Math.min(this.baselineMin, frameBaselineMin);
     this.baselineMax = Math.max(this.baselineMax, frameBaselineMax);
@@ -399,6 +514,16 @@ export class TemporalMetricsAccumulator {
       }
     }
     const failedFrameIndices = this.frames.filter(frame => !frame.passed).map(frame => frame.frameIndex);
+    const outputTemporalTarget = this.outputTemporalSampleCount * 0.99;
+    let outputTemporalCumulative = 0;
+    let outputTemporalP99 = 0;
+    for (let index = 0; index < this.outputTemporalHistogram.length; index += 1) {
+      outputTemporalCumulative += this.outputTemporalHistogram[index];
+      if (outputTemporalCumulative >= outputTemporalTarget) {
+        outputTemporalP99 = index / (TEMPORAL_HISTOGRAM_BINS - 1) * TEMPORAL_HISTOGRAM_RANGE;
+        break;
+      }
+    }
     const passed = failedFrameIndices.length === 0
       && this.nonFiniteCount === 0
       && temporalChangeP99 <= this.thresholds.temporalChangeP99;
@@ -426,6 +551,12 @@ export class TemporalMetricsAccumulator {
       temporalChangeP99,
       temporalChangeMax: this.temporalChangeMax,
       temporalSampleCount: this.temporalSampleCount,
+      outputTemporalMeanAbs: this.outputTemporalSampleCount
+        ? this.outputTemporalAbs / this.outputTemporalSampleCount
+        : 0,
+      outputTemporalP99,
+      outputTemporalMax: this.outputTemporalMax,
+      outputTemporalSampleCount: this.outputTemporalSampleCount,
       frames: this.frames,
     };
   }

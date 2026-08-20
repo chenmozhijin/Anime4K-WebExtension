@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "runnerVersion": "quality-f8b64-smoke-v1",
+  "targetScale": 2,
+  "inputIds": ["modern-botan-glass-material"],
+  "chains": [
+    { "id": "arnet-f8b64-neutral", "label": "ARNet F8B64 Neutral", "effects": ["acnet/Upscale/ARNet/F8B64"] },
+    { "id": "arnet-f8b64-hdn", "label": "ARNet F8B64 HDN", "effects": ["acnet/Upscale/ARNet/F8B64_HDN"] },
+    { "id": "arnet-f8b64-box", "label": "ARNet F8B64 Box", "effects": ["acnet/Upscale/ARNet/F8B64_BOX"] },
+    { "id": "arnet-f8b64-box-hdn", "label": "ARNet F8B64 Box HDN", "effects": ["acnet/Upscale/ARNet/F8B64_BOX_HDN"] }
+  ]
+}

@@ -120,7 +120,7 @@ describe('popup UI', () => {
     expect(saveLocalSettings).not.toHaveBeenCalled();
     expect((chrome.tabs.sendMessage as any)).toHaveBeenCalledWith(
       7,
-      { type: 'SETTINGS_UPDATED', modifiedModeId: 'builtin-mode-b' },
+      { type: 'SETTINGS_UPDATED' },
       expect.any(Function),
     );
     expect(document.querySelector('.save-status')?.textContent).toBe('Applied now');

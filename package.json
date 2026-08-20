@@ -31,6 +31,7 @@
     "verify:kernel-variants": "node scripts/verify-kernel-variants.js",
     "verify:external-texture": "node scripts/verify-external-texture.js",
     "verify:temporal": "node scripts/verify-temporal.js",
+    "evaluate:visual-corpus": "node scripts/run-visual-corpus-matrix.js",
     "benchmark:gpu:full": "node scripts/benchmark-gpu-suite.js",
     "benchmark:gpu:matrix": "node scripts/benchmark-gpu-suite.js --variants baseline,exact,quantized,optimized --paired --warmup-ms 2000 --output test-results/performance/gpu-benchmark-matrix.json",
     "benchmark:gpu:flags": "node scripts/benchmark-gpu-suite.js --variants baseline --flag-variants --output test-results/performance/gpu-benchmark-flags.json",

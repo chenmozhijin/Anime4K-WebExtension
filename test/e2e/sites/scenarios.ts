@@ -165,6 +165,60 @@ export const siteScenarios: SiteScenarioDescriptor[] = [
   ),
   registerScenario(
     {
+      id: 'youtube-like-delayed-layout',
+      path: '/sites/youtube-like-delayed-layout',
+      title: 'YouTube-like Delayed Player Layout',
+      tags: ['@site'],
+    },
+    pageTemplate(
+      'YouTube-like Delayed Player Layout',
+      `
+        <style>
+          #youtube-like-player {
+            position: relative;
+            width: 480px;
+            height: 270px;
+          }
+
+          #youtube-like-player #fixture-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+          }
+
+          #youtube-like-player #fixture-video.is-ready {
+            width: 480px;
+            height: 270px;
+          }
+
+          #youtube-like-control-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 1000;
+            background: transparent;
+            pointer-events: auto;
+          }
+        </style>
+        <section id="youtube-like-player">
+          <video id="fixture-video" muted playsinline></video>
+          <div id="youtube-like-control-layer" data-click-count="0" aria-label="Player controls"></div>
+        </section>
+      `,
+      `
+        const video = document.getElementById('fixture-video');
+        const controls = document.getElementById('youtube-like-control-layer');
+        controls.addEventListener('click', () => {
+          const count = Number(controls.dataset.clickCount || '0');
+          controls.dataset.clickCount = String(count + 1);
+        });
+        setTimeout(() => video.classList.add('is-ready'), 4000);
+      `,
+    ),
+  ),
+  registerScenario(
+    {
       id: 'iframe-video',
       path: '/sites/iframe-video',
       title: 'Iframe Video',

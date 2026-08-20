@@ -6,6 +6,7 @@ const { startStaticServer } = require('./verify/lib/static-server');
 
 const repoRoot = path.resolve(__dirname, '..');
 const browserOutDir = path.join(repoRoot, 'test-results', 'verify', 'browser');
+const anime4kPresetIds = new Set(['A', 'B', 'C', 'A+A', 'B+B', 'C+A']);
 
 const optimizationFlagClasses = Object.freeze({
   textureLifetimeReuse: 'exact',
@@ -77,6 +78,7 @@ function parseArgs(argv) {
     enforceAcceptance: false,
     pairedComparison: false,
     effectIds: null,
+    presetId: 'A+A',
     microKernel: null,
     workloadId: null,
     video: null,
@@ -113,6 +115,8 @@ function parseArgs(argv) {
     else if (arg === '--paired') args.pairedComparison = true;
     else if (arg === '--effects') args.effectIds = argv[++index].split(',');
     else if (arg.startsWith('--effects=')) args.effectIds = arg.slice(10).split(',');
+    else if (arg === '--preset') args.presetId = argv[++index];
+    else if (arg.startsWith('--preset=')) args.presetId = arg.slice(9);
     else if (arg === '--micro') args.microKernel = argv[++index];
     else if (arg.startsWith('--micro=')) args.microKernel = arg.slice(8);
     else if (arg === '--workload-id') args.workloadId = argv[++index];
@@ -133,6 +137,9 @@ function parseArgs(argv) {
   }
   if (args.effectIds && args.microKernel) {
     throw new Error('Pass either --effects or --micro, not both.');
+  }
+  if (!anime4kPresetIds.has(args.presetId)) {
+    throw new Error(`Unknown Anime4K preset: ${args.presetId}`);
   }
   if (args.microKernel && args.microKernel !== 'depth-to-space') {
     throw new Error(`Unknown GPU micro-kernel: ${args.microKernel}`);
@@ -455,6 +462,7 @@ async function main() {
         tiers,
         optimizationFlags: variant.flags,
         effectIds: args.effectIds,
+        presetId: args.presetId,
         microKernel: args.microKernel,
         workloadId: args.workloadId,
         videoUrl,
@@ -484,7 +492,7 @@ async function main() {
         ? args.workloadId ?? `micro:${args.microKernel}`
         : args.effectIds
           ? args.workloadId ?? args.effectIds.join('+')
-          : null;
+          : `preset:${args.presetId}`;
       const comparisonCases = workloadTierId
         ? [{ tierId: workloadTierId, requestTiers: [args.tiers[0]] }]
         : args.tiers.map(tier => ({ tierId: tier, requestTiers: [tier] }));
@@ -561,6 +569,7 @@ async function main() {
           batchSize: args.batchSize,
           tiers: args.tiers,
           effectIds: args.effectIds,
+          presetId: args.presetId,
           microKernel: args.microKernel,
           workloadId: args.workloadId,
           video: args.video,

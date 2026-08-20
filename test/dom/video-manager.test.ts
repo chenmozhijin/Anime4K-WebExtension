@@ -164,6 +164,32 @@ describe('video manager', () => {
     });
   });
 
+  it('applies global updates across modes while keeping custom-mode updates targeted', async () => {
+    const modeAVideo = createVideoStub(true);
+    const modeBVideo = createVideoStub(true);
+    const modeAEnhancer = createMockEnhancer(modeAVideo, 'mode-a');
+    const modeBEnhancer = createMockEnhancer(modeBVideo, 'mode-b');
+    managedVideos.push(modeAVideo, modeBVideo);
+    enhancerByVideo.set(modeAVideo, modeAEnhancer);
+    enhancerByVideo.set(modeBVideo, modeBEnhancer);
+
+    const { handleSettingsUpdate } = await import('../../src/core/video-manager');
+    await handleSettingsUpdate({ type: 'SETTINGS_UPDATED' }, {} as never);
+
+    expect(modeAEnhancer.updateSettings).toHaveBeenCalledOnce();
+    expect(modeBEnhancer.updateSettings).toHaveBeenCalledOnce();
+
+    vi.mocked(modeAEnhancer.updateSettings).mockClear();
+    vi.mocked(modeBEnhancer.updateSettings).mockClear();
+    await handleSettingsUpdate(
+      { type: 'SETTINGS_UPDATED', modifiedModeId: 'mode-b' },
+      {} as never,
+    );
+
+    expect(modeAEnhancer.updateSettings).not.toHaveBeenCalled();
+    expect(modeBEnhancer.updateSettings).toHaveBeenCalledOnce();
+  });
+
   it('does not clean up an enhancer when the same video element is reconnected in one mutation batch', async () => {
     const video = createDomVideo();
     video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
 import { OverlayManager } from '../../src/core/overlay-manager';
 import type { FramePerformanceSnapshot } from '../../src/types';
@@ -7,7 +7,9 @@ class MockResizeObserver {
   public readonly observe = vi.fn();
   public readonly disconnect = vi.fn();
 
-  constructor(public readonly callback: ResizeObserverCallback) {}
+  constructor(public readonly callback: ResizeObserverCallback) {
+    resizeObservers.push(this);
+  }
 }
 
 class MockMutationObserver {
@@ -21,6 +23,7 @@ class MockMutationObserver {
 
 let nextFrameId = 1;
 const rafCallbacks = new Map<number, FrameRequestCallback>();
+const resizeObservers: MockResizeObserver[] = [];
 const mutationObservers: MockMutationObserver[] = [];
 
 function flushAnimationFrames(times = 1): void {
@@ -60,6 +63,65 @@ function createVideo(parent: Element | ShadowRoot, slotId?: string): HTMLVideoEl
   return video;
 }
 
+function createResizableVideo(parent: Element): {
+  video: HTMLVideoElement;
+  setSize(width: number, height: number): void;
+} {
+  let width = 0;
+  let height = 0;
+  const video = document.createElement('video');
+  Object.defineProperties(video, {
+    offsetTop: { configurable: true, get: () => 12 },
+    offsetLeft: { configurable: true, get: () => 24 },
+    offsetWidth: { configurable: true, get: () => width },
+    offsetHeight: { configurable: true, get: () => height },
+    videoWidth: { configurable: true, get: () => width },
+    videoHeight: { configurable: true, get: () => height },
+  });
+  vi.spyOn(video, 'getBoundingClientRect').mockImplementation(() => ({
+    top: 12,
+    left: 24,
+    width,
+    height,
+    bottom: 12 + height,
+    right: 24 + width,
+    x: 24,
+    y: 12,
+    toJSON: () => ({}),
+  } as DOMRect));
+  parent.appendChild(video);
+  return {
+    video,
+    setSize(nextWidth, nextHeight) {
+      width = nextWidth;
+      height = nextHeight;
+    },
+  };
+}
+
+function dispatchPointerMove(x: number, y: number): void {
+  const event = new Event('pointermove');
+  Object.defineProperties(event, {
+    clientX: { value: x },
+    clientY: { value: y },
+    pointerType: { value: 'mouse' },
+    buttons: { value: 0 },
+  });
+  window.dispatchEvent(event);
+}
+
+function dispatchTouchPointerDown(x: number, y: number): Event {
+  const event = new Event('pointerdown', { cancelable: true });
+  Object.defineProperties(event, {
+    clientX: { value: x },
+    clientY: { value: y },
+    pointerType: { value: 'touch' },
+    buttons: { value: 1 },
+  });
+  window.dispatchEvent(event);
+  return event;
+}
+
 function createPerformanceSnapshot(overrides: Partial<FramePerformanceSnapshot> = {}): FramePerformanceSnapshot {
   return {
     mode: 'gpu',
@@ -97,9 +159,11 @@ function installHudI18nMessages(): void {
 
 describe('OverlayManager', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     installChromeMock();
     nextFrameId = 1;
     rafCallbacks.clear();
+    resizeObservers.length = 0;
     mutationObservers.length = 0;
 
     Object.assign(globalThis, {
@@ -122,6 +186,10 @@ describe('OverlayManager', () => {
       objectPosition: 'center',
       zIndex: '10',
     } as CSSStyleDeclaration));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('cleans orphaned artifacts, manages canvas visibility, and destroys idempotently', () => {
@@ -176,6 +244,159 @@ describe('OverlayManager', () => {
 
     expect(container.querySelector('[data-anime4k-overlay-host]')).toBeNull();
     expect(video.hasAttribute('data-anime4k-overlay-slot')).toBe(false);
+  });
+
+  it('waits for a renderable video before starting the complete initial reveal window', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const { video, setSize } = createResizableVideo(container);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+
+    flushAnimationFrames(2);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('unrenderable');
+    vi.advanceTimersByTime(5000);
+
+    setSize(320, 180);
+    resizeObservers[0].callback([], resizeObservers[0] as unknown as ResizeObserver);
+    flushAnimationFrames(2);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+
+    vi.advanceTimersByTime(2999);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    vi.advanceTimersByTime(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(manager.getButton().tabIndex).toBe(0);
+
+    manager.destroy();
+  });
+
+  it('pauses the initial reveal window while the document is hidden', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+
+    flushAnimationFrames(2);
+    vi.advanceTimersByTime(1000);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    flushAnimationFrames(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('unrenderable');
+
+    vi.advanceTimersByTime(5000);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    flushAnimationFrames(2);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+
+    vi.advanceTimersByTime(1999);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    vi.advanceTimersByTime(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    manager.destroy();
+  });
+
+  it('reveals a hidden button after dwelling in the logical region', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+
+    flushAnimationFrames(2);
+    vi.advanceTimersByTime(3000);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    // This point is outside the old 104x96 region but inside the 160x120 minimum.
+    dispatchPointerMove(174, 157);
+    flushAnimationFrames(1);
+    vi.advanceTimersByTime(219);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    vi.advanceTimersByTime(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(manager.getButton().tabIndex).toBe(0);
+
+    manager.destroy();
+  });
+
+  it('reveals a hidden button on keyboard focus and keeps it visible until focus leaves', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const button = manager.getButton();
+    vi.spyOn(button, 'matches').mockImplementation(selector => selector === ':focus-visible');
+
+    flushAnimationFrames(2);
+    vi.advanceTimersByTime(3000);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    button.focus();
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    vi.advanceTimersByTime(5000);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+
+    button.blur();
+    vi.advanceTimersByTime(499);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    vi.advanceTimersByTime(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    manager.destroy();
+  });
+
+  it('reveals temporarily for touch without preventing the original page event', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+
+    flushAnimationFrames(2);
+    vi.advanceTimersByTime(3000);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    const event = dispatchTouchPointerDown(30, 100);
+    expect(event.defaultPrevented).toBe(false);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+
+    vi.advanceTimersByTime(2999);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    vi.advanceTimersByTime(1);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    manager.destroy();
+  });
+
+  it('scales the logical reveal region for large video players', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const { video, setSize } = createResizableVideo(container);
+    setSize(1280, 720);
+    const manager = OverlayManager.create(video);
+    const host = container.querySelector('[data-anime4k-overlay-host]');
+
+    flushAnimationFrames(2);
+    vi.advanceTimersByTime(3000);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+
+    // The 22%/34% scaling reaches this point; the minimum-size region does not.
+    dispatchPointerMove(274, 482);
+    flushAnimationFrames(1);
+    vi.advanceTimersByTime(220);
+    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+
+    manager.destroy();
   });
 
   it('switches to body strategy when obscured and reattaches to a new video', () => {
