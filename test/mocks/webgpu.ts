@@ -289,6 +289,7 @@ class MockDevice {
 
 class MockAdapter {
   readonly features: GPUSupportedFeatures;
+  private consumed = false;
 
   readonly info = {
     vendor: 'MockVendor',
@@ -308,6 +309,14 @@ class MockAdapter {
   }
 
   async requestDevice(descriptor?: GPUDeviceDescriptor): Promise<GPUDevice> {
+    if (this.consumed) {
+      const error = new Error(
+        'Failed to execute requestDevice on GPUAdapter: adapter is consumed.',
+      );
+      error.name = 'OperationError';
+      throw error;
+    }
+    this.consumed = true;
     // Adapter support and device enablement are distinct in WebGPU. Mirror the
     // requested descriptor so capability tests catch accidental use of unsupported state.
     this.device.features = new Set(
@@ -317,16 +326,27 @@ class MockAdapter {
   }
 }
 
-export function createWebGpuMock(options: { features?: GPUFeatureName[] } = {}) {
+function createWebGpuGeneration(features: GPUFeatureName[] = []) {
   const device = new MockDevice();
-  const adapter = new MockAdapter(device, options.features);
+  const adapter = new MockAdapter(device, features);
+  return { adapter, device };
+}
+
+export function createWebGpuMock(options: { features?: GPUFeatureName[] } = {}) {
+  const initial = createWebGpuGeneration(options.features);
+  let firstAdapterRequest = true;
 
   return {
-    adapter,
-    device,
+    adapter: initial.adapter,
+    device: initial.device,
     gpu: {
       async requestAdapter(): Promise<GPUAdapter> {
-        return adapter as unknown as GPUAdapter;
+        if (firstAdapterRequest) {
+          firstAdapterRequest = false;
+          return initial.adapter as unknown as GPUAdapter;
+        }
+        const next = createWebGpuGeneration(options.features);
+        return next.adapter as unknown as GPUAdapter;
       },
       getPreferredCanvasFormat(): GPUTextureFormat {
         return 'rgba8unorm';

@@ -55,7 +55,7 @@ export const RECOMMENDED_PRESET_MATRIX: Readonly<Record<RecommendedPresetId, Rea
   },
   'compression-cleanup': {
     performance: 'acnet/Upscale/ARNet/F8B8_BOX_HDN',
-    balanced: 'acnet/Upscale/ARNet/F8B18_BOX_HDN',
+    balanced: 'acnet/Upscale/ARNet/F8B16_BOX_HDN',
     quality: 'acnet/Upscale/ARNet/F8B32_BOX_HDN',
     ultra: 'acnet/Upscale/ARNet/F8B64_BOX_HDN',
   },

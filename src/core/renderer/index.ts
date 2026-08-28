@@ -33,6 +33,7 @@ import {
 import { acquireSharedGpuDevice, type SharedGpuDeviceLease } from '../shared-gpu-device';
 
 const logger = createLogger('renderer');
+const RENDERER_DEVICE_PROFILE_KEY = 'renderer-v1';
 
 /**
  * 全屏纹理三角形顶点着色器
@@ -172,9 +173,9 @@ export class Renderer {
   private sampler!: GPUSampler;
   private renderBindGroup!: GPUBindGroup;
 
-  // --- 静态属性，用于确保只检测一次 ---
-  private static hasCheckedWebGPUFeatures = false;
-  private static webgpuFeatureCheckPromise: Promise<boolean> | null = null;
+  // VideoFrame upload support can vary by device, so never share a probe across
+  // device generations or across different GPU sessions.
+  private static readonly webgpuFeatureProbeByDevice = new WeakMap<GPUDevice, Promise<boolean>>();
   /**
    * Renderer 的构造函数是私有的，请使用 `Renderer.create()` 静态方法来创建实例。
    * @param options - 初始化渲染器所需的配置
@@ -224,8 +225,9 @@ export class Renderer {
       const lease = await acquireSharedGpuDevice({
         gpu: navigator.gpu,
         adapterOptions,
+        deviceProfileKey: RENDERER_DEVICE_PROFILE_KEY,
         descriptorFactory: adapter => ({
-          ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
+          ...(adapter.features?.has('timestamp-query')
             ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
             : {}),
           requiredLimits: getRequiredDeviceLimits(adapter),
@@ -234,13 +236,12 @@ export class Renderer {
       this.deviceLease = lease;
       const { adapter } = lease;
       this.gpuName = this.describeAdapter(adapter);
-      this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
-        && Boolean(adapter.features?.has('timestamp-query'));
 
       // 请求 GPU 设备并配置 Canvas 上下文
       // 根据适配器支持的限制请求更高的缓冲区和 workgroup storage 上限，
       // 以支持高分辨率视频处理和更重的 ArtCNN C4F32 shader。
       this.device = lease.device;
+      this.timestampQueryAvailable = Boolean(this.device.features?.has('timestamp-query'));
       this.setupGpuErrorMonitoring(this.device);
       this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
       this.gpuCapabilities = collectGpuCapabilities({
@@ -263,7 +264,7 @@ export class Renderer {
       });
 
       // 检查是否需要使用回退上传路径
-      const supportsVideoTexture = await Renderer.detectWebGPUFeatures();
+      const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device);
       this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
       this.frameUploader.setExternalTextureEnabled(
         this.optimizationFlags.externalTexture && Boolean(this.gpuCapabilities?.externalTexture),
@@ -527,27 +528,17 @@ export class Renderer {
   /**
    * 检测当前环境的 WebGPU 实现是否支持直接从 VideoFrame 复制纹理。
    */
-  public static async detectWebGPUFeatures(): Promise<boolean> {
-    // 如果已经检测过，直接返回结果
-    if (Renderer.hasCheckedWebGPUFeatures) {
-      return Renderer.webgpuFeatureCheckPromise ?? false;
+  public static async detectWebGPUFeatures(device: GPUDevice): Promise<boolean> {
+    const existingProbe = Renderer.webgpuFeatureProbeByDevice.get(device);
+    if (existingProbe) {
+      return existingProbe;
     }
 
-    // 如果正在检测中，等待检测完成
-    if (Renderer.webgpuFeatureCheckPromise) {
-      return Renderer.webgpuFeatureCheckPromise;
-    }
-
-    // 开始检测
-    Renderer.webgpuFeatureCheckPromise = (async () => {
+    const probe = (async () => {
+      let frame: VideoFrame | undefined;
+      let texture: GPUTexture | undefined;
       try {
         // 在 initialize() 中已经检测了基本的 WebGPU 支持，这里只需要检测 VideoFrame 支持
-
-        const adapter = await navigator.gpu.requestAdapter();
-        const device = await adapter?.requestDevice();
-        if (!device) {
-          throw new Error('Failed to get GPU device.');
-        }
 
         // 创建一个 OffscreenCanvas
         const offscreenCanvas = new OffscreenCanvas(1, 1);
@@ -559,8 +550,8 @@ export class Renderer {
         // context.fillStyle = 'black';
         context.fillRect(0, 0, 1, 1);
         // 创建一个最小化的 VideoFrame 和 GPUTexture 用于测试
-        const frame = new VideoFrame(offscreenCanvas, { timestamp: 0 });
-        const texture = device.createTexture({
+        frame = new VideoFrame(offscreenCanvas, { timestamp: 0 });
+        texture = device.createTexture({
           size: [1, 1],
           format: 'rgba8unorm',
           usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
@@ -569,24 +560,21 @@ export class Renderer {
         // 核心测试：此操作如果不支持会抛出异常
         device.queue.copyExternalImageToTexture({ source: frame }, { texture }, [1, 1]);
 
-        // 清理资源
-        frame.close();
-        texture.destroy();
-        device.destroy();
-
         // 如果成功，则说明支持
         logger.debug('WebGPU feature detection: VideoFrame as texture source is supported.');
-        Renderer.hasCheckedWebGPUFeatures = true;
         return true;
       } catch (error) {
         // 任何步骤失败都意味着不支持
         logger.debug('WebGPU feature detection: VideoFrame as texture source is not supported.', error);
-        Renderer.hasCheckedWebGPUFeatures = true;
         return false;
+      } finally {
+        frame?.close();
+        texture?.destroy();
       }
     })();
 
-    return Renderer.webgpuFeatureCheckPromise;
+    Renderer.webgpuFeatureProbeByDevice.set(device, probe);
+    return probe;
   }
 
   /**
@@ -903,7 +891,7 @@ export class Renderer {
     sourceDimensions: Dimensions;
     targetDimensions: Dimensions;
     onSnapshot?: (snapshot: FramePerformanceSnapshot) => void;
-  }): boolean {
+  }): void {
     this.performanceMonitorMode = options.mode;
     this.performanceModeName = options.modeName;
     this.performanceTier = options.tier;
@@ -913,11 +901,10 @@ export class Renderer {
     if (options.mode === 'off' || !options.onSnapshot) {
       this.performanceProfiler?.destroy();
       this.performanceProfiler = null;
-      return true;
+      return;
     }
 
     this.configurePerformanceProfiler(options.sourceDimensions);
-    return options.mode !== 'gpu' || this.timestampQueryAvailable;
   }
 
   private async performUpdateConfiguration(options: {
@@ -1029,8 +1016,9 @@ export class Renderer {
       const lease = await acquireSharedGpuDevice({
         gpu: navigator.gpu,
         adapterOptions: this.createAdapterOptions(),
+        deviceProfileKey: RENDERER_DEVICE_PROFILE_KEY,
         descriptorFactory: adapter => ({
-          ...(this.performanceMonitorMode === 'gpu' && adapter.features?.has('timestamp-query')
+          ...(adapter.features?.has('timestamp-query')
             ? { requiredFeatures: ['timestamp-query' as GPUFeatureName] }
             : {}),
           requiredLimits: getRequiredDeviceLimits(adapter),
@@ -1040,8 +1028,7 @@ export class Renderer {
       const { adapter } = lease;
       this.device = lease.device;
       this.gpuName = this.describeAdapter(adapter);
-      this.timestampQueryAvailable = this.performanceMonitorMode === 'gpu'
-        && Boolean(adapter.features?.has('timestamp-query'));
+      this.timestampQueryAvailable = Boolean(this.device.features?.has('timestamp-query'));
       this.setupGpuErrorMonitoring(this.device);
       this.gpuCapabilities = collectGpuCapabilities({
         adapter,
@@ -1061,6 +1048,9 @@ export class Renderer {
           this.recoverFromDeviceLoss();
         }
       });
+
+      const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device);
+      this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
 
       // 重新配置上下文
       this.context.configure({

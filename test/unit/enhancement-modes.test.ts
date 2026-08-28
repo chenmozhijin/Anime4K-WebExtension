@@ -9,6 +9,7 @@ import {
   RECOMMENDED_PRESET_MODES,
   getRecommendedPresetEffectId,
 } from '../../src/features/enhancement/domain/recommended-presets';
+import { getEffectDescriptorById } from '../../src/core/effects/registry';
 import { resolveAnime4kPresetEffectChain } from '../../src/engines/anime4k/preset-resolver';
 import type { CustomMode } from '../../src/types';
 
@@ -46,7 +47,7 @@ describe('enhancement modes', () => {
       },
       'compression-cleanup': {
         performance: 'acnet/Upscale/ARNet/F8B8_BOX_HDN',
-        balanced: 'acnet/Upscale/ARNet/F8B18_BOX_HDN',
+        balanced: 'acnet/Upscale/ARNet/F8B16_BOX_HDN',
         quality: 'acnet/Upscale/ARNet/F8B32_BOX_HDN',
         ultra: 'acnet/Upscale/ARNet/F8B64_BOX_HDN',
       },
@@ -58,6 +59,14 @@ describe('enhancement modes', () => {
       },
     });
     expect(getRecommendedPresetEffectId('detail-preserving', 'ultra')).toBe('cunny/Upscale/DS/8x32');
+  });
+
+  it('references only registered effects from the recommended preset matrix', () => {
+    Object.entries(RECOMMENDED_PRESET_MATRIX).forEach(([presetId, tiers]) => {
+      Object.entries(tiers).forEach(([tier, effectId]) => {
+        expect(getEffectDescriptorById(effectId), `${presetId}/${tier}`).toBeDefined();
+      });
+    });
   });
 
   it('keeps ArtCNN reachable only through custom modes', () => {

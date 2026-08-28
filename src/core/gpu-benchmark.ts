@@ -31,10 +31,10 @@ const TARGET_FRAME_TIME_24FPS = 1000 / 24; // 约 41.67ms
 const logger = createLogger('gpu-benchmark');
 
 export const BENCHMARK_EFFECT_IDS: Readonly<Record<PerformanceTier, string>> = {
-    performance: 'cunny/Upscale/DS/Faster',
-    balanced: 'cunny/Upscale/DS/4x16',
-    quality: 'cunny/Upscale/DS/4x32',
-    ultra: 'cunny/Upscale/DS/8x32',
+    performance: 'acnet/Upscale/ARNet/F8B8_BOX_HDN',
+    balanced: 'acnet/Upscale/ARNet/F8B16_BOX_HDN',
+    quality: 'acnet/Upscale/ARNet/F8B32_BOX_HDN',
+    ultra: 'acnet/Upscale/ARNet/F8B64_BOX_HDN',
 };
 
 export function getBenchmarkEffects(tier: PerformanceTier): EnhancementEffect[] {

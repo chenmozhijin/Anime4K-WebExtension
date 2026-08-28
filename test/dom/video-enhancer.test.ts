@@ -181,6 +181,8 @@ describe('VideoEnhancer', () => {
     state.rendererOptions = null;
     state.currentSettings.selectedModeId = 'builtin-mode-a';
     state.currentSettings.enableCrossOriginFix = false;
+    state.currentSettings.performanceMonitorMode = 'off';
+    state.currentSettings.performanceTier = 'balanced';
     state.rendererInstance.destroy.mockReset();
     state.rendererInstance.updateConfiguration.mockReset();
     state.rendererInstance.updateVideoSource.mockReset();
@@ -317,6 +319,24 @@ describe('VideoEnhancer', () => {
 
     expect(state.rendererInstance.handleSourceResize).toHaveBeenCalledTimes(1);
     expect(state.rendererInstance.updateConfiguration).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates the performance monitor in place when switching from Lite to GPU diagnostics', async () => {
+    state.currentSettings.performanceMonitorMode = 'lite';
+    const enhancer = VideoEnhancer.create(createVideo());
+    await enhancer.toggleEnhancement();
+
+    state.rendererInstance.destroy.mockClear();
+    state.rendererInstance.updatePerformanceMonitor.mockClear();
+    state.currentSettings.performanceMonitorMode = 'gpu';
+
+    await enhancer.updateSettings(state.currentSettings);
+
+    expect(state.rendererCreate).toHaveBeenCalledTimes(1);
+    expect(state.rendererInstance.destroy).not.toHaveBeenCalled();
+    expect(state.rendererInstance.updatePerformanceMonitor).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'gpu',
+    }));
   });
 
   it('surfaces runtime/update errors and tears down enhancement state', async () => {

@@ -8,11 +8,12 @@ export interface SharedGpuDeviceLease {
 export interface AcquireSharedGpuDeviceOptions {
   gpu: GPU;
   adapterOptions?: GPURequestAdapterOptions;
+  /** Identifies the complete device configuration owned by this slot. */
+  deviceProfileKey: string;
   descriptorFactory(adapter: GPUAdapter): GPUDeviceDescriptor;
 }
 
 interface DevicePool {
-  adapters: Map<string, Promise<GPUAdapter | null>>;
   devices: Map<string, DeviceSlot>;
 }
 
@@ -20,6 +21,8 @@ interface DeviceSlot {
   key: string;
   adapterKey: string;
   adapterPromise: Promise<GPUAdapter | null>;
+  descriptorReady: Promise<string>;
+  descriptorKey?: string;
   promise: Promise<DeviceEntry>;
   entry?: DeviceEntry;
 }
@@ -38,7 +41,7 @@ const poolsByGpu = new WeakMap<object, DevicePool>();
 function getPool(gpu: GPU): DevicePool {
   let pool = poolsByGpu.get(gpu as object);
   if (!pool) {
-    pool = { adapters: new Map(), devices: new Map() };
+    pool = { devices: new Map() };
     poolsByGpu.set(gpu as object, pool);
   }
   return pool;
@@ -69,66 +72,99 @@ function invalidateEntry(entry: DeviceEntry): void {
   if (pool.devices.get(slot.key) === slot) {
     pool.devices.delete(slot.key);
   }
-  if (pool.adapters.get(slot.adapterKey) === slot.adapterPromise) {
-    // Re-request the adapter after device loss instead of assuming the old adapter
-    // remains usable across browser/GPU resets.
-    pool.adapters.delete(slot.adapterKey);
-  }
+}
+
+function createDescriptorReady(): {
+  promise: Promise<string>;
+  resolve: (key: string) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (key: string) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<string>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  // Keep the validation promise observed even when device creation fails before
+  // a second acquirer starts waiting on the slot.
+  void promise.catch(() => undefined);
+  return { promise, resolve, reject };
 }
 
 export async function acquireSharedGpuDevice({
   gpu,
   adapterOptions,
+  deviceProfileKey,
   descriptorFactory,
 }: AcquireSharedGpuDeviceOptions): Promise<SharedGpuDeviceLease> {
   const pool = getPool(gpu);
   const adapterKey = stableObjectKey(adapterOptions);
-  let adapterPromise = pool.adapters.get(adapterKey);
-  if (!adapterPromise) {
-    adapterPromise = gpu.requestAdapter(adapterOptions);
-    pool.adapters.set(adapterKey, adapterPromise);
-  }
-
-  const adapter = await adapterPromise;
-  if (!adapter) {
-    if (pool.adapters.get(adapterKey) === adapterPromise) {
-      pool.adapters.delete(adapterKey);
-    }
-    throw new Error('WebGPU not supported: No adapter found.');
-  }
-
-  const descriptor = descriptorFactory(adapter);
-  const key = `${adapterKey}|${deviceDescriptorKey(descriptor)}`;
+  const key = `${adapterKey}|${deviceProfileKey}`;
   let slot = pool.devices.get(key);
+
   if (!slot) {
+    const adapterPromise = gpu.requestAdapter(adapterOptions);
+    const descriptorReady = createDescriptorReady();
     slot = {
       key,
       adapterKey,
       adapterPromise,
+      descriptorReady: descriptorReady.promise,
       promise: null as unknown as Promise<DeviceEntry>,
     };
-    slot.promise = adapter.requestDevice(descriptor).then(device => {
+    const createdSlot = slot;
+
+    createdSlot.promise = (async () => {
+      const adapter = await adapterPromise;
+      if (!adapter) {
+        throw new Error('WebGPU not supported: No adapter found.');
+      }
+
+      const descriptor = descriptorFactory(adapter);
+      const descriptorKey = deviceDescriptorKey(descriptor);
+      createdSlot.descriptorKey = descriptorKey;
+      descriptorReady.resolve(descriptorKey);
+
+      const device = await adapter.requestDevice(descriptor);
       const entry: DeviceEntry = {
         pool,
-        slot: slot!,
+        slot: createdSlot,
         adapter,
         device,
         references: 0,
         invalidated: false,
       };
-      slot!.entry = entry;
+      createdSlot.entry = entry;
       device.lost.then(() => invalidateEntry(entry));
       return entry;
-    }).catch(error => {
-      if (pool.devices.get(key) === slot) {
+    })().catch(error => {
+      descriptorReady.reject(error);
+      if (pool.devices.get(key) === createdSlot) {
         pool.devices.delete(key);
       }
       throw error;
     });
-    pool.devices.set(key, slot);
+    pool.devices.set(key, createdSlot);
+  } else {
+    const adapter = slot.entry?.adapter ?? await slot.adapterPromise;
+    if (!adapter) {
+      throw new Error('WebGPU not supported: No adapter found.');
+    }
+
+    const requestedDescriptorKey = deviceDescriptorKey(descriptorFactory(adapter));
+    const existingDescriptorKey = await slot.descriptorReady;
+    if (requestedDescriptorKey !== existingDescriptorKey) {
+      throw new Error(
+        `WebGPU device profile "${deviceProfileKey}" was requested with a different device descriptor.`,
+      );
+    }
   }
 
   const entry = await slot.promise;
+  if (entry.invalidated) {
+    throw new Error('WebGPU device is no longer available.');
+  }
   entry.references += 1;
   let released = false;
   return {

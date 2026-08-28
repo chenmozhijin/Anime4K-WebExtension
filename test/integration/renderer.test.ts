@@ -374,6 +374,73 @@ describe('renderer lifecycle', () => {
     expect(onPerformanceSnapshot).not.toHaveBeenCalled();
   });
 
+  it.each(['off', 'lite'] as const)('switches %s to GPU diagnostics without recreating the device', async initialMode => {
+    const { renderer, webgpu } = await createRendererHarness({
+      performanceMonitorMode: initialMode,
+      onPerformanceSnapshot: vi.fn(),
+      webgpuFeatures: ['timestamp-query'],
+    });
+    const device = (renderer as any).device;
+    const requestAdapterSpy = vi.spyOn(webgpu.gpu, 'requestAdapter');
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+
+    renderer.updatePerformanceMonitor({
+      mode: 'gpu',
+      modeName: 'GPU Diagnostics',
+      tier: 'balanced',
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 320, height: 180 },
+      onSnapshot: vi.fn(),
+    });
+
+    expect((renderer as any).device).toBe(device);
+    expect((renderer as any).timestampQueryAvailable).toBe(true);
+    expect((renderer as any).performanceProfiler).not.toBeNull();
+    expect(requestAdapterSpy).not.toHaveBeenCalled();
+    expect(requestDeviceSpy).not.toHaveBeenCalled();
+
+    renderer.destroy();
+  });
+
+  it('keeps GPU diagnostics running without timestamps and marks snapshots unavailable', async () => {
+    const onPerformanceSnapshot = vi.fn();
+    const { renderer, webgpu } = await createRendererHarness({
+      performanceMonitorMode: 'gpu',
+      onPerformanceSnapshot,
+    });
+    const requestAdapterSpy = vi.spyOn(webgpu.gpu, 'requestAdapter');
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+
+    expect((renderer as any).timestampQueryAvailable).toBe(false);
+    (renderer as any).performanceProfiler.lastSnapshotAt = -1000;
+    await (renderer as any).processFrame({ presentedFrames: 1 });
+
+    expect(onPerformanceSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'gpu',
+      timestampAvailable: false,
+      timingSource: 'unavailable',
+    }));
+    expect(requestAdapterSpy).not.toHaveBeenCalled();
+    expect(requestDeviceSpy).not.toHaveBeenCalled();
+    renderer.destroy();
+  });
+
+  it('probes VideoFrame upload support on the supplied device without creating another device', async () => {
+    const webgpu = installWebGpuMock();
+    const requestAdapterSpy = vi.spyOn(webgpu.gpu, 'requestAdapter');
+    const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
+    const device = await webgpu.adapter.requestDevice();
+    const { Renderer } = await import('../../src/core/renderer');
+
+    const firstResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice);
+    const secondResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice);
+
+    expect(secondResult).toBe(firstResult);
+    expect(requestAdapterSpy).not.toHaveBeenCalled();
+    expect(requestDeviceSpy).toHaveBeenCalledOnce();
+    (device as unknown as { destroy: () => void }).destroy();
+  });
+
   it('collects lightweight performance snapshots when enabled', async () => {
     const onPerformanceSnapshot = vi.fn();
     const { renderer } = await createRendererHarness({
@@ -717,6 +784,25 @@ describe('renderer lifecycle', () => {
     expect(deviceDestroySpy).not.toHaveBeenCalled();
     second.destroy();
     expect(deviceDestroySpy).toHaveBeenCalledOnce();
+  });
+
+  it('recreates a renderer with a fresh adapter after the final device lease is destroyed', async () => {
+    const { renderer, Renderer, webgpu, canvas, videoHarness } = await createRendererHarness();
+    const firstDevice = (renderer as any).device;
+    renderer.destroy();
+    const requestAdapterSpy = vi.spyOn(webgpu.gpu, 'requestAdapter');
+
+    const recreated = await Renderer.create({
+      video: videoHarness.video,
+      canvas,
+      effects: [],
+      effectsSignature: 'recreated-renderer',
+      targetDimensions: { width: 320, height: 180 },
+    });
+
+    expect(requestAdapterSpy).toHaveBeenCalledOnce();
+    expect((recreated as any).device).not.toBe(firstDevice);
+    recreated.destroy();
   });
 
   it('cleans up frame callbacks, GPU resources, and context state on destroy without double-disposing', async () => {

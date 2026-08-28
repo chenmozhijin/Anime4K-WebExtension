@@ -436,7 +436,7 @@ export class VideoEnhancer {
       return;
     }
 
-    const monitorReady = this.renderer.updatePerformanceMonitor({
+    this.renderer.updatePerformanceMonitor({
       mode: settings.performanceMonitorMode,
       modeName: selectedMode.name,
       tier: settings.performanceTier,
@@ -449,13 +449,6 @@ export class VideoEnhancer {
 
     if (settings.performanceMonitorMode === 'off') {
       this.overlay.hidePerformanceHud();
-      return;
-    }
-
-    if (!monitorReady && settings.performanceMonitorMode === 'gpu') {
-      logger.debug('Reinitializing renderer to request timestamp-query for GPU diagnostics.');
-      this.releaseWebGPUResources();
-      await this.initRenderer(settings);
     }
   }
 

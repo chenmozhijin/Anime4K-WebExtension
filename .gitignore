@@ -147,3 +147,8 @@ dist
 /experiment
 .reference
 .local-archive/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
