@@ -29,7 +29,7 @@ export interface VideoEnhancer {
   destroy: () => void;
   toggleEnhancement: () => Promise<void>;
   getCurrentModeId: () => string | null;
-  updateSettings: (settings: Anime4KWebExtSettings) => Promise<void>;
+  updateSettings: (settings: NijiLucidSettings) => Promise<void>;
   getVideoElement: () => HTMLVideoElement;
   detach: () => void;
   reattach: (newVideo: HTMLVideoElement) => Promise<void>;
@@ -133,7 +133,7 @@ export interface LocalSettings {
   performanceMonitorHudWidth: number | null;
 }
 
-export interface Anime4KWebExtSettings extends SyncedSettings {
+export interface NijiLucidSettings extends SyncedSettings {
   performanceTier: PerformanceTier;
   enhancementModes: EnhancementMode[];
   performanceMonitorMode: PerformanceMonitorMode;

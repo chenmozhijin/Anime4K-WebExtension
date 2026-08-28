@@ -1,6 +1,6 @@
 import { VideoEnhancer } from './video-enhancer';
-import { ANIME4K_APPLIED_ATTR } from '../constants';
-import type { Anime4KWebExtSettings } from '../types';
+import { NIJILUCID_APPLIED_ATTR } from '../constants';
+import type { NijiLucidSettings } from '../types';
 import { stashEnhancer, findAndunstashEnhancer } from './enhancer-stash';
 import * as EnhancerMap from './enhancer-map';
 import { createLogger } from '../utils/logger';
@@ -58,7 +58,7 @@ function cleanupVideoEnhancer(video: HTMLVideoElement): void {
     return;
   }
 
-  if (video.hasAttribute(ANIME4K_APPLIED_ATTR)) {
+  if (video.hasAttribute(NIJILUCID_APPLIED_ATTR)) {
     stashEnhancer(enhancer);
   } else {
     enhancer.destroy();
@@ -182,7 +182,7 @@ export function setupDOMObserver(): MutationObserver {
 
 export async function handleSettingsUpdate(
   message: SettingsUpdateMessage,
-  settings: Anime4KWebExtSettings,
+  settings: NijiLucidSettings,
   sendResponse?: (response?: SettingsUpdateResponse) => void,
 ): Promise<SettingsUpdateResponse> {
   logger.debug('Received settings update.', message);
@@ -195,7 +195,7 @@ export async function handleSettingsUpdate(
 
   for (const videoElement of videos) {
     const enhancer = EnhancerMap.getEnhancer(videoElement);
-    if (!enhancer || videoElement.getAttribute(ANIME4K_APPLIED_ATTR) !== 'true') {
+    if (!enhancer || videoElement.getAttribute(NIJILUCID_APPLIED_ATTR) !== 'true') {
       skippedCount++;
       continue;
     }

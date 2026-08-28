@@ -42,7 +42,7 @@ export interface ContentBootstrap {
 }
 
 const mediaEventsToWatch: ReadonlyArray<string> = ['loadedmetadata', 'play', 'playing'];
-const HISTORY_PATCH_FLAG = '__anime4kHistoryPatched__';
+const HISTORY_PATCH_FLAG = '__nijilucidHistoryPatched__';
 const logger = createLogger('content');
 
 function hasVideoAttachmentParent(video: HTMLVideoElement): boolean {
@@ -439,7 +439,7 @@ export function resetContentBootstrapForTests(): void {
   defaultContentBootstrap = null;
 }
 
-if (!globalThis.__ANIME4K_DISABLE_AUTO_BOOTSTRAP__) {
+if (!globalThis.__NIJILUCID_DISABLE_AUTO_BOOTSTRAP__) {
   void bootstrapContentScript().catch(error => {
     logger.error('Failed to bootstrap content script.', error);
   });

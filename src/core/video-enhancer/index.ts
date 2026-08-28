@@ -1,8 +1,8 @@
 import { getSettingsSnapshot } from '../../utils/settings-snapshot';
 import { saveSettings } from '../../utils/settings';
 import { Renderer } from '../renderer';
-import { ANIME4K_APPLIED_ATTR } from '../../constants';
-import type { Dimensions, Anime4KWebExtSettings, EnhancementMode, FramePerformanceSnapshot } from '../../types';
+import { NIJILUCID_APPLIED_ATTR } from '../../constants';
+import type { Dimensions, NijiLucidSettings, EnhancementMode, FramePerformanceSnapshot } from '../../types';
 import { EnhancerErrorNotifier } from './error-notifier';
 import { OverlayManager } from '../overlay-manager';
 import { VideoEnhancerGeometryController } from './geometry-controller';
@@ -22,7 +22,7 @@ import { waitForMediaReady } from '../media-wait';
 const logger = createLogger('video-enhancer');
 
 /**
- * 视频增强器类，封装Anime4K处理逻辑
+ * 视频增强器类，封装 NijiLucid 视频增强逻辑
  * 负责管理单个视频元素的增强状态、渲染实例和资源清理
  */
 export class VideoEnhancer {
@@ -59,7 +59,7 @@ export class VideoEnhancer {
     };
   }
 
-  private getCurrentSettings(): Anime4KWebExtSettings {
+  private getCurrentSettings(): NijiLucidSettings {
     return getSettingsSnapshot().settings;
   }
 
@@ -118,7 +118,7 @@ export class VideoEnhancer {
         return;
       }
 
-      this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+      this.video.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
       this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
     } catch (error) {
       if (this.destroyed) {
@@ -140,7 +140,7 @@ export class VideoEnhancer {
             return;
           }
 
-          this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+          this.video.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
           this.button.innerText = chrome.i18n.getMessage('cancelEnhance');
         } catch (retryError) {
           logger.error('Enhancer failed after cross-origin retry.', retryError);
@@ -167,7 +167,7 @@ export class VideoEnhancer {
     }
   }
 
-  private async initRenderer(settings: Anime4KWebExtSettings): Promise<void> {
+  private async initRenderer(settings: NijiLucidSettings): Promise<void> {
     await this.waitForVideoMetadata();
     if (this.destroyed) {
       return;
@@ -231,7 +231,7 @@ export class VideoEnhancer {
     logger.debug(`Renderer initialized with mode: ${selectedMode.name}`);
   }
 
-  public async updateSettings(newSettings: Anime4KWebExtSettings): Promise<void> {
+  public async updateSettings(newSettings: NijiLucidSettings): Promise<void> {
     if (!this.renderer || this.destroyed) {
       return;
     }
@@ -259,7 +259,7 @@ export class VideoEnhancer {
   public detach(): void {
     logger.debug('Detaching enhancer from video.');
     this.overlay.detach();
-    this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
+    this.video.removeAttribute(NIJILUCID_APPLIED_ATTR);
   }
 
   public async reattach(newVideo: HTMLVideoElement): Promise<void> {
@@ -283,7 +283,7 @@ export class VideoEnhancer {
         await this.renderer.updateVideoSource(newVideo);
         await this.geometryController.queue(this.getCurrentSettings(), 'video reattach');
         if (!this.destroyed) {
-          this.video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+          this.video.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
         }
       } catch (error) {
         logger.error('Failed to reattach renderer to new video source.', error);
@@ -317,7 +317,7 @@ export class VideoEnhancer {
     this.releaseWebGPUResources();
     this.overlay.hideCanvas();
     this.overlay.hidePerformanceHud();
-    this.video.removeAttribute(ANIME4K_APPLIED_ATTR);
+    this.video.removeAttribute(NIJILUCID_APPLIED_ATTR);
     this.button.innerText = chrome.i18n.getMessage('enhanceButton');
     this.currentModeId = null;
     this.appliedRendererState = null;
@@ -356,7 +356,7 @@ export class VideoEnhancer {
 
     this.overlay.updateLayout();
     logger.debug(
-      `[Anime4KWebExt] Geometry for ${reason}: source=${this.video.videoWidth}x${this.video.videoHeight}, `
+      `[NijiLucid] Geometry for ${reason}: source=${this.video.videoWidth}x${this.video.videoHeight}, `
       + `renderTarget=${targetDimensions.width}x${targetDimensions.height}.`,
     );
 
@@ -364,7 +364,7 @@ export class VideoEnhancer {
   }
 
   private async updateRendererConfiguration(
-    settings: Anime4KWebExtSettings,
+    settings: NijiLucidSettings,
     reason: string,
   ): Promise<void> {
     if (!this.renderer || this.destroyed) {
@@ -426,7 +426,7 @@ export class VideoEnhancer {
   }
 
   private async updatePerformanceMonitor(
-    settings: Anime4KWebExtSettings,
+    settings: NijiLucidSettings,
     selectedMode: EnhancementMode,
     sourceDimensions: Dimensions,
     targetDimensions: Dimensions,

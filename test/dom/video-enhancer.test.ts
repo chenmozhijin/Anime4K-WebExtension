@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
-import { ANIME4K_APPLIED_ATTR } from '../../src/constants';
+import { NIJILUCID_APPLIED_ATTR } from '../../src/constants';
 
 const state = vi.hoisted(() => {
   const currentSettings = {
@@ -226,7 +226,7 @@ describe('VideoEnhancer', () => {
     expect(overlay.getCanvas).toHaveBeenCalledTimes(1);
     expect(overlay.updateLayout).toHaveBeenCalledTimes(1);
     expect(geometry.attach).toHaveBeenCalledTimes(1);
-    expect(video.getAttribute(ANIME4K_APPLIED_ATTR)).toBe('true');
+    expect(video.getAttribute(NIJILUCID_APPLIED_ATTR)).toBe('true');
     expect(enhancer.getCurrentModeId()).toBe('builtin-mode-a');
     expect(enhancer.getVideoElement()).toBe(video);
 
@@ -240,7 +240,7 @@ describe('VideoEnhancer', () => {
     expect(geometry.detach).toHaveBeenCalledTimes(1);
     expect(state.rendererInstance.destroy).toHaveBeenCalledTimes(1);
     expect(overlay.hideCanvas).toHaveBeenCalledTimes(1);
-    expect(video.hasAttribute(ANIME4K_APPLIED_ATTR)).toBe(false);
+    expect(video.hasAttribute(NIJILUCID_APPLIED_ATTR)).toBe(false);
     expect(enhancer.getCurrentModeId()).toBeNull();
   });
 
@@ -273,7 +273,7 @@ describe('VideoEnhancer', () => {
 
     expect(state.rendererCreate).toHaveBeenCalledTimes(2);
     expect(state.attemptCrossOriginRecovery).toHaveBeenCalledTimes(1);
-    expect(video.getAttribute(ANIME4K_APPLIED_ATTR)).toBe('true');
+    expect(video.getAttribute(NIJILUCID_APPLIED_ATTR)).toBe('true');
   });
 
   it('cancels a pending metadata wait when the enhancer is destroyed', async () => {
@@ -389,7 +389,7 @@ describe('VideoEnhancer', () => {
     expect(overlay.reattach).toHaveBeenCalledWith(newVideo);
     expect(geometry.bindVideo).toHaveBeenCalledWith(newVideo);
     expect(state.rendererInstance.updateVideoSource).toHaveBeenCalledWith(newVideo);
-    expect(newVideo.getAttribute(ANIME4K_APPLIED_ATTR)).toBe('true');
+    expect(newVideo.getAttribute(NIJILUCID_APPLIED_ATTR)).toBe('true');
 
     enhancer.destroy();
     enhancer.destroy();

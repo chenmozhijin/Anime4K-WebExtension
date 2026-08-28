@@ -142,7 +142,7 @@ export function createWhitelistSection(deps: WhitelistSectionDeps): WhitelistSec
     });
 
     requiredExportBtn.addEventListener('click', () => {
-      downloadJSON(deps.getWhitelistRules(), 'anime4k-whitelist.json');
+      downloadJSON(deps.getWhitelistRules(), 'nijilucid-whitelist.json');
     });
 
     requiredImportBtn.addEventListener('click', async () => {

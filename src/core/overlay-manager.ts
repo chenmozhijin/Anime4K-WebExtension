@@ -1,4 +1,4 @@
-import { ANIME4K_BUTTON_CLASS } from '../constants';
+import { NIJILUCID_BUTTON_CLASS } from '../constants';
 import type {
   FramePerformanceSnapshot,
   PerformanceMonitorHudPosition,
@@ -55,9 +55,9 @@ type HudResizeState = {
  * 这包括UI覆盖层 (Host + Shadow DOM + Button) 和渲染目标 Canvas。
  */
 export class OverlayManager {
-  private static readonly HOST_MARKER_ATTR = 'data-anime4k-overlay-host';
-  private static readonly CANVAS_HOST_MARKER_ATTR = 'data-anime4k-overlay-canvas-host';
-  private static readonly SLOT_MARKER_ATTR = 'data-anime4k-overlay-slot';
+  private static readonly HOST_MARKER_ATTR = 'data-nijilucid-overlay-host';
+  private static readonly CANVAS_HOST_MARKER_ATTR = 'data-nijilucid-overlay-canvas-host';
+  private static readonly SLOT_MARKER_ATTR = 'data-nijilucid-overlay-slot';
   private static readonly bodyStrategyInstances = new Set<OverlayManager>();
   private static readonly boundGlobalBodyStrategyUpdate = () => {
     OverlayManager.bodyStrategyInstances.forEach(instance => instance.scheduleLayoutUpdate());
@@ -235,7 +235,7 @@ export class OverlayManager {
 
     if (!this.performanceHud) {
       this.performanceHud = document.createElement('section');
-      this.performanceHud.className = 'anime4k-performance-hud';
+      this.performanceHud.className = 'nijilucid-performance-hud';
       this.performanceHud.addEventListener('click', this.handlePerformanceHudClick);
       this.performanceHud.addEventListener('pointerdown', this.handlePerformanceHudPointerDown);
       this.shadowRoot.appendChild(this.performanceHud);
@@ -494,7 +494,7 @@ export class OverlayManager {
     }
 
     this.buttonPresentationState = nextState;
-    this.host.setAttribute('data-anime4k-button-state', nextState);
+    this.host.setAttribute('data-nijilucid-button-state', nextState);
     const visible = nextState === 'visible';
     this.button.classList.toggle('is-visible', visible);
     this.button.tabIndex = nextState === 'unrenderable' ? -1 : this.buttonDefaultTabIndex;
@@ -1015,7 +1015,7 @@ export class OverlayManager {
       : snapshot.frameMs > snapshot.budgetMs * 0.8
         ? 'is-warn'
         : '';
-    this.performanceHud.className = `anime4k-performance-hud ${position} ${collapsed ? 'is-collapsed' : ''} ${statusClass}`;
+    this.performanceHud.className = `nijilucid-performance-hud ${position} ${collapsed ? 'is-collapsed' : ''} ${statusClass}`;
     this.performanceHud.style.width = collapsed ? '' : `${this.getHudRenderWidth()}px`;
     this.performanceHud.innerHTML = collapsed
       ? this.renderPerformanceHudMini(snapshot)
@@ -1179,7 +1179,7 @@ export class OverlayManager {
       && snapshot.groupEntries.some(entry => typeof entry.gpuMs === 'number');
     const canIncludePassTimings = snapshot.groupEntries.length > 0 && (snapshot.mode !== 'gpu' || hasGpuPassTimings);
     const lines = [
-      this.hudMessage('hudSnapshotTitle', 'Anime4K Performance Monitor'),
+      this.hudMessage('hudSnapshotTitle', 'NijiLucid Performance Monitor'),
       `${this.hudMessage('hudLabelGpu', 'GPU')}: ${snapshot.gpuName}`,
       `${this.hudMessage('hudLabelUpload', 'Upload')}: ${snapshot.uploadMethod}`,
       `${this.hudMessage('hudLabelMode', 'Mode')}: ${snapshot.modeName} / ${snapshot.tier}`,
@@ -1344,7 +1344,7 @@ export class OverlayManager {
   }
 
   private static createSlotId(): string {
-    return `anime4k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    return `nijilucid-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   private static cleanupOrphanedArtifacts(video: HTMLVideoElement, slotId: string): void {
@@ -1383,7 +1383,7 @@ export class OverlayManager {
     const button = document.createElement('button');
     button.type = 'button';
     button.innerText = chrome.i18n.getMessage('enhanceButton');
-    button.classList.add(ANIME4K_BUTTON_CLASS);
+    button.classList.add(NIJILUCID_BUTTON_CLASS);
     button.part = 'button';
     this.shadowRoot.appendChild(button);
     return button;
@@ -1396,7 +1396,7 @@ export class OverlayManager {
         pointer-events: none;
       }
       
-      .${ANIME4K_BUTTON_CLASS} {
+      .${NIJILUCID_BUTTON_CLASS} {
         position: absolute;
         top: 50%;
         left: 10px;
@@ -1417,32 +1417,32 @@ export class OverlayManager {
         isolation: isolate;
       }
 
-      .${ANIME4K_BUTTON_CLASS}.is-visible {
+      .${NIJILUCID_BUTTON_CLASS}.is-visible {
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
       }
 
-      :host([data-anime4k-button-state="unrenderable"]) .${ANIME4K_BUTTON_CLASS} {
+      :host([data-nijilucid-button-state="unrenderable"]) .${NIJILUCID_BUTTON_CLASS} {
         visibility: hidden;
       }
 
-      .${ANIME4K_BUTTON_CLASS}.is-visible:hover {
+      .${NIJILUCID_BUTTON_CLASS}.is-visible:hover {
         opacity: 1 !important;
       }
 
-      .${ANIME4K_BUTTON_CLASS}.is-visible:focus-visible {
+      .${NIJILUCID_BUTTON_CLASS}.is-visible:focus-visible {
         outline: 2px solid white;
         outline-offset: 2px;
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .${ANIME4K_BUTTON_CLASS} {
+        .${NIJILUCID_BUTTON_CLASS} {
           transition: none;
         }
       }
 
-      .anime4k-performance-hud {
+      .nijilucid-performance-hud {
         --hud-primary: #6A0DAD;
         --hud-primary-strong: #7B1FD1;
         --hud-primary-soft: rgba(106, 13, 173, 0.22);
@@ -1467,27 +1467,27 @@ export class OverlayManager {
         backdrop-filter: blur(10px);
       }
 
-      .anime4k-performance-hud.is-collapsed {
+      .nijilucid-performance-hud.is-collapsed {
         width: auto;
         min-width: 0;
       }
 
-      .anime4k-performance-hud.top-left {
+      .nijilucid-performance-hud.top-left {
         top: 8px;
         left: 8px;
       }
 
-      .anime4k-performance-hud.top-right {
+      .nijilucid-performance-hud.top-right {
         top: 8px;
         right: 8px;
       }
 
-      .anime4k-performance-hud.bottom-left {
+      .nijilucid-performance-hud.bottom-left {
         bottom: 8px;
         left: 8px;
       }
 
-      .anime4k-performance-hud.bottom-right {
+      .nijilucid-performance-hud.bottom-right {
         right: 8px;
         bottom: 8px;
       }
@@ -1671,13 +1671,13 @@ export class OverlayManager {
         line-height: 1.35;
       }
 
-      .anime4k-performance-hud.is-warn .hud-ms,
-      .anime4k-performance-hud.is-warn .hud-mini span:nth-child(2) {
+      .nijilucid-performance-hud.is-warn .hud-ms,
+      .nijilucid-performance-hud.is-warn .hud-mini span:nth-child(2) {
         color: #ffd166;
       }
 
-      .anime4k-performance-hud.is-over .hud-ms,
-      .anime4k-performance-hud.is-over .hud-mini span:nth-child(2) {
+      .nijilucid-performance-hud.is-over .hud-ms,
+      .nijilucid-performance-hud.is-over .hud-mini span:nth-child(2) {
         color: #ff6b6b;
       }
 

@@ -5,9 +5,9 @@ import {
   getAppliedRendererStateChanges,
   resolveRendererState,
 } from '../../src/core/video-enhancer/render-state';
-import type { Anime4KWebExtSettings } from '../../src/types';
+import type { NijiLucidSettings } from '../../src/types';
 
-const baseSettings: Anime4KWebExtSettings = {
+const baseSettings: NijiLucidSettings = {
   selectedModeId: 'custom-a',
   performanceTier: 'balanced',
   performanceMonitorMode: 'off',

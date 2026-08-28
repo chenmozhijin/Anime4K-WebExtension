@@ -20,11 +20,11 @@ describe('showNotice', () => {
       ],
     });
 
-    expect(document.querySelector('[data-anime4k-notice-root]')).not.toBeNull();
-    expect(notice.className).toBe('anime4k-notice');
+    expect(document.querySelector('[data-nijilucid-notice-root]')).not.toBeNull();
+    expect(notice.className).toBe('nijilucid-notice');
     expect(notice.dataset.kind).toBe('warning');
-    expect(notice.querySelector('.anime4k-notice-actions')).not.toBeNull();
-    expect(notice.querySelector('.anime4k-notice-action')?.getAttribute('data-emphasis')).toBe('primary');
+    expect(notice.querySelector('.nijilucid-notice-actions')).not.toBeNull();
+    expect(notice.querySelector('.nijilucid-notice-action')?.getAttribute('data-emphasis')).toBe('primary');
     expect(notice.getAttribute('role')).toBe('alert');
     expect(notice.getAttribute('aria-live')).toBe('assertive');
     expect(document.activeElement).toBe(notice);
@@ -63,9 +63,9 @@ describe('showNotice', () => {
       container,
     });
 
-    expect(container.querySelector('[data-anime4k-notice]')).not.toBeNull();
+    expect(container.querySelector('[data-nijilucid-notice]')).not.toBeNull();
 
     clearNotices(container);
-    expect(container.querySelector('[data-anime4k-notice]')).toBeNull();
+    expect(container.querySelector('[data-nijilucid-notice]')).toBeNull();
   });
 });

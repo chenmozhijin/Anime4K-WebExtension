@@ -1,11 +1,11 @@
-# Anime4K WebExtension
+# NijiLucid
 
 [中文](./README.md) | [English](./README.en.md) | 日本語 | [Русский](./README.ru.md)
 
-[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=Edge%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek) [![Mozilla Add-on Users](https://img.shields.io/amo/users/anime4k-webextension?style=flat-square&label=Firefox%20%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://addons.mozilla.org/firefox/addon/anime4k-webextension/)
- [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/Anime4K-WebExtension/total?style=flat-square&label=GitHub%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89)](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
+[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=Edge%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://microsoftedge.microsoft.com/addons/detail/nijilucid/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://chromewebstore.google.com/detail/nijilucid/hpmbccepehpoanjpjkamfdpdkbmfmhek) [![Mozilla Add-on Users](https://img.shields.io/amo/users/nijilucid?style=flat-square&label=Firefox%20%E3%83%A6%E3%83%BC%E3%82%B6%E3%83%BC)](https://addons.mozilla.org/firefox/addon/nijilucid/)
+ [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/NijiLucid/total?style=flat-square&label=GitHub%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89)](https://github.com/chenmozhijin/NijiLucid/releases/latest)
 
-Anime4Kリアルタイム超解像アルゴリズムを利用して、アニメ動画の画質を大幅に向上させ、フレームごとに、より鮮明でシャープな視覚体験を提供します！
+NijiLucid は Anime4K リアルタイム超解像アルゴリズムを利用して、アニメ動画の画質を大幅に向上させ、フレームごとに、より鮮明でシャープな視覚体験を提供します！
 
 ## 機能特徴
 
@@ -29,10 +29,10 @@ Anime4Kリアルタイム超解像アルゴリズムを利用して、アニメ�
 
 #### アプリストアからインストール（推奨）
 
-- [![GitHub Release](https://img.shields.io/github/v/release/chenmozhijin/Anime4K-WebExtension?style=flat-square&label=%E6%9C%80%E6%96%B0%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3)](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest)
-- [![Edge Store Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.version&style=flat-square&label=Edge%E6%8B%A1%E5%BC%B5%E6%A9%9F%E8%83%BD%E3%82%B9%E3%83%88%E3%82%A2)](https://microsoftedge.microsoft.com/addons/detail/anime4k-webextension/ffopffngebibpmeodlhhkdlaejnmdlam)
-- [![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%E3%82%A6%E3%82%A7%E3%83%96%E3%82%B9%E3%83%88%E3%82%A2)](https://chromewebstore.google.com/detail/anime4k-webextension/hpmbccepehpoanjpjkamfdpdkbmfmhek)
-- [![Mozilla Add-on Version](https://img.shields.io/amo/v/anime4k-webextension?style=flat-square&label=Firefox%20%E3%82%A2%E3%83%89%E3%82%A2%E3%83%B3)](https://addons.mozilla.org/firefox/addon/anime4k-webextension/)
+- [![GitHub Release](https://img.shields.io/github/v/release/chenmozhijin/NijiLucid?style=flat-square&label=%E6%9C%80%E6%96%B0%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3)](https://github.com/chenmozhijin/NijiLucid/releases/latest)
+- [![Edge Store Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.version&style=flat-square&label=Edge%E6%8B%A1%E5%BC%B5%E6%A9%9F%E8%83%BD%E3%82%B9%E3%83%88%E3%82%A2)](https://microsoftedge.microsoft.com/addons/detail/nijilucid/ffopffngebibpmeodlhhkdlaejnmdlam)
+- [![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=Chrome%E3%82%A6%E3%82%A7%E3%83%96%E3%82%B9%E3%83%88%E3%82%A2)](https://chromewebstore.google.com/detail/nijilucid/hpmbccepehpoanjpjkamfdpdkbmfmhek)
+- [![Mozilla Add-on Version](https://img.shields.io/amo/v/nijilucid?style=flat-square&label=Firefox%20%E3%82%A2%E3%83%89%E3%82%A2%E3%83%B3)](https://addons.mozilla.org/firefox/addon/nijilucid/)
 
 > [!NOTE]
 >
@@ -41,8 +41,8 @@ Anime4Kリアルタイム超解像アルゴリズムを利用して、アニメ�
 
 #### ビルド済みパッケージの使用
 
-1. [GitHub Releases](https://github.com/chenmozhijin/Anime4K-WebExtension/releases/latest) に移動
-2. "Assets" セクションから最新の `anime4k-webextension.zip` をダウンロード
+1. [GitHub Releases](https://github.com/chenmozhijin/NijiLucid/releases/latest) に移動
+2. "Assets" セクションから最新の `nijilucid.zip` をダウンロード
 3. ZIPファイルを解凍
 4. 解凍したディレクトリをブラウザにロード：
    - Chrome: 拡張機能ページを開く (`chrome://extensions`) → 「デベロッパーモード」を有効化 → 「パッケージ化されていない拡張機能を読み込む」 → 解凍したディレクトリを選択
@@ -77,7 +77,7 @@ Anime4Kリアルタイム超解像アルゴリズムを利用して、アニメ�
 
 ### 三、 ポップアップパネルの設定
 
-ブラウザのツールバーにあるAnime4K拡張機能アイコンをクリックして、クイック設定パネルを開きます：
+ブラウザのツールバーにある NijiLucid 拡張機能アイコンをクリックして、クイック設定パネルを開きます：
 
 *   **パフォーマンスティア (Performance Tier)**: 4つのプリセットを素早く切り替えます。
     *   *注意：「カスタムモード」が選択されている場合、カスタムモードは特定のシェーダーの組み合わせによって定義されるため、パフォーマンスティアは利用できません。*

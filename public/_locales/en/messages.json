@@ -12,7 +12,7 @@
     "message": "🔄 Retry Enhancement"
   },
   "extensionName": {
-    "message": "Anime4K Enhancement Settings"
+    "message": "NijiLucid Enhancement Settings"
   },
   "performanceTierLabel": {
     "message": "Performance Tier:"
@@ -111,7 +111,7 @@
     "message": "Import failed: invalid format"
   },
   "description": {
-    "message": "Real-time video super-resolution browser extension based on Anime4K."
+    "message": "NijiLucid is a real-time video super-resolution browser extension powered by Anime4K."
   },
   "optionsTitle": {
     "message": "Extension Options"
@@ -195,7 +195,7 @@
     "message": "Issue Tracker"
   },
   "extensionDescription": {
-    "message": "Real-time video super-resolution browser extension based on Anime4K."
+    "message": "NijiLucid is a real-time video super-resolution browser extension powered by Anime4K."
   },
   "appearance": {
     "message": "Appearance"
@@ -285,7 +285,7 @@
     "message": "Submit CPU"
   },
   "hudSnapshotTitle": {
-    "message": "Anime4K Performance Monitor"
+    "message": "NijiLucid Performance Monitor"
   },
   "hudTimingLiteHint": {
     "message": "Effect timings require GPU diagnostics. Lite mode only shows overall frame stats."
@@ -494,10 +494,10 @@
     "message": "Test failed"
   },
   "onboardingTitle": {
-    "message": "Anime4K WebExtension - Setup"
+    "message": "NijiLucid - Setup"
   },
   "welcomeTitle": {
-    "message": "Welcome to Anime4K WebExtension"
+    "message": "Welcome to NijiLucid"
   },
   "welcomeDesc": {
     "message": "Let's optimize your settings for the best experience."

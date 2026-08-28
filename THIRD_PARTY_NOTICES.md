@@ -2,7 +2,7 @@
 
 This repository is distributed as a mixed-license project:
 
-- Core Anime4K WebExtension code: MIT License, see `licenses/MIT.txt`.
+- Core NijiLucid code: MIT License, see `licenses/MIT.txt`.
 - CuNNy-derived generated components: LGPL-3.0-or-later, see
   `licenses/LGPL-3.0-or-later.txt`.
 

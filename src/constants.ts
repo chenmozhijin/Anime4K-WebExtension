@@ -31,10 +31,10 @@ export const RESOLUTIONS = {
  * 初始化属性标识
  * 用于标记已初始化的视频元素
  */
-export const ANIME4K_APPLIED_ATTR = 'data-anime4k-applied';
+export const NIJILUCID_APPLIED_ATTR = 'data-nijilucid-applied';
 
 /**
  * 按钮类名
  * 用于标识增强按钮的CSS类名
  */
-export const ANIME4K_BUTTON_CLASS = 'anime4k-button';
+export const NIJILUCID_BUTTON_CLASS = 'nijilucid-button';

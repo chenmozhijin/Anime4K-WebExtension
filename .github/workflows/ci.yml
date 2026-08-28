@@ -91,8 +91,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          (cd dist-chrome && zip -q -r ../release-assets/anime4k-webextension.zip .)
-          (cd dist-firefox && zip -q -r ../release-assets/anime4k-webextension-firefox.zip .)
+          (cd dist-chrome && zip -q -r ../release-assets/nijilucid.zip .)
+          (cd dist-firefox && zip -q -r ../release-assets/nijilucid-firefox.zip .)
           (cd release-assets && sha256sum *.zip > SHA256SUMS)
 
       - name: Upload release packages
@@ -131,7 +131,7 @@ jobs:
           path: release-assets
 
       - name: Extract Chrome package
-        run: unzip -q release-assets/anime4k-webextension.zip -d dist-chrome
+        run: unzip -q release-assets/nijilucid.zip -d dist-chrome
 
       - name: Run non-GPU Chromium smoke tests
         run: npx playwright test --grep '(^|\s)@smoke(\s|$)'
@@ -170,8 +170,8 @@ jobs:
           existing_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null || true)"
           if [[ -z "$existing_draft" ]]; then
             gh release create "$GITHUB_REF_NAME" \
-              release-assets/anime4k-webextension.zip \
-              release-assets/anime4k-webextension-firefox.zip \
+              release-assets/nijilucid.zip \
+              release-assets/nijilucid-firefox.zip \
               release-assets/SHA256SUMS \
               --draft \
               --generate-notes \

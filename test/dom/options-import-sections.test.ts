@@ -1,4 +1,4 @@
-import type { Anime4KWebExtSettings, CustomMode, WhitelistRule } from '../../src/types';
+import type { NijiLucidSettings, CustomMode, WhitelistRule } from '../../src/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '../support/async';
 import { installChromeMock } from '../support/chrome';
@@ -207,7 +207,7 @@ describe('options import sections', () => {
       performanceMonitorHudCollapsed: false,
       performanceMonitorHudPosition: 'top-left',
       performanceMonitorHudWidth: null,
-    } as Anime4KWebExtSettings;
+    } as NijiLucidSettings;
 
     vi.spyOn(Date, 'now').mockReturnValue(1234);
     vi.spyOn(Math, 'random').mockReturnValue(0.123456);
@@ -296,7 +296,7 @@ describe('options import sections', () => {
       performanceMonitorHudCollapsed: false,
       performanceMonitorHudPosition: 'top-left',
       performanceMonitorHudWidth: null,
-    } as Anime4KWebExtSettings;
+    } as NijiLucidSettings;
 
     vi.doMock('../../src/ui/options/modules/helpers', () => ({
       downloadJSON: vi.fn(),
@@ -394,7 +394,7 @@ describe('options import sections', () => {
       performanceMonitorHudCollapsed: false,
       performanceMonitorHudPosition: 'top-left',
       performanceMonitorHudWidth: null,
-    } as Anime4KWebExtSettings;
+    } as NijiLucidSettings;
 
     vi.doMock('../../src/ui/options/modules/helpers', () => ({
       downloadJSON: vi.fn(),

@@ -1,4 +1,4 @@
-import type { Anime4KWebExtSettings, LocalSettings, PerformanceMonitorMode, PerformanceTier } from '../../../types';
+import type { NijiLucidSettings, LocalSettings, PerformanceMonitorMode, PerformanceTier } from '../../../types';
 import {
   buildEnhancementModes,
   getLocalSettings,
@@ -9,7 +9,7 @@ import {
 export interface OptionsStateStore {
   load(): Promise<void>;
   refresh(): Promise<void>;
-  getSettingsState(): Anime4KWebExtSettings;
+  getSettingsState(): NijiLucidSettings;
   getLocalSettingsState(): LocalSettings;
   getCurrentTier(): PerformanceTier;
   setCurrentTier(tier: PerformanceTier): void;
@@ -19,10 +19,10 @@ export interface OptionsStateStore {
 }
 
 export function createOptionsStateStore(): OptionsStateStore {
-  let settingsState: Anime4KWebExtSettings | null = null;
+  let settingsState: NijiLucidSettings | null = null;
   let localSettingsState: LocalSettings | null = null;
 
-  function ensureSettingsState(): Anime4KWebExtSettings {
+  function ensureSettingsState(): NijiLucidSettings {
     if (!settingsState) {
       throw new Error('Options state has not been loaded.');
     }

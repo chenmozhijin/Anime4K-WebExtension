@@ -17,8 +17,8 @@ type NoticeOptions = {
   actions?: NoticeAction[];
 };
 
-const GLOBAL_NOTICE_CONTAINER_ATTR = 'data-anime4k-notice-root';
-const NOTICE_ATTR = 'data-anime4k-notice';
+const GLOBAL_NOTICE_CONTAINER_ATTR = 'data-nijilucid-notice-root';
+const NOTICE_ATTR = 'data-nijilucid-notice';
 
 function isAssertiveNotice(kind: NoticeKind): boolean {
   return kind === 'error' || kind === 'warning';
@@ -32,7 +32,7 @@ function getOrCreateGlobalContainer(): HTMLElement {
 
   const container = document.createElement('div');
   container.setAttribute(GLOBAL_NOTICE_CONTAINER_ATTR, '');
-  container.className = 'anime4k-notice-root';
+  container.className = 'nijilucid-notice-root';
   container.setAttribute('aria-live', 'polite');
   container.setAttribute('aria-relevant', 'additions');
   document.body.appendChild(container);
@@ -48,7 +48,7 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   const root = options.container ?? getOrCreateGlobalContainer();
   const notice = document.createElement('div');
   notice.setAttribute(NOTICE_ATTR, '');
-  notice.className = 'anime4k-notice';
+  notice.className = 'nijilucid-notice';
   notice.dataset.kind = options.kind;
   notice.setAttribute('role', isAssertiveNotice(options.kind) ? 'alert' : 'status');
   notice.setAttribute('aria-live', isAssertiveNotice(options.kind) ? 'assertive' : 'polite');
@@ -56,19 +56,19 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   notice.tabIndex = -1;
 
   const content = document.createElement('div');
-  content.className = 'anime4k-notice-message';
+  content.className = 'nijilucid-notice-message';
   content.textContent = options.message;
   notice.appendChild(content);
 
   if (options.actions?.length) {
     const actions = document.createElement('div');
-    actions.className = 'anime4k-notice-actions';
+    actions.className = 'nijilucid-notice-actions';
 
     options.actions.forEach(action => {
       const actionButton = document.createElement('button');
       actionButton.type = 'button';
       actionButton.textContent = action.label;
-      actionButton.className = 'anime4k-notice-action';
+      actionButton.className = 'nijilucid-notice-action';
       actionButton.dataset.emphasis = action.emphasis ?? 'normal';
 
       actionButton.addEventListener('click', () => {
@@ -88,7 +88,7 @@ export function showNotice(options: NoticeOptions): HTMLElement {
   dismissButton.type = 'button';
   dismissButton.textContent = chrome.i18n.getMessage('dismiss');
   dismissButton.setAttribute('aria-label', chrome.i18n.getMessage('dismiss'));
-  dismissButton.className = 'anime4k-notice-dismiss';
+  dismissButton.className = 'nijilucid-notice-dismiss';
   dismissButton.addEventListener('click', () => notice.remove());
   notice.appendChild(dismissButton);
   notice.addEventListener('keydown', event => {

@@ -16,7 +16,7 @@ export interface CompiledWhitelistRule extends WhitelistRule {
 }
 
 const REGEX_ESCAPE_PATTERN = /[|\\{}()[\]^$+?.]/g;
-const WILDCARD_PLACEHOLDER = '__ANIME4K_WILDCARD__';
+const WILDCARD_PLACEHOLDER = '__NIJILUCID_WILDCARD__';
 const logger = createLogger('whitelist');
 
 export function normalizeWhitelistPattern(pattern: string): string {

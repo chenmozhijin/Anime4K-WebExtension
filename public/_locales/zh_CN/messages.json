@@ -12,7 +12,7 @@
     "message": "🔄 重试超分"
   },
   "extensionName": {
-    "message": "Anime4K超分辨率设置"
+    "message": "NijiLucid 超分辨率设置"
   },
   "performanceTierLabel": {
     "message": "性能档位："
@@ -111,7 +111,7 @@
     "message": "导入失败：格式无效"
   },
   "description": {
-    "message": "基于Anime4K的实时视频超分辨率浏览器扩展。"
+    "message": "NijiLucid 是一款基于 Anime4K 的实时视频超分辨率浏览器扩展。"
   },
   "optionsTitle": {
     "message": "扩展选项"
@@ -195,7 +195,7 @@
     "message": "问题跟踪器"
   },
   "extensionDescription": {
-    "message": "基于Anime4K-WebGPU的实时视频超分辨率浏览器扩展。"
+    "message": "NijiLucid 是一款基于 Anime4K-WebGPU 的实时视频超分辨率浏览器扩展。"
   },
   "appearance": {
     "message": "外观"
@@ -285,7 +285,7 @@
     "message": "提交 CPU"
   },
   "hudSnapshotTitle": {
-    "message": "Anime4K 性能监视器"
+    "message": "NijiLucid 性能监视器"
   },
   "hudTimingLiteHint": {
     "message": "效果耗时需要 GPU 诊断。轻量模式仅显示总体帧统计。"
@@ -494,10 +494,10 @@
     "message": "测试失败"
   },
   "onboardingTitle": {
-    "message": "Anime4K WebExtension - 向导"
+    "message": "NijiLucid - 向导"
   },
   "welcomeTitle": {
-    "message": "欢迎使用 Anime4K WebExtension"
+    "message": "欢迎使用 NijiLucid"
   },
   "welcomeDesc": {
     "message": "让我们优化您的设置以获得最佳体验。"

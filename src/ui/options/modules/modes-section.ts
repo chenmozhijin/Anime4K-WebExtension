@@ -1,5 +1,5 @@
 import type {
-  Anime4KWebExtSettings,
+  NijiLucidSettings,
   CustomMode,
   EnhancementEffect,
   EnhancementMode,
@@ -25,7 +25,7 @@ import { runSaveAction } from '../../shared/save-action';
 const logger = createLogger('options:modes');
 
 type ModesSectionDeps = {
-  getSettingsState(): Anime4KWebExtSettings;
+  getSettingsState(): NijiLucidSettings;
   getCurrentTier(): PerformanceTier;
   notifyUpdate(modifiedModeId?: string): void;
 };
@@ -139,7 +139,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       }
     }
 
-    const settingsToPersist: Partial<Anime4KWebExtSettings> = {
+    const settingsToPersist: Partial<NijiLucidSettings> = {
       customModes: settingsState.customModes,
     };
 
@@ -574,7 +574,7 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
     });
 
     requiredExportModesBtn.addEventListener('click', () => {
-      downloadJSON(deps.getSettingsState().customModes, 'anime4k-modes.json');
+      downloadJSON(deps.getSettingsState().customModes, 'nijilucid-modes.json');
     });
 
     requiredImportModesBtn.addEventListener('click', async () => {

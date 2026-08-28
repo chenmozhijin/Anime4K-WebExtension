@@ -1,7 +1,7 @@
-import type { Anime4KWebExtSettings } from '../../types';
+import type { NijiLucidSettings } from '../../types';
 
 interface GeometryUpdateRequest {
-  settings: Anime4KWebExtSettings;
+  settings: NijiLucidSettings;
   reason: string;
 }
 
@@ -20,9 +20,9 @@ export class VideoEnhancerGeometryController {
   constructor(
     video: HTMLVideoElement,
     private readonly options: {
-      getCurrentSettings: () => Anime4KWebExtSettings;
+      getCurrentSettings: () => NijiLucidSettings;
       shouldHandleVideoChange: () => boolean;
-      processUpdate: (settings: Anime4KWebExtSettings, reason: string) => Promise<void>;
+      processUpdate: (settings: NijiLucidSettings, reason: string) => Promise<void>;
     },
   ) {
     this.video = video;
@@ -51,7 +51,7 @@ export class VideoEnhancerGeometryController {
     this.pendingGeometryRequest = null;
   }
 
-  public queue(settings: Anime4KWebExtSettings, reason: string): Promise<void> {
+  public queue(settings: NijiLucidSettings, reason: string): Promise<void> {
     this.pendingGeometryRequest = { settings, reason };
 
     if (this.geometryUpdateInFlight) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ANIME4K_APPLIED_ATTR } from '../../src/constants';
+import { NIJILUCID_APPLIED_ATTR } from '../../src/constants';
 
 type MockEnhancer = {
   destroy: ReturnType<typeof vi.fn>;
@@ -41,7 +41,7 @@ function createMockEnhancer(video: HTMLVideoElement, modeId = 'mode-a'): MockEnh
 function createVideoStub(applied = false): HTMLVideoElement {
   const attrs = new Map<string, string>();
   if (applied) {
-    attrs.set(ANIME4K_APPLIED_ATTR, 'true');
+    attrs.set(NIJILUCID_APPLIED_ATTR, 'true');
   }
 
   return {
@@ -192,7 +192,7 @@ describe('video manager', () => {
 
   it('does not clean up an enhancer when the same video element is reconnected in one mutation batch', async () => {
     const video = createDomVideo();
-    video.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+    video.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
     document.body.appendChild(video);
 
     const enhancer = createMockEnhancer(video);
@@ -256,7 +256,7 @@ describe('video manager', () => {
 
   it('stashes removed videos before processing replacements so reattach can reuse the old enhancer', async () => {
     const oldVideo = createDomVideo('https://example.com/reuse.mp4');
-    oldVideo.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+    oldVideo.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
     const newVideo = createDomVideo('https://example.com/reuse.mp4');
     document.body.appendChild(newVideo);
 
@@ -295,7 +295,7 @@ describe('video manager', () => {
     const oldHost = document.createElement('div');
     const oldShadow = oldHost.attachShadow({ mode: 'open' });
     const oldVideo = createDomVideo('https://example.com/shadow-reuse.mp4');
-    oldVideo.setAttribute(ANIME4K_APPLIED_ATTR, 'true');
+    oldVideo.setAttribute(NIJILUCID_APPLIED_ATTR, 'true');
     oldShadow.appendChild(oldVideo);
     document.body.appendChild(oldHost);
 

@@ -9,8 +9,8 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
 
 function resolveMinLevel(): LogLevel {
   const runtimeFlag = (globalThis as typeof globalThis & {
-    __ANIME4K_LOG_LEVEL__?: LogLevel;
-  }).__ANIME4K_LOG_LEVEL__;
+    __NIJILUCID_LOG_LEVEL__?: LogLevel;
+  }).__NIJILUCID_LOG_LEVEL__;
 
   return runtimeFlag ?? 'warn';
 }
@@ -20,7 +20,7 @@ function shouldLog(level: LogLevel): boolean {
 }
 
 export function createLogger(namespace: string) {
-  const prefix = `[Anime4KWebExt:${namespace}]`;
+  const prefix = `[NijiLucid:${namespace}]`;
 
   return {
     debug: (...args: unknown[]) => {

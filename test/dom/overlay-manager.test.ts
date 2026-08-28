@@ -37,7 +37,7 @@ function flushAnimationFrames(times = 1): void {
 function createVideo(parent: Element | ShadowRoot, slotId?: string): HTMLVideoElement {
   const video = document.createElement('video');
   if (slotId) {
-    video.setAttribute('data-anime4k-overlay-slot', slotId);
+    video.setAttribute('data-nijilucid-overlay-slot', slotId);
   }
 
   Object.defineProperties(video, {
@@ -198,18 +198,18 @@ describe('OverlayManager', () => {
     const video = createVideo(container, 'slot-a');
 
     const orphanHost = document.createElement('div');
-    orphanHost.setAttribute('data-anime4k-overlay-host', '');
-    orphanHost.setAttribute('data-anime4k-overlay-slot', 'slot-a');
+    orphanHost.setAttribute('data-nijilucid-overlay-host', '');
+    orphanHost.setAttribute('data-nijilucid-overlay-slot', 'slot-a');
     container.insertBefore(orphanHost, video);
 
     const orphanCanvasHost = document.createElement('div');
-    orphanCanvasHost.setAttribute('data-anime4k-overlay-canvas-host', '');
-    orphanCanvasHost.setAttribute('data-anime4k-overlay-slot', 'slot-a');
+    orphanCanvasHost.setAttribute('data-nijilucid-overlay-canvas-host', '');
+    orphanCanvasHost.setAttribute('data-nijilucid-overlay-slot', 'slot-a');
     container.insertBefore(orphanCanvasHost, video);
 
     const orphanBodyHost = document.createElement('div');
-    orphanBodyHost.setAttribute('data-anime4k-overlay-host', '');
-    orphanBodyHost.setAttribute('data-anime4k-overlay-slot', 'slot-a');
+    orphanBodyHost.setAttribute('data-nijilucid-overlay-host', '');
+    orphanBodyHost.setAttribute('data-nijilucid-overlay-slot', 'slot-a');
     document.body.appendChild(orphanBodyHost);
 
     const manager = OverlayManager.create(video);
@@ -221,8 +221,8 @@ describe('OverlayManager', () => {
 
     flushAnimationFrames(2);
 
-    expect(container.querySelectorAll('[data-anime4k-overlay-host]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-anime4k-overlay-canvas-host]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-nijilucid-overlay-host]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-nijilucid-overlay-canvas-host]')).toHaveLength(0);
     expect(document.body.contains(orphanBodyHost)).toBe(false);
 
     video.style.opacity = '0.42';
@@ -236,14 +236,14 @@ describe('OverlayManager', () => {
     expect(video.style.opacity).toBe('0');
 
     manager.hideCanvas();
-    expect(container.querySelector('[data-anime4k-overlay-canvas-host]')).toBeNull();
+    expect(container.querySelector('[data-nijilucid-overlay-canvas-host]')).toBeNull();
     expect(video.style.opacity).toBe('0.42');
 
     manager.destroy();
     manager.destroy();
 
-    expect(container.querySelector('[data-anime4k-overlay-host]')).toBeNull();
-    expect(video.hasAttribute('data-anime4k-overlay-slot')).toBe(false);
+    expect(container.querySelector('[data-nijilucid-overlay-host]')).toBeNull();
+    expect(video.hasAttribute('data-nijilucid-overlay-slot')).toBe(false);
   });
 
   it('waits for a renderable video before starting the complete initial reveal window', () => {
@@ -251,21 +251,21 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const { video, setSize } = createResizableVideo(container);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
 
     flushAnimationFrames(2);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('unrenderable');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('unrenderable');
     vi.advanceTimersByTime(5000);
 
     setSize(320, 180);
     resizeObservers[0].callback([], resizeObservers[0] as unknown as ResizeObserver);
     flushAnimationFrames(2);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
 
     vi.advanceTimersByTime(2999);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     vi.advanceTimersByTime(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
     expect(manager.getButton().tabIndex).toBe(0);
 
     manager.destroy();
@@ -276,7 +276,7 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
 
     flushAnimationFrames(2);
     vi.advanceTimersByTime(1000);
@@ -286,7 +286,7 @@ describe('OverlayManager', () => {
     });
     document.dispatchEvent(new Event('visibilitychange'));
     flushAnimationFrames(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('unrenderable');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('unrenderable');
 
     vi.advanceTimersByTime(5000);
     Object.defineProperty(document, 'visibilityState', {
@@ -295,12 +295,12 @@ describe('OverlayManager', () => {
     });
     document.dispatchEvent(new Event('visibilitychange'));
     flushAnimationFrames(2);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
 
     vi.advanceTimersByTime(1999);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     vi.advanceTimersByTime(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     manager.destroy();
   });
@@ -310,19 +310,19 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
 
     flushAnimationFrames(2);
     vi.advanceTimersByTime(3000);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     // This point is outside the old 104x96 region but inside the 160x120 minimum.
     dispatchPointerMove(174, 157);
     flushAnimationFrames(1);
     vi.advanceTimersByTime(219);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
     vi.advanceTimersByTime(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     expect(manager.getButton().tabIndex).toBe(0);
 
     manager.destroy();
@@ -333,24 +333,24 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
     const button = manager.getButton();
     vi.spyOn(button, 'matches').mockImplementation(selector => selector === ':focus-visible');
 
     flushAnimationFrames(2);
     vi.advanceTimersByTime(3000);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     button.focus();
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     vi.advanceTimersByTime(5000);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
 
     button.blur();
     vi.advanceTimersByTime(499);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     vi.advanceTimersByTime(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     manager.destroy();
   });
@@ -360,20 +360,20 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
 
     flushAnimationFrames(2);
     vi.advanceTimersByTime(3000);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     const event = dispatchTouchPointerDown(30, 100);
     expect(event.defaultPrevented).toBe(false);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
 
     vi.advanceTimersByTime(2999);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
     vi.advanceTimersByTime(1);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     manager.destroy();
   });
@@ -384,17 +384,17 @@ describe('OverlayManager', () => {
     const { video, setSize } = createResizableVideo(container);
     setSize(1280, 720);
     const manager = OverlayManager.create(video);
-    const host = container.querySelector('[data-anime4k-overlay-host]');
+    const host = container.querySelector('[data-nijilucid-overlay-host]');
 
     flushAnimationFrames(2);
     vi.advanceTimersByTime(3000);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('hidden');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('hidden');
 
     // The 22%/34% scaling reaches this point; the minimum-size region does not.
     dispatchPointerMove(274, 482);
     flushAnimationFrames(1);
     vi.advanceTimersByTime(220);
-    expect(host?.getAttribute('data-anime4k-button-state')).toBe('visible');
+    expect(host?.getAttribute('data-nijilucid-button-state')).toBe('visible');
 
     manager.destroy();
   });
@@ -427,20 +427,20 @@ describe('OverlayManager', () => {
     manager.showCanvas();
     flushAnimationFrames(5);
 
-    const host = document.querySelector('[data-anime4k-overlay-host]');
+    const host = document.querySelector('[data-nijilucid-overlay-host]');
     expect(host?.parentElement).toBe(document.body);
-    expect(canvas.parentElement?.hasAttribute('data-anime4k-overlay-canvas-host')).toBe(true);
+    expect(canvas.parentElement?.hasAttribute('data-nijilucid-overlay-canvas-host')).toBe(true);
 
     manager.reattach(secondVideo);
     flushAnimationFrames(2);
 
-    expect(secondVideo.hasAttribute('data-anime4k-overlay-slot')).toBe(true);
-    expect(document.querySelector('[data-anime4k-overlay-host]')?.parentElement).toBe(document.body);
-    expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).not.toBeNull();
+    expect(secondVideo.hasAttribute('data-nijilucid-overlay-slot')).toBe(true);
+    expect(document.querySelector('[data-nijilucid-overlay-host]')?.parentElement).toBe(document.body);
+    expect(secondContainer.querySelector('[data-nijilucid-overlay-canvas-host]')).not.toBeNull();
 
     manager.detach();
-    expect(document.querySelector('[data-anime4k-overlay-host]')).toBeNull();
-    expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).toBeNull();
+    expect(document.querySelector('[data-nijilucid-overlay-host]')).toBeNull();
+    expect(secondContainer.querySelector('[data-nijilucid-overlay-canvas-host]')).toBeNull();
     expect(secondVideo.style.opacity).toBe('');
 
     manager.destroy();
@@ -460,7 +460,7 @@ describe('OverlayManager', () => {
 
     flushAnimationFrames(3);
 
-    const overlayHost = shadowRoot.querySelector('[data-anime4k-overlay-host]');
+    const overlayHost = shadowRoot.querySelector('[data-nijilucid-overlay-host]');
     expect(overlayHost).not.toBeNull();
     expect(overlayHost?.parentNode).toBe(shadowRoot);
 
@@ -482,8 +482,8 @@ describe('OverlayManager', () => {
     mutationObservers.forEach(observer => observer.callback([], observer as unknown as MutationObserver));
     flushAnimationFrames(2);
 
-    expect(secondContainer.querySelector('[data-anime4k-overlay-host]')).not.toBeNull();
-    expect(secondContainer.querySelector('[data-anime4k-overlay-canvas-host]')).not.toBeNull();
+    expect(secondContainer.querySelector('[data-nijilucid-overlay-host]')).not.toBeNull();
+    expect(secondContainer.querySelector('[data-nijilucid-overlay-canvas-host]')).not.toBeNull();
     expect(canvas.parentElement?.parentElement).toBe(secondContainer);
 
     manager.destroy();

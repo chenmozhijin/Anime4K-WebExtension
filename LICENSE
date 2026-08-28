@@ -1,6 +1,6 @@
-Anime4K WebExtension is distributed as a mixed-license project.
+NijiLucid is distributed as a mixed-license project.
 
-- Core Anime4K WebExtension code: MIT License, see
+- Core NijiLucid code: MIT License, see
   licenses/MIT.txt.
 - CuNNy-derived generated components bundled with the default extension
   package: LGPL-3.0-or-later, see licenses/LGPL-3.0-or-later.txt.

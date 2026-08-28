@@ -1,7 +1,7 @@
 import { buildErrorPresentation, type ErrorPresentationPhase } from '../error-presentation';
 
 export class EnhancerErrorNotifier {
-  private static readonly ERROR_NOTIFICATION_ATTR = 'data-anime4k-error-notification';
+  private static readonly ERROR_NOTIFICATION_ATTR = 'data-nijilucid-error-notification';
   private notification: HTMLElement | null = null;
   private autoDismissTimer: number | null = null;
 

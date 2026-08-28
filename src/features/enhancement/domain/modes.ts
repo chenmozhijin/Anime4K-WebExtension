@@ -1,5 +1,5 @@
 import type {
-  Anime4KWebExtSettings,
+  NijiLucidSettings,
   BuiltInMode,
   CustomMode,
   EnhancementEffect,
@@ -39,8 +39,8 @@ export function buildEnhancementModes(customModes: CustomMode[]): EnhancementMod
 }
 
 export function buildEnhancementSettings(
-  settings: Omit<Anime4KWebExtSettings, 'enhancementModes' | 'customModes'> & { customModes: CustomMode[] },
-): Anime4KWebExtSettings {
+  settings: Omit<NijiLucidSettings, 'enhancementModes' | 'customModes'> & { customModes: CustomMode[] },
+): NijiLucidSettings {
   const customModes = synchronizeEffectsForCustomModes(settings.customModes);
   return {
     ...settings,

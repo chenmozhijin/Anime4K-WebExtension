@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, vi } from 'vitest';
 
-globalThis.__ANIME4K_DISABLE_AUTO_BOOTSTRAP__ = true;
+globalThis.__NIJILUCID_DISABLE_AUTO_BOOTSTRAP__ = true;
 
 beforeEach(() => {
-  globalThis.__ANIME4K_DISABLE_AUTO_BOOTSTRAP__ = true;
+  globalThis.__NIJILUCID_DISABLE_AUTO_BOOTSTRAP__ = true;
   Object.assign(globalThis, {
     GPUTextureUsage: globalThis.GPUTextureUsage ?? {
       COPY_SRC: 1,
@@ -40,6 +40,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.resetModules();
-  Reflect.deleteProperty(globalThis, '__ANIME4K_DISABLE_AUTO_BOOTSTRAP__');
+  Reflect.deleteProperty(globalThis, '__NIJILUCID_DISABLE_AUTO_BOOTSTRAP__');
   Reflect.deleteProperty(globalThis as typeof globalThis & { chrome?: typeof chrome }, 'chrome');
 });

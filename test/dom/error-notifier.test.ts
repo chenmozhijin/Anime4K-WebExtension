@@ -14,14 +14,14 @@ describe('EnhancerErrorNotifier', () => {
       enableCrossOriginFix: false,
     });
 
-    const notification = document.querySelector('[data-anime4k-error-notification]');
+    const notification = document.querySelector('[data-nijilucid-error-notification]');
     expect(notification).not.toBeNull();
     expect(notification?.textContent).toContain('extensionName');
     expect(notification?.textContent).toContain('gpuEffectCompilationValidationFailed');
     expect(notification?.querySelector('details')).not.toBeNull();
 
     notification?.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(document.querySelector('[data-anime4k-error-notification]')).toBeNull();
+    expect(document.querySelector('[data-nijilucid-error-notification]')).toBeNull();
 
     vi.useRealTimers();
   });
@@ -36,14 +36,14 @@ describe('EnhancerErrorNotifier', () => {
       enableCrossOriginFix: false,
     });
 
-    const link = document.querySelector('[data-anime4k-error-notification] a');
+    const link = document.querySelector('[data-nijilucid-error-notification] a');
     expect(link).not.toBeNull();
     link?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(chromeMock.__mock.runtimeMessages).toContainEqual({ type: 'OPEN_OPTIONS_PAGE' });
 
     notifier.clear();
-    expect(document.querySelector('[data-anime4k-error-notification]')).toBeNull();
+    expect(document.querySelector('[data-nijilucid-error-notification]')).toBeNull();
   });
 
   it('clears only notifications owned by the same notifier instance', () => {
@@ -58,11 +58,11 @@ describe('EnhancerErrorNotifier', () => {
       enableCrossOriginFix: false,
     });
 
-    expect(document.querySelectorAll('[data-anime4k-error-notification]')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-nijilucid-error-notification]')).toHaveLength(2);
 
     first.clear();
 
-    const remaining = document.querySelectorAll('[data-anime4k-error-notification]');
+    const remaining = document.querySelectorAll('[data-nijilucid-error-notification]');
     expect(remaining).toHaveLength(1);
     expect(remaining[0].textContent).toContain('second failure');
 

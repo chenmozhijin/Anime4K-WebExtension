@@ -1,10 +1,10 @@
-import type { Anime4KWebExtSettings } from '../types';
+import type { NijiLucidSettings } from '../types';
 import { getSettings } from './settings';
 import { compileWhitelistRules, type CompiledWhitelistRule } from './whitelist';
 import { createLogger } from './logger';
 
 export interface SettingsSnapshot {
-  settings: Anime4KWebExtSettings;
+  settings: NijiLucidSettings;
   compiledWhitelist: CompiledWhitelistRule[];
   revision: number;
 }
@@ -48,7 +48,7 @@ function notifyListeners(snapshot: SettingsSnapshot): void {
   });
 }
 
-function buildSnapshot(settings: Anime4KWebExtSettings): SettingsSnapshot {
+function buildSnapshot(settings: NijiLucidSettings): SettingsSnapshot {
   return {
     settings,
     compiledWhitelist: compileWhitelistRules(settings.whitelist ?? []),
@@ -90,7 +90,7 @@ function ensureStorageListener(): void {
 async function drainRefreshRequests(): Promise<SettingsSnapshot> {
   while (true) {
     const readVersion = refreshRequestVersion;
-    let settings: Anime4KWebExtSettings;
+    let settings: NijiLucidSettings;
 
     try {
       settings = await getSettings();

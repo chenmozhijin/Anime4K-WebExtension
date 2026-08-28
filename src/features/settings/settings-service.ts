@@ -1,5 +1,5 @@
 import type {
-  Anime4KWebExtSettings,
+  NijiLucidSettings,
   LocalSettings,
   SyncedSettings,
 } from '../../types';
@@ -32,7 +32,7 @@ export class SettingsSaveError extends Error {
   }
 }
 
-export async function getSettings(): Promise<Anime4KWebExtSettings> {
+export async function getSettings(): Promise<NijiLucidSettings> {
   const [synced, local] = await Promise.all([
     getSyncedSettings(),
     getLocalSettings(),
@@ -48,7 +48,7 @@ export async function getSettings(): Promise<Anime4KWebExtSettings> {
   });
 }
 
-export async function saveSettings(settings: Partial<Anime4KWebExtSettings>): Promise<void> {
+export async function saveSettings(settings: Partial<NijiLucidSettings>): Promise<void> {
   const syncKeys: (keyof SyncedSettings)[] = [
     'selectedModeId',
     'targetResolutionSetting',

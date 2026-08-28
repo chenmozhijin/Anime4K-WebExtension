@@ -12,7 +12,7 @@
     "message": "🔄 Попробовать ещё раз"
   },
   "extensionName": {
-    "message": "Настройки улучшения Anime4K"
+    "message": "Настройки улучшения NijiLucid"
   },
   "performanceTierLabel": {
     "message": "Уровень производительности:"
@@ -111,7 +111,7 @@
     "message": "Импорт не удался: неверный формат"
   },
   "description": {
-    "message": "Браузерное расширение для апскейлинга видео в реальном времени на основе Anime4K-WebGPU."
+    "message": "NijiLucid — браузерное расширение для апскейлинга видео в реальном времени на основе Anime4K-WebGPU."
   },
   "optionsTitle": {
     "message": "Опции расширения"
@@ -195,7 +195,7 @@
     "message": "Трекер проблем"
   },
   "extensionDescription": {
-    "message": "Браузерное расширение для супер-разрешения видео в реальном времени на основе Anime4K."
+    "message": "NijiLucid — браузерное расширение для супер-разрешения видео в реальном времени на основе Anime4K."
   },
   "appearance": {
     "message": "Внешний вид"
@@ -285,7 +285,7 @@
     "message": "CPU отправки"
   },
   "hudSnapshotTitle": {
-    "message": "Монитор производительности Anime4K"
+    "message": "Монитор производительности NijiLucid"
   },
   "hudTimingLiteHint": {
     "message": "Для измерения времени эффектов нужна диагностика GPU. Облегчённый режим показывает только общую статистику кадров."
@@ -494,10 +494,10 @@
     "message": "Тест не удался"
   },
   "onboardingTitle": {
-    "message": "Anime4K WebExtension - Мастер настройки"
+    "message": "NijiLucid - Мастер настройки"
   },
   "welcomeTitle": {
-    "message": "Добро пожаловать в Anime4K WebExtension"
+    "message": "Добро пожаловать в NijiLucid"
   },
   "welcomeDesc": {
     "message": "Давайте оптимизируем настройки для лучшего опыта."

@@ -205,6 +205,6 @@ export function resetBackgroundBootstrapForTests(): void {
   defaultBackgroundBootstrap = null;
 }
 
-if (!globalThis.__ANIME4K_DISABLE_AUTO_BOOTSTRAP__) {
+if (!globalThis.__NIJILUCID_DISABLE_AUTO_BOOTSTRAP__) {
   registerBackgroundListeners();
 }

@@ -1,6 +1,6 @@
 @import '../common-vars.css';
 
-.anime4k-notice-root {
+.nijilucid-notice-root {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -14,7 +14,7 @@
   z-index: 2147483647;
 }
 
-.anime4k-notice {
+.nijilucid-notice {
   background: var(--surface-container-high);
   border: 1px solid var(--outline-variant);
   border-inline-start: 4px solid var(--primary);
@@ -30,32 +30,32 @@
   width: 100%;
 }
 
-.anime4k-notice[data-kind='info'] {
+.nijilucid-notice[data-kind='info'] {
   border-inline-start-color: var(--secondary);
 }
 
-.anime4k-notice[data-kind='warning'] {
+.nijilucid-notice[data-kind='warning'] {
   border-inline-start-color: var(--secondary);
 }
 
-.anime4k-notice[data-kind='error'] {
+.nijilucid-notice[data-kind='error'] {
   border-inline-start-color: var(--danger);
 }
 
-.anime4k-notice-message {
+.nijilucid-notice-message {
   color: var(--on-surface);
   overflow-wrap: anywhere;
 }
 
-.anime4k-notice-actions {
+.nijilucid-notice-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-2);
   margin-top: var(--spacing-4);
 }
 
-.anime4k-notice-action,
-.anime4k-notice-dismiss {
+.nijilucid-notice-action,
+.nijilucid-notice-dismiss {
   align-items: center;
   cursor: pointer;
   display: inline-flex;
@@ -67,7 +67,7 @@
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-.anime4k-notice-action {
+.nijilucid-notice-action {
   background: transparent;
   border: 1px solid var(--outline);
   border-radius: var(--border-radius);
@@ -75,35 +75,35 @@
   padding: var(--spacing-2) var(--spacing-3);
 }
 
-.anime4k-notice-action:hover {
+.nijilucid-notice-action:hover {
   background: var(--primary-container);
   border-color: var(--primary);
   color: var(--on-primary-container);
 }
 
-.anime4k-notice-action[data-emphasis='primary'] {
+.nijilucid-notice-action[data-emphasis='primary'] {
   background: var(--primary-container);
   border-color: var(--primary);
   color: var(--on-primary-container);
 }
 
-.anime4k-notice-action[data-emphasis='primary']:hover {
+.nijilucid-notice-action[data-emphasis='primary']:hover {
   background: var(--primary);
   color: var(--on-primary);
 }
 
-.anime4k-notice-action[data-emphasis='danger'] {
+.nijilucid-notice-action[data-emphasis='danger'] {
   background: var(--error-container);
   border-color: var(--danger);
   color: var(--on-error-container);
 }
 
-.anime4k-notice-action[data-emphasis='danger']:hover {
+.nijilucid-notice-action[data-emphasis='danger']:hover {
   background: var(--danger);
   color: var(--on-primary);
 }
 
-.anime4k-notice-dismiss {
+.nijilucid-notice-dismiss {
   background: transparent;
   border: 0;
   color: var(--on-surface-variant);
@@ -111,12 +111,12 @@
   padding: var(--spacing-1) 0;
 }
 
-.anime4k-notice-dismiss:hover {
+.nijilucid-notice-dismiss:hover {
   color: var(--on-surface);
 }
 
 @media (max-width: 480px) {
-  .anime4k-notice-root {
+  .nijilucid-notice-root {
     left: var(--spacing-4);
     right: var(--spacing-4);
     top: var(--spacing-4);

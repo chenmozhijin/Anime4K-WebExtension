@@ -12,7 +12,7 @@
     "message": "🔄 超解像を再試行"
   },
   "extensionName": {
-    "message": "Anime4K超解像設定"
+    "message": "NijiLucid 超解像設定"
   },
   "performanceTierLabel": {
     "message": "パフォーマンス段階："
@@ -111,7 +111,7 @@
     "message": "インポート失敗：形式が無効です"
   },
   "description": {
-    "message": "Anime4Kに基づくリアルタイム動画超解像ブラウザ拡張機能。"
+    "message": "NijiLucid は Anime4K に基づくリアルタイム動画超解像ブラウザ拡張機能です。"
   },
   "optionsTitle": {
     "message": "拡張機能オプション"
@@ -195,7 +195,7 @@
     "message": "問題トラッカー"
   },
   "extensionDescription": {
-    "message": "Anime4K-WebGPUに基づくリアルタイムビデオ超解像ブラウザ拡張機能。"
+    "message": "NijiLucid は Anime4K-WebGPU に基づくリアルタイムビデオ超解像ブラウザ拡張機能です。"
   },
   "appearance": {
     "message": "外観"
@@ -285,7 +285,7 @@
     "message": "送信 CPU"
   },
   "hudSnapshotTitle": {
-    "message": "Anime4K パフォーマンスモニター"
+    "message": "NijiLucid パフォーマンスモニター"
   },
   "hudTimingLiteHint": {
     "message": "エフェクトの処理時間には GPU 診断が必要です。軽量モードでは全体のフレーム統計のみ表示されます。"
@@ -494,10 +494,10 @@
     "message": "テスト失敗"
   },
   "onboardingTitle": {
-    "message": "Anime4K WebExtension - セットアップ"
+    "message": "NijiLucid - セットアップ"
   },
   "welcomeTitle": {
-    "message": "Anime4K WebExtension へようこそ"
+    "message": "NijiLucid へようこそ"
   },
   "welcomeDesc": {
     "message": "最高の体験のために設定を最適化しましょう。"

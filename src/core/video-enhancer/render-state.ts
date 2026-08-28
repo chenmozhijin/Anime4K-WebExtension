@@ -1,6 +1,6 @@
 import { getEffectsForMode } from '../../utils/settings';
 import { createEffectSignature } from '../../utils/effect-signature';
-import type { Dimensions, Anime4KWebExtSettings, EnhancementMode, PerformanceTier } from '../../types';
+import type { Dimensions, NijiLucidSettings, EnhancementMode, PerformanceTier } from '../../types';
 
 export interface AppliedRendererState {
   selectedModeId: string;
@@ -69,7 +69,7 @@ export function calculateTargetDimensions(
 }
 
 export function resolveRendererState(
-  settings: Anime4KWebExtSettings,
+  settings: NijiLucidSettings,
   sourceDimensions: Dimensions,
 ): ResolvedRendererState {
   const { selectedModeId, enhancementModes, targetResolutionSetting } = settings;
@@ -91,7 +91,7 @@ export function resolveRendererState(
 }
 
 export function buildAppliedRendererState(
-  settings: Anime4KWebExtSettings,
+  settings: NijiLucidSettings,
   selectedModeId: string,
   sourceDimensions: Dimensions,
   targetDimensions: Dimensions,

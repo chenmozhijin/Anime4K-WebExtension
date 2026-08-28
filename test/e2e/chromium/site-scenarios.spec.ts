@@ -3,22 +3,22 @@ import { expect, test } from './fixtures';
 import { getSiteScenario } from '../sites/scenarios';
 
 function overlayLocator(target: Page | FrameLocator) {
-  return target.locator('[data-anime4k-overlay-host]');
+  return target.locator('[data-nijilucid-overlay-host]');
 }
 
 async function shadowOverlayCount(page: Page): Promise<number> {
   return page.evaluate(() => {
     const host = document.getElementById('shadow-host');
-    return host?.shadowRoot?.querySelectorAll('[data-anime4k-overlay-host]').length ?? 0;
+    return host?.shadowRoot?.querySelectorAll('[data-nijilucid-overlay-host]').length ?? 0;
   });
 }
 
 async function bodyOverlayCount(page: Page): Promise<number> {
-  return page.evaluate(() => document.body.querySelectorAll(':scope > [data-anime4k-overlay-host]').length);
+  return page.evaluate(() => document.body.querySelectorAll(':scope > [data-nijilucid-overlay-host]').length);
 }
 
 async function totalOverlayCount(page: Page): Promise<number> {
-  return page.evaluate(() => document.querySelectorAll('[data-anime4k-overlay-host]').length);
+  return page.evaluate(() => document.querySelectorAll('[data-nijilucid-overlay-host]').length);
 }
 
 async function videoOverlaySlotCount(page: Page): Promise<number> {
@@ -27,9 +27,9 @@ async function videoOverlaySlotCount(page: Page): Promise<number> {
     if (!video) {
       return 0;
     }
-    const slot = video.getAttribute('data-anime4k-overlay-slot');
+    const slot = video.getAttribute('data-nijilucid-overlay-slot');
     return slot
-      ? document.querySelectorAll(`[data-anime4k-overlay-host][data-anime4k-overlay-slot="${slot}"]`).length
+      ? document.querySelectorAll(`[data-nijilucid-overlay-host][data-nijilucid-overlay-slot="${slot}"]`).length
       : 0;
   });
 }
@@ -37,13 +37,13 @@ async function videoOverlaySlotCount(page: Page): Promise<number> {
 async function orphanOverlayHostCount(page: Page): Promise<number> {
   return page.evaluate(() => {
     const videoSlots = new Set(
-      Array.from(document.querySelectorAll('video[data-anime4k-overlay-slot]'))
-        .map(video => video.getAttribute('data-anime4k-overlay-slot'))
+      Array.from(document.querySelectorAll('video[data-nijilucid-overlay-slot]'))
+        .map(video => video.getAttribute('data-nijilucid-overlay-slot'))
         .filter(Boolean),
     );
-    return Array.from(document.querySelectorAll('[data-anime4k-overlay-host]'))
+    return Array.from(document.querySelectorAll('[data-nijilucid-overlay-host]'))
       .filter(host => {
-        const slot = host.getAttribute('data-anime4k-overlay-slot');
+        const slot = host.getAttribute('data-nijilucid-overlay-slot');
         return !slot || !videoSlots.has(slot);
       })
       .length;
@@ -51,7 +51,7 @@ async function orphanOverlayHostCount(page: Page): Promise<number> {
 }
 
 async function bodyStrategyOverlayCount(page: Page): Promise<number> {
-  return page.evaluate(() => document.body.querySelectorAll(':scope > [data-anime4k-overlay-host]').length);
+  return page.evaluate(() => document.body.querySelectorAll(':scope > [data-nijilucid-overlay-host]').length);
 }
 
 async function transformedOverlayMetrics(page: Page): Promise<{
@@ -64,7 +64,7 @@ async function transformedOverlayMetrics(page: Page): Promise<{
 }> {
   return page.evaluate(() => {
     const video = document.getElementById('fixture-video') as HTMLVideoElement | null;
-    const host = document.querySelector('[data-anime4k-overlay-host]') as HTMLElement | null;
+    const host = document.querySelector('[data-nijilucid-overlay-host]') as HTMLElement | null;
     if (!video || !host) {
       throw new Error('Missing transformed scenario video or overlay host.');
     }
@@ -95,7 +95,7 @@ async function expectOverlayHidden(target: Page | FrameLocator): Promise<void> {
 }
 
 async function overlayButtonState(page: Page): Promise<string | null> {
-  return page.locator('[data-anime4k-overlay-host]').first().getAttribute('data-anime4k-button-state');
+  return page.locator('[data-nijilucid-overlay-host]').first().getAttribute('data-nijilucid-button-state');
 }
 
 async function expectSingleOverlayForFixtureVideo(page: Page): Promise<void> {
@@ -301,7 +301,7 @@ test('@site keeps one overlay when a video enters fullscreen', async ({ context,
   await expectSingleOverlayForFixtureVideo(page);
   await expect.poll(async () => page.evaluate(() => {
     const shell = document.getElementById('fullscreen-shell');
-    const host = document.querySelector('[data-anime4k-overlay-host]');
+    const host = document.querySelector('[data-nijilucid-overlay-host]');
     return Boolean(shell && host && host.parentElement === shell);
   })).toBe(true);
 });
