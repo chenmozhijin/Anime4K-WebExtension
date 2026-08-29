@@ -15,7 +15,6 @@ import { getRenderableParent } from './video-discovery';
 type StyleMap = Record<string, string>;
 const logger = createLogger('overlay');
 const HUD_UPDATE_INTERVAL_MS = 500;
-const HUD_MAX_GROUP_ROWS = 12;
 const HUD_COLORS = ['#8b5f50', '#8f8f8f', '#00a889', '#4c78a8', '#f2b84b', '#b55c76', '#6b78d6', '#65a765'];
 const HUD_MIN_WIDTH = 260;
 const HUD_MAX_WIDTH = 640;
@@ -1039,7 +1038,7 @@ export class OverlayManager {
   }
 
   private renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string {
-    const groups = this.prepareHudRows(snapshot.groupEntries);
+    const groups = snapshot.groupEntries;
     const hasGpuPassTimings = snapshot.mode === 'gpu'
       && snapshot.timestampAvailable
       && groups.some(entry => typeof entry.gpuMs === 'number');
@@ -1104,29 +1103,6 @@ export class OverlayManager {
         <span class="hud-resize-grip" data-hud-resize></span>
       </div>
     `;
-  }
-
-  private prepareHudRows(entries: PassTimingEntry[]): PassTimingEntry[] {
-    if (entries.length <= HUD_MAX_GROUP_ROWS) {
-      return entries;
-    }
-
-    const visible = entries.slice(0, HUD_MAX_GROUP_ROWS);
-    const other = entries.slice(HUD_MAX_GROUP_ROWS).reduce((acc, entry) => ({
-      cpuMs: acc.cpuMs + entry.cpuMs,
-      gpuMs: acc.gpuMs + (entry.gpuMs ?? 0),
-      hasGpu: acc.hasGpu || typeof entry.gpuMs === 'number',
-    }), { cpuMs: 0, gpuMs: 0, hasGpu: false });
-    return [
-      ...visible,
-      {
-        label: this.hudMessage('hudLabelOther', 'Other'),
-        group: this.hudMessage('hudLabelOther', 'Other'),
-        cpuMs: other.cpuMs,
-        gpuMs: other.hasGpu ? other.gpuMs : undefined,
-        source: other.hasGpu ? 'mixed' : 'cpu',
-      },
-    ];
   }
 
   private renderGpuDiagnosticsHint(snapshot: FramePerformanceSnapshot): string {
@@ -1457,6 +1433,8 @@ export class OverlayManager {
         min-width: min(260px, calc(100% - 16px));
         max-height: calc(100% - 16px);
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
         pointer-events: auto;
         color: var(--hud-text);
         background: var(--hud-surface);
@@ -1552,6 +1530,9 @@ export class OverlayManager {
 
       .hud-body {
         position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
         padding: 8px 10px 11px;
       }
 

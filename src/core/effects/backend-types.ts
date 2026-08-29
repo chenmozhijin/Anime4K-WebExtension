@@ -6,6 +6,7 @@ export interface PipelinePass {
   updateParam?(param: string, value: any): void;
   readonly profileLabel?: string;
   profileGroup?: string;
+  profileGroupId?: string;
   pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;
   getOutputTexture(): GPUTexture;
   getProfileChildren?(): PipelinePass[];

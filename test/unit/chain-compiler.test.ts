@@ -205,6 +205,59 @@ describe('compileEffectChain', () => {
     expect(compileCalls[1].context.currentDimensions).toEqual({ width: 640, height: 360 });
   });
 
+  it('assigns unique profile group ids per effect invocation and shares them with child passes', async () => {
+    const effect: EffectReference = {
+      id: 'duplicate-effect',
+      backendId: 'backend-a',
+      key: 'duplicate-effect',
+    };
+    const descriptor = createDescriptor({ ...effect, name: 'Duplicate Effect' });
+    const createPipeline = () => {
+      const child = {
+        profileLabel: 'Internal Pass',
+        pass: vi.fn(),
+        getOutputTexture: () => ({ label: 'output' } as GPUTexture),
+      };
+      return {
+        profileLabel: 'Effect Wrapper',
+        pass: vi.fn(),
+        getOutputTexture: () => ({ label: 'output' } as GPUTexture),
+        getProfileChildren: () => [child],
+      };
+    };
+
+    mockGetEffectDescriptor.mockReturnValue(descriptor);
+    mockGetRuntimeBackend.mockResolvedValue({
+      compileEffect: async () => {
+        const pipeline = createPipeline();
+        return {
+          pipelines: [pipeline],
+          outputTexture: pipeline.getOutputTexture(),
+          outputDimensions: { width: 320, height: 180 },
+          requiredModules: [],
+          warmupSteps: 1,
+        };
+      },
+    });
+
+    const plan = await compileEffectChain({
+      device,
+      inputTexture,
+      effects: [effect, effect],
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 320, height: 180 },
+    });
+
+    const first = plan.pipelines[0];
+    const second = plan.pipelines[1];
+    expect(first.profileGroup).toBe('Duplicate Effect');
+    expect(second.profileGroup).toBe('Duplicate Effect');
+    expect(first.profileGroupId).toBe('effect:0:duplicate-effect');
+    expect(second.profileGroupId).toBe('effect:1:duplicate-effect');
+    expect(first.getProfileChildren?.()[0].profileGroupId).toBe(first.profileGroupId);
+    expect(second.getProfileChildren?.()[0].profileGroupId).toBe(second.profileGroupId);
+  });
+
   it('inserts an internal resize between oversized upscale stages', async () => {
     const firstUpscale: EffectReference = {
       id: 'upscale-a',

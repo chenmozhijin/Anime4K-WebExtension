@@ -546,4 +546,41 @@ describe('OverlayManager', () => {
     expect(miniRoot.textContent).toContain('CPU 8.00 ms');
     manager.destroy();
   });
+
+  it('renders repeated execution rows and copies them without truncation', () => {
+    installHudI18nMessages();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const renderers = manager as unknown as {
+      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
+      formatPerformanceSnapshotText(snapshot: FramePerformanceSnapshot): string;
+    };
+    const groupEntries = Array.from({ length: 13 }, (_, index) => ({
+      label: index < 2 ? 'Effect A' : `Stage ${index}`,
+      group: index < 2 ? 'Effect A' : `Stage ${index}`,
+      groupId: `stage-${index}`,
+      cpuMs: index + 1,
+      source: 'cpu' as const,
+    }));
+    const snapshot = createPerformanceSnapshot({
+      mode: 'lite',
+      timingSource: 'cpu',
+      timestampAvailable: false,
+      groupEntries,
+    });
+
+    const root = document.createElement('div');
+    root.innerHTML = renderers.renderPerformanceHudFull(snapshot);
+    const rows = root.querySelectorAll('.hud-row:not(.hud-total)');
+    expect(rows).toHaveLength(13);
+    expect([...root.querySelectorAll('.hud-name')].filter(name => name.textContent === 'Effect A')).toHaveLength(2);
+    expect(root.textContent).not.toContain('Other');
+    expect(root.querySelectorAll('.hud-stack span')).toHaveLength(13);
+
+    const copied = renderers.formatPerformanceSnapshotText(snapshot);
+    expect(copied.split('\n').filter(line => line.startsWith('Effect A:'))).toHaveLength(2);
+    manager.destroy();
+  });
 });

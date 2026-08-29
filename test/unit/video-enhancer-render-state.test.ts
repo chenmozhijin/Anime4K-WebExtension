@@ -5,6 +5,7 @@ import {
   getAppliedRendererStateChanges,
   resolveRendererState,
 } from '../../src/core/video-enhancer/render-state';
+import { RECOMMENDED_PRESET_MODES } from '../../src/features/enhancement/domain/recommended-presets';
 import type { NijiLucidSettings } from '../../src/types';
 
 const baseSettings: NijiLucidSettings = {
@@ -65,6 +66,41 @@ describe('video enhancer render state', () => {
     expect(resolved.effects).toEqual([]);
     expect(resolved.effectsSignature).toBe('');
     expect(resolved.targetDimensions).toEqual({ width: 640, height: 360 });
+  });
+
+  it('expands the active recommended preset chain for explicit scale targets', () => {
+    const settings: NijiLucidSettings = {
+      ...baseSettings,
+      selectedModeId: RECOMMENDED_PRESET_MODES[0].id,
+      enhancementModes: [RECOMMENDED_PRESET_MODES[0]],
+    };
+    const sourceDimensions = { width: 320, height: 180 };
+    const x2 = resolveRendererState({ ...settings, targetResolutionSetting: 'x2' }, sourceDimensions);
+    const x4 = resolveRendererState({ ...settings, targetResolutionSetting: 'x4' }, sourceDimensions);
+    const x8 = resolveRendererState({ ...settings, targetResolutionSetting: 'x8' }, sourceDimensions);
+
+    expect(x2.effects).toHaveLength(1);
+    expect(x4.effects).toHaveLength(2);
+    expect(x8.effects).toHaveLength(3);
+    expect(x2.effectsSignature).not.toBe(x4.effectsSignature);
+    expect(x4.effectsSignature).not.toBe(x8.effectsSignature);
+  });
+
+  it('derives recommended chain length for fixed targets', () => {
+    const settings: NijiLucidSettings = {
+      ...baseSettings,
+      selectedModeId: RECOMMENDED_PRESET_MODES[0].id,
+      enhancementModes: [RECOMMENDED_PRESET_MODES[0]],
+    };
+
+    expect(resolveRendererState({ ...settings, targetResolutionSetting: '720p' }, { width: 320, height: 180 }).effects)
+      .toHaveLength(2);
+    expect(resolveRendererState({ ...settings, targetResolutionSetting: '1080p' }, { width: 640, height: 360 }).effects)
+      .toHaveLength(2);
+    expect(resolveRendererState({ ...settings, targetResolutionSetting: '4k' }, { width: 320, height: 180 }).effects)
+      .toHaveLength(3);
+    expect(resolveRendererState({ ...settings, targetResolutionSetting: '720p' }, { width: 1920, height: 1080 }).effects)
+      .toHaveLength(1);
   });
 
   it('detects applied renderer state changes', () => {

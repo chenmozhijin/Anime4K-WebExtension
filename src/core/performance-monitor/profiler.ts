@@ -44,6 +44,7 @@ type DropSample = {
 type GpuTimestampPass = {
   label: string;
   group: string;
+  groupId: string;
   beginIndex: number;
   endIndex: number;
 };
@@ -160,39 +161,46 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   }
 
   recordPass(pass: PipelinePass, encode: () => void): void {
+    const label = pass.profileLabel ?? pass.constructor.name;
+    const group = pass.profileGroup ?? label;
     this.recordNamedPass(
-      pass.profileLabel ?? pass.constructor.name,
-      pass.profileGroup ?? pass.profileLabel ?? pass.constructor.name,
+      label,
+      group,
       encode,
+      pass.profileGroupId ?? group,
     );
   }
 
-  recordNamedPass(label: string, group: string, encode: () => void): void {
+  recordNamedPass(label: string, group: string, encode: () => void, groupId?: string): void {
     if (!this.shouldCollectCpuPassEntries) {
       encode();
       return;
     }
 
+    const resolvedGroupId = groupId ?? group;
     const startedAt = performance.now();
     encode();
     const cpuMs = performance.now() - startedAt;
-    const gpuMs = this.lastGpuMsByKey.get(this.buildEntryKey(label, group));
+    const gpuMs = this.lastGpuMsByKey.get(this.buildEntryKey(label, resolvedGroupId));
     this.passEntries.push({
       label,
       group,
+      groupId: resolvedGroupId,
       cpuMs,
       gpuMs,
       source: typeof gpuMs === 'number' ? 'mixed' : 'cpu',
     });
   }
 
-  addInstantEntry(label: string, group: string, cpuMs: number): void {
+  addInstantEntry(label: string, group: string, cpuMs: number, groupId?: string): void {
     if (!this.shouldCollectCpuPassEntries) {
       return;
     }
+    const resolvedGroupId = groupId ?? group;
     this.passEntries.push({
       label,
       group,
+      groupId: resolvedGroupId,
       cpuMs,
       source: 'cpu',
     });
@@ -319,11 +327,13 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
   private buildGroupEntries(): PassTimingEntry[] {
     const byGroup = new Map<string, PassTimingEntry>();
     for (const entry of this.passEntries) {
-      const existing = byGroup.get(entry.group);
+      const groupId = entry.groupId ?? entry.group;
+      const existing = byGroup.get(groupId);
       if (!existing) {
-        byGroup.set(entry.group, {
+        byGroup.set(groupId, {
           label: entry.group,
           group: entry.group,
+          groupId,
           cpuMs: entry.cpuMs,
           gpuMs: entry.gpuMs,
           source: entry.source,
@@ -363,10 +373,11 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
 
     const label = pass.profileLabel ?? pass.constructor.name;
     const group = pass.profileGroup ?? label;
+    const groupId = pass.profileGroupId ?? group;
     const beginIndex = slot.queryCount;
     const endIndex = slot.queryCount + 1;
     slot.queryCount += 2;
-    slot.passes.push({ label, group, beginIndex, endIndex });
+    slot.passes.push({ label, group, groupId, beginIndex, endIndex });
 
     return {
       querySet: slot.querySet,
@@ -481,13 +492,13 @@ export class PerformanceFrameProfiler implements PipelineProfileRecorder {
 
       const gpuMs = Number(end - begin) / 1_000_000;
       if (Number.isFinite(gpuMs)) {
-        this.lastGpuMsByKey.set(this.buildEntryKey(pass.label, pass.group), gpuMs);
+        this.lastGpuMsByKey.set(this.buildEntryKey(pass.label, pass.groupId), gpuMs);
       }
     }
   }
 
-  private buildEntryKey(label: string, group: string): string {
-    return `${group}\u0000${label}`;
+  private buildEntryKey(label: string, groupId: string): string {
+    return `${groupId}\u0000${label}`;
   }
 
   private normalizePassCapacity(value: number | undefined): number {

@@ -8,6 +8,8 @@ import {
   RECOMMENDED_PRESET_MATRIX,
   RECOMMENDED_PRESET_MODES,
   getRecommendedPresetEffectId,
+  resolveRecommendedPresetEffects,
+  resolveRecommendedPresetStageCount,
 } from '../../src/features/enhancement/domain/recommended-presets';
 import { getEffectDescriptorById } from '../../src/core/effects/registry';
 import { resolveAnime4kPresetEffectChain } from '../../src/engines/anime4k/preset-resolver';
@@ -69,6 +71,52 @@ describe('enhancement modes', () => {
     });
   });
 
+  it('expands recommended presets into the requested explicit scale chain', () => {
+    const expectedStageCounts = { x2: 1, x4: 2, x8: 3 } as const;
+
+    RECOMMENDED_PRESET_MODES.forEach(mode => {
+      (Object.entries(expectedStageCounts) as Array<[keyof typeof expectedStageCounts, number]>).forEach(
+        ([targetResolutionSetting, expectedStageCount]) => {
+          expect(resolveRecommendedPresetStageCount({ targetResolutionSetting })).toBe(expectedStageCount);
+
+          const effects = resolveRecommendedPresetEffects(mode.presetId, 'balanced', {
+            targetResolutionSetting,
+          });
+          expect(effects).toHaveLength(expectedStageCount);
+          expect(effects.map(effect => effect.id)).toEqual(
+            Array(expectedStageCount).fill(getRecommendedPresetEffectId(mode.presetId, 'balanced')),
+          );
+          if (effects.length > 1) {
+            expect(effects[0]).not.toBe(effects[1]);
+          }
+        },
+      );
+    });
+  });
+
+  it('derives fixed-target chain length from actual dimensions and caps it at x8', () => {
+    expect(resolveRecommendedPresetStageCount({
+      targetResolutionSetting: '720p',
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 1280, height: 720 },
+    })).toBe(2);
+    expect(resolveRecommendedPresetStageCount({
+      targetResolutionSetting: '1080p',
+      sourceDimensions: { width: 640, height: 360 },
+      targetDimensions: { width: 1920, height: 1080 },
+    })).toBe(2);
+    expect(resolveRecommendedPresetStageCount({
+      targetResolutionSetting: '4k',
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 3840, height: 2160 },
+    })).toBe(3);
+    expect(resolveRecommendedPresetStageCount({
+      targetResolutionSetting: '720p',
+      sourceDimensions: { width: 1920, height: 1080 },
+      targetDimensions: { width: 1280, height: 720 },
+    })).toBe(1);
+  });
+
   it('keeps ArtCNN reachable only through custom modes', () => {
     const artcnnMode: CustomMode = {
       id: 'custom-artcnn',
@@ -84,12 +132,20 @@ describe('enhancement modes', () => {
     const modes = buildEnhancementModes([artcnnMode]);
     expect(BUILTIN_MODES.some(mode => mode.backendId === 'artcnn')).toBe(false);
     expect(modes).toContain(artcnnMode);
-    expect(getEffectsForMode(artcnnMode, 'performance')).toEqual(artcnnMode.effects);
+    expect(getEffectsForMode(artcnnMode, 'performance', {
+      targetResolutionSetting: 'x8',
+      sourceDimensions: { width: 320, height: 180 },
+      targetDimensions: { width: 2560, height: 1440 },
+    })).toEqual(artcnnMode.effects);
   });
 
   it('keeps compatibility mode effect chains unchanged', () => {
     BUILTIN_MODES.forEach(mode => {
-      expect(getEffectsForMode(mode, 'balanced')).toEqual(
+      expect(getEffectsForMode(mode, 'balanced', {
+        targetResolutionSetting: 'x8',
+        sourceDimensions: { width: 320, height: 180 },
+        targetDimensions: { width: 2560, height: 1440 },
+      })).toEqual(
         resolveAnime4kPresetEffectChain(mode.presetKey, 'balanced'),
       );
     });

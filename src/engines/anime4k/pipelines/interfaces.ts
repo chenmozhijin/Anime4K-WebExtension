@@ -21,6 +21,7 @@ export interface Anime4KPipeline {
    */
   readonly profileLabel?: string;
   profileGroup?: string;
+  profileGroupId?: string;
   readonly presentsToTerminal?: boolean;
 
   pass(encoder: GPUCommandEncoder, profile?: PipelineProfileRecorder): void;

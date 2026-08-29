@@ -14,6 +14,7 @@ import {
   isRecommendedPresetModeId,
   resolveRecommendedPresetEffects,
 } from './recommended-presets';
+import type { RecommendedPresetResolutionContext } from './recommended-presets';
 
 export const BUILTIN_MODES: BuiltInMode[] = [
   { id: 'builtin-mode-a', baseMode: 'A', name: 'Mode A', backendId: 'anime4k', presetKey: 'A', isBuiltIn: true },
@@ -49,9 +50,13 @@ export function buildEnhancementSettings(
   };
 }
 
-export function getEffectsForMode(mode: EnhancementMode, tier: PerformanceTier): EnhancementEffect[] {
+export function getEffectsForMode(
+  mode: EnhancementMode,
+  tier: PerformanceTier,
+  resolutionContext?: RecommendedPresetResolutionContext,
+): EnhancementEffect[] {
   if (isRecommendedPresetMode(mode)) {
-    return resolveRecommendedPresetEffects(mode.presetId, tier);
+    return resolveRecommendedPresetEffects(mode.presetId, tier, resolutionContext);
   }
 
   if (mode.isBuiltIn) {

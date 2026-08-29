@@ -76,17 +76,22 @@ export function resolveRendererState(
   const selectedMode =
     enhancementModes.find((mode: EnhancementMode) => mode.id === selectedModeId)
     || enhancementModes.find((mode: EnhancementMode) => mode.isBuiltIn)!;
-  const effects = getEffectsForMode(selectedMode, settings.performanceTier);
+  const targetDimensions = calculateTargetDimensions(
+    sourceDimensions.width,
+    sourceDimensions.height,
+    targetResolutionSetting,
+  );
+  const effects = getEffectsForMode(selectedMode, settings.performanceTier, {
+    targetResolutionSetting,
+    sourceDimensions,
+    targetDimensions,
+  });
 
   return {
     selectedMode,
     effects,
     effectsSignature: createEffectSignature(effects),
-    targetDimensions: calculateTargetDimensions(
-      sourceDimensions.width,
-      sourceDimensions.height,
-      targetResolutionSetting,
-    ),
+    targetDimensions,
   };
 }
 

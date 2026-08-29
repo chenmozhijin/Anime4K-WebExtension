@@ -150,6 +150,8 @@ export interface Dimensions {
 export interface PassTimingEntry {
   label: string;
   group: string;
+  /** Stable identity for one top-level execution instance. */
+  groupId?: string;
   cpuMs: number;
   gpuMs?: number;
   source: PerformanceTimingSource;

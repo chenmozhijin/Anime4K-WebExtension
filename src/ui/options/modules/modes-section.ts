@@ -390,7 +390,9 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
 
       const summary = document.createElement('div');
       summary.className = 'mode-summary';
-      const modeEffects = getEffectsForMode(mode, currentTier);
+      const modeEffects = getEffectsForMode(mode, currentTier, {
+        targetResolutionSetting: settingsState.targetResolutionSetting,
+      });
       const chainSummary = summarizeEffectChain(modeEffects, getEffectLabel);
       summary.textContent = chainSummary || chrome.i18n.getMessage('noEffects');
       card.appendChild(summary);

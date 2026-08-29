@@ -1134,9 +1134,8 @@ export class Renderer {
       const descriptor = getEffectDescriptor(effect);
       return descriptor?.name ?? effect.id;
     });
-    const uniqueNames = [...new Set(names)];
 
-    return uniqueNames.join(' -> ');
+    return names.join(' -> ');
   }
 
   private buildGpuStageLabel(stage: string, effectChainLabel: string | null): string {

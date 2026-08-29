@@ -4,7 +4,7 @@ import type { FramePerformanceSnapshot } from '../../src/types';
 import { createWebGpuMock } from '../support/webgpu';
 
 describe('PerformanceFrameProfiler', () => {
-  it('keeps group entries in render application order instead of sorting by time', () => {
+  it('keeps each execution instance in render order while aggregating its internal passes', () => {
     const onSnapshot = vi.fn<(snapshot: FramePerformanceSnapshot) => void>();
     const profiler = new PerformanceFrameProfiler({
       mode: 'lite',
@@ -20,9 +20,10 @@ describe('PerformanceFrameProfiler', () => {
     (profiler as unknown as { lastSnapshotAt: number }).lastSnapshotAt = -1000;
     profiler.beginFrame({ presentedFrames: 1 } as VideoFrameCallbackMetadata);
     profiler.addInstantEntry('Upload', 'Upload', 0.2);
-    profiler.recordNamedPass('effect-b pass 1', 'Effect B', () => undefined);
-    profiler.addInstantEntry('effect-a pass 1', 'Effect A', 20);
-    profiler.addInstantEntry('effect-b pass 2', 'Effect B', 3);
+    profiler.addInstantEntry('effect-b pass 1', 'Effect B', 2, 'effect-b-0');
+    profiler.addInstantEntry('effect-b pass 2', 'Effect B', 3, 'effect-b-0');
+    profiler.addInstantEntry('effect-a pass 1', 'Effect A', 20, 'effect-a-0');
+    profiler.addInstantEntry('effect-b pass 3', 'Effect B', 4, 'effect-b-1');
     profiler.recordNamedPass('Final Blit', 'Final Blit', () => undefined);
     profiler.completeFrame({
       frameMs: 16,
@@ -36,8 +37,45 @@ describe('PerformanceFrameProfiler', () => {
       'Upload',
       'Effect B',
       'Effect A',
+      'Effect B',
       'Final Blit',
     ]);
+    expect(onSnapshot.mock.calls[0][0].groupEntries.map(entry => entry.groupId)).toEqual([
+      'Upload',
+      'effect-b-0',
+      'effect-a-0',
+      'effect-b-1',
+      'Final Blit',
+    ]);
+    expect(onSnapshot.mock.calls[0][0].groupEntries[1].cpuMs).toBe(5);
+  });
+
+  it('keeps GPU timings separate for repeated execution instances', () => {
+    const onSnapshot = vi.fn<(snapshot: FramePerformanceSnapshot) => void>();
+    const profiler = new PerformanceFrameProfiler({
+      mode: 'gpu',
+      gpuName: 'Mock GPU',
+      uploadMethod: 'VideoFrame direct',
+      modeName: 'Mode A',
+      tier: 'balanced',
+      sourceDimensions: { width: 1280, height: 720 },
+      targetDimensions: { width: 2560, height: 1440 },
+      timestampAvailable: true,
+    }, onSnapshot);
+    const internals = profiler as unknown as {
+      lastSnapshotAt: number;
+      lastGpuMsByKey: Map<string, number>;
+    };
+    internals.lastSnapshotAt = -1000;
+    internals.lastGpuMsByKey.set('effect-a-0\u0000pass', 1.25);
+    internals.lastGpuMsByKey.set('effect-a-1\u0000pass', 4.5);
+
+    profiler.beginFrame();
+    profiler.recordNamedPass('pass', 'Effect A', () => undefined, 'effect-a-0');
+    profiler.recordNamedPass('pass', 'Effect A', () => undefined, 'effect-a-1');
+    profiler.completeFrame({ frameMs: 2, uploadMs: 0.1, encodeMs: 1, submitMs: 0.1 });
+
+    expect(onSnapshot.mock.calls[0][0].groupEntries.map(entry => entry.gpuMs)).toEqual([1.25, 4.5]);
   });
 
   it('sizes timestamp query storage from the compiled pass capacity', () => {

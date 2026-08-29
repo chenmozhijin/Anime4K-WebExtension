@@ -65,6 +65,7 @@ function createPassthroughPlan(inputTexture: GPUTexture, dimensions: Dimensions)
   const passthroughPipeline: PipelinePass = {
     profileLabel: 'Passthrough',
     profileGroup: 'Passthrough',
+    profileGroupId: 'passthrough',
     pass: () => { },
     getOutputTexture: () => inputTexture,
   };
@@ -82,12 +83,13 @@ function createPassthroughPlan(inputTexture: GPUTexture, dimensions: Dimensions)
   };
 }
 
-function assignProfileGroup(pipeline: PipelinePass, group: string): void {
+function assignProfileGroup(pipeline: PipelinePass, group: string, groupId: string): void {
   pipeline.profileGroup = group;
+  pipeline.profileGroupId = groupId;
   const children = pipeline.getProfileChildren?.()
     ?? (pipeline as PipelinePass & { pipelines?: PipelinePass[] }).pipelines
     ?? [];
-  children.forEach(child => assignProfileGroup(child, group));
+  children.forEach(child => assignProfileGroup(child, group, groupId));
 }
 
 function getEffectScale(effect: EffectReference): number {
@@ -175,7 +177,11 @@ export async function compileEffectChain(options: {
         optimizationFlags,
       });
 
-      compiled.pipelines.forEach(pipeline => assignProfileGroup(pipeline, descriptor.name));
+      compiled.pipelines.forEach(pipeline => assignProfileGroup(
+        pipeline,
+        descriptor.name,
+        `effect:${index}:${descriptor.id}`,
+      ));
       pipelines.push(...compiled.pipelines);
       compiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
       warmupSteps += compiled.warmupSteps;
@@ -207,7 +213,11 @@ export async function compileEffectChain(options: {
             targetDimensions: resizeTarget,
             optimizationFlags,
           });
-          resizeCompiled.pipelines.forEach(pipeline => assignProfileGroup(pipeline, 'Downscale'));
+          resizeCompiled.pipelines.forEach(pipeline => assignProfileGroup(
+            pipeline,
+            'Downscale',
+            `downscale:${index}`,
+          ));
           pipelines.push(...resizeCompiled.pipelines);
           resizeCompiled.requiredModules.forEach(moduleId => requiredModules.add(moduleId));
           warmupSteps += resizeCompiled.warmupSteps;

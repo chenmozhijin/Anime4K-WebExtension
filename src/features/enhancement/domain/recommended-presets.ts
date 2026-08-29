@@ -1,4 +1,5 @@
 import type {
+  Dimensions,
   EnhancementEffect,
   EnhancementMode,
   PerformanceTier,
@@ -67,6 +68,19 @@ export const RECOMMENDED_PRESET_MATRIX: Readonly<Record<RecommendedPresetId, Rea
   },
 };
 
+export interface RecommendedPresetResolutionContext {
+  targetResolutionSetting: string;
+  sourceDimensions?: Dimensions;
+  targetDimensions?: Dimensions;
+}
+
+const EXPLICIT_RESOLUTION_STAGE_COUNTS: Readonly<Record<string, number>> = {
+  x2: 1,
+  x4: 2,
+  x8: 3,
+};
+const MAX_RECOMMENDED_PRESET_STAGES = 3;
+
 export function isRecommendedPresetMode(mode: EnhancementMode): mode is RecommendedPresetMode {
   return 'isRecommended' in mode && mode.isRecommended === true;
 }
@@ -83,15 +97,55 @@ export function getRecommendedPresetEffectId(
   return RECOMMENDED_PRESET_MATRIX[presetId][tier];
 }
 
+export function resolveRecommendedPresetStageCount(
+  context?: RecommendedPresetResolutionContext,
+): number {
+  if (!context) {
+    return 1;
+  }
+
+  const explicitStageCount = EXPLICIT_RESOLUTION_STAGE_COUNTS[context.targetResolutionSetting];
+  if (typeof explicitStageCount === 'number') {
+    return explicitStageCount;
+  }
+
+  const { sourceDimensions, targetDimensions } = context;
+  if (!sourceDimensions || !targetDimensions) {
+    return 1;
+  }
+
+  const dimensions = [
+    sourceDimensions.width,
+    sourceDimensions.height,
+    targetDimensions.width,
+    targetDimensions.height,
+  ];
+  if (dimensions.some(dimension => !Number.isFinite(dimension) || dimension <= 0)) {
+    return 1;
+  }
+
+  const actualScale = Math.max(
+    targetDimensions.width / sourceDimensions.width,
+    targetDimensions.height / sourceDimensions.height,
+    1,
+  );
+  const stageCount = Math.ceil(Math.log2(actualScale));
+  return Math.min(MAX_RECOMMENDED_PRESET_STAGES, Math.max(1, stageCount));
+}
+
 export function resolveRecommendedPresetEffects(
   presetId: RecommendedPresetId,
   tier: PerformanceTier,
+  resolutionContext?: RecommendedPresetResolutionContext,
 ): EnhancementEffect[] {
   const effectId = getRecommendedPresetEffectId(presetId, tier);
-  const effect = normalizeEffectReference({ id: effectId });
-  if (!effect) {
-    throw new Error(`Recommended preset effect is not registered: ${effectId}`);
-  }
+  const stageCount = resolveRecommendedPresetStageCount(resolutionContext);
 
-  return [effect];
+  return Array.from({ length: stageCount }, () => {
+    const effect = normalizeEffectReference({ id: effectId });
+    if (!effect) {
+      throw new Error(`Recommended preset effect is not registered: ${effectId}`);
+    }
+    return effect;
+  });
 }
