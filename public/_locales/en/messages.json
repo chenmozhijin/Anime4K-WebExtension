@@ -27,7 +27,7 @@
     "message": "Save and Apply Enhancement Settings"
   },
   "nativeResolution": {
-    "message": "Native Resolution (No Enhancement)"
+    "message": "Native Resolution (No Upscaling)"
   },
   "enhanceError": {
     "message": "Enhancement failed, please try again",
@@ -111,7 +111,7 @@
     "message": "Import failed: invalid format"
   },
   "description": {
-    "message": "NijiLucid is a real-time video super-resolution browser extension powered by Anime4K."
+    "message": "NijiLucid is a WebGPU-powered browser extension for real-time anime video super-resolution."
   },
   "optionsTitle": {
     "message": "Extension Options"
@@ -195,7 +195,7 @@
     "message": "Issue Tracker"
   },
   "extensionDescription": {
-    "message": "NijiLucid is a real-time video super-resolution browser extension powered by Anime4K."
+    "message": "NijiLucid is a WebGPU-powered browser extension that enhances anime video quality in real time."
   },
   "appearance": {
     "message": "Appearance"
@@ -222,7 +222,7 @@
     "message": "Performance Monitor"
   },
   "performanceMonitorDesc": {
-    "message": "Show a compact in-video performance HUD. GPU diagnostics use low-frequency sampling when supported."
+    "message": "Show performance information on the video. Lite shows overall frame performance; GPU Diagnostics shows per-effect GPU time when supported."
   },
   "performanceMonitorOff": {
     "message": "Off"
@@ -542,13 +542,13 @@
     "message": "Setup Complete!"
   },
   "setupCompleteDesc": {
-    "message": "You're all set! Click the extension icon on any video page to enable super-resolution."
+    "message": "You're all set! Hover over the left-center area of the video player, then click the purple \"✨ Enhance\" button to turn super-resolution on or off."
   },
   "quickTips": {
     "message": "Quick Tips"
   },
   "tip1": {
-    "message": "Click the purple Enhance button on videos to toggle enhancement"
+    "message": "Hover over the left-center area of the video player and click the purple \"✨ Enhance\" button to turn super-resolution on or off"
   },
   "tip2": {
     "message": "Use the popup to change modes and resolution"

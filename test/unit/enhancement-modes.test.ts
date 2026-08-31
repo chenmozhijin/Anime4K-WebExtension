@@ -117,7 +117,7 @@ describe('enhancement modes', () => {
     })).toBe(1);
   });
 
-  it('keeps ArtCNN reachable only through custom modes', () => {
+  it('keeps compatibility modes Anime4K-only while allowing ArtCNN in custom modes', () => {
     const artcnnMode: CustomMode = {
       id: 'custom-artcnn',
       name: 'ArtCNN Custom',

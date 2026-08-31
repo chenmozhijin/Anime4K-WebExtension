@@ -27,7 +27,7 @@
     "message": "超解像設定を保存して適用"
   },
   "nativeResolution": {
-    "message": "オリジナル解像度 (超解像なし)"
+    "message": "オリジナル解像度 (拡大なし)"
   },
   "enhanceError": {
     "message": "超解像に失敗しました、再試行してください",
@@ -111,7 +111,7 @@
     "message": "インポート失敗：形式が無効です"
   },
   "description": {
-    "message": "NijiLucid は Anime4K に基づくリアルタイム動画超解像ブラウザ拡張機能です。"
+    "message": "NijiLucid は WebGPU を活用した、アニメ動画向けリアルタイム超解像ブラウザ拡張機能です。"
   },
   "optionsTitle": {
     "message": "拡張機能オプション"
@@ -195,7 +195,7 @@
     "message": "問題トラッカー"
   },
   "extensionDescription": {
-    "message": "NijiLucid は Anime4K-WebGPU に基づくリアルタイムビデオ超解像ブラウザ拡張機能です。"
+    "message": "NijiLucid は、WebGPU を活用してアニメ動画の画質をリアルタイムで高めるブラウザ拡張機能です。"
   },
   "appearance": {
     "message": "外観"
@@ -219,10 +219,10 @@
     "message": "パフォーマンス設定"
   },
   "performanceMonitor": {
-    "message": "パフォーマンス分析"
+    "message": "パフォーマンスモニター"
   },
   "performanceMonitorDesc": {
-    "message": "動画上にコンパクトな性能 HUD を表示します。GPU 診断は対応時に低頻度でサンプリングします。"
+    "message": "動画上にパフォーマンス情報を表示します。軽量は全体のフレーム性能を表示し、GPU 診断は対応時に各エフェクトの GPU 処理時間を表示します。"
   },
   "performanceMonitorOff": {
     "message": "オフ"
@@ -423,10 +423,10 @@
     "message": "ホワイトリスト ルールの追加に失敗しました"
   },
   "benchmarkInterrupted": {
-    "message": "前回の benchmark は完了しませんでした。必要なら手動で再実行できます。"
+    "message": "前回の GPU ベンチマークは完了しませんでした。必要なら手動で再実行できます。"
   },
   "benchmarkFallbackApplied": {
-    "message": "前回の benchmark は中断され、パフォーマンス階層は $tier$ に戻されました。",
+    "message": "前回の GPU ベンチマークは中断され、パフォーマンス階層は $tier$ に戻されました。",
     "placeholders": {
       "tier": {
         "content": "$1"
@@ -434,7 +434,7 @@
     }
   },
   "benchmarkApplyRecommendation": {
-    "message": "Benchmark が完了しました。推奨階層: $tier$。",
+    "message": "GPU ベンチマークが完了しました。推奨階層: $tier$。",
     "placeholders": {
       "tier": {
         "content": "$1"
@@ -542,13 +542,13 @@
     "message": "セットアップ完了！"
   },
   "setupCompleteDesc": {
-    "message": "すべて完了しました！任意の動画ページで拡張機能アイコンをクリックして超解像を有効にしてください。"
+    "message": "準備完了です！動画ページで動画プレーヤーの左側中央付近にマウスを合わせ、紫色の「✨ 超解像」ボタンをクリックすると、超解像をオン/オフできます。"
   },
   "quickTips": {
     "message": "クイックヒント"
   },
   "tip1": {
-    "message": "動画上の紫色の超解像ボタンをクリックして超解像を切り替え"
+    "message": "動画プレーヤーの左側中央付近にマウスを合わせ、紫色の「✨ 超解像」ボタンをクリックすると、超解像をオン/オフできます。"
   },
   "tip2": {
     "message": "ポップアップを使用してモードと解像度を変更"

@@ -2,19 +2,19 @@
 
 [中文](./README.md) | [English](./README.en.md) | [日本語](./README.ja.md) | Русский
 
-[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Edge)](https://microsoftedge.microsoft.com/addons/detail/nijilucid/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Chrome)](https://chromewebstore.google.com/detail/nijilucid/hpmbccepehpoanjpjkamfdpdkbmfmhek) [![Mozilla Add-on Users](https://img.shields.io/amo/users/nijilucid?style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Firefox)](https://addons.mozilla.org/firefox/addon/nijilucid/) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/NijiLucid/total?style=flat-square&label=%D0%97%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8%20%D1%81%20GitHub)](https://github.com/chenmozhijin/NijiLucid/releases/latest)
+[![Edge Store Users](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.activeInstallCount&style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Edge)](https://microsoftedge.microsoft.com/addons/detail/ffopffngebibpmeodlhhkdlaejnmdlam) [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Chrome)](https://chromewebstore.google.com/detail/hpmbccepehpoanjpjkamfdpdkbmfmhek) [![Mozilla Add-on Users](https://img.shields.io/amo/users/nijilucid?style=flat-square&label=%D0%9F%D0%BE%D0%BB%D1%8C%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D0%B5%D0%BB%D0%B8%20Firefox)](https://addons.mozilla.org/firefox/addon/nijilucid/) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/chenmozhijin/NijiLucid/total?style=flat-square&label=%D0%97%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8%20%D1%81%20GitHub)](https://github.com/chenmozhijin/NijiLucid/releases/latest)
 
-NijiLucid значительно улучшает качество изображения аниме-видео с помощью алгоритма супер-разрешения Anime4K в реальном времени, обеспечивая более четкое и резкое визуальное восприятие кадр за кадром!
+NijiLucid использует WebGPU для улучшения качества аниме-видео в реальном времени, обеспечивая более чёткое и резкое изображение кадр за кадром!
 
 ## Возможности
 
 - 🚀 **WebGPU Супер-разрешение в реальном времени:** Использование передовой технологии WebGPU для обеспечения низкой задержки и высокой производительности масштабирования видео прямо в браузере.
-- ⚡ **Несколько уровней производительности:** Предоставляет четыре предустановленных режима: Быстро/Сбалансированно/Качество/Ультра, а также поддерживает пользовательские режимы для гибкого баланса между улучшением качества изображения и нагрузкой на оборудование.
-- 🧪 **Продвинутые пользовательские эффекты:** Пользовательские режимы могут использовать ArtCNN, ACNet, CuNNy и другие эффекты; они не участвуют в автоматических рекомендациях и не отображаются как встроенные режимы.
+- ⚡ **Несколько уровней производительности:** Предоставляет четыре уровня производительности: Быстро/Сбалансированно/Качество/Ультра, а также поддерживает пользовательские режимы для гибкого баланса между улучшением качества изображения и нагрузкой на оборудование.
+- 🧪 **Продвинутые пользовательские эффекты:** Свободно комбинируйте несколько эффектов улучшения, чтобы настроить изображение под свои предпочтения; рекомендуемые пресеты автоматически подстраивают конфигурацию эффектов под выбранный уровень производительности.
 - 📊 **Оценка производительности оборудования:** Встроенный тест производительности GPU порекомендует наиболее подходящий уровень супер-разрешения для вашего оборудования.
 - 📏 **Гибкий контроль разрешения:** Поддержка масштабирования в 2x/4x/8x раз, а также возможность фиксировать целевое разрешение, например, 2K/4K, для удовлетворения различных потребностей просмотра.
 - ✨ **Улучшение в один клик:** Фиолетовая кнопка «✨ Улучшить» автоматически появляется в видеоплеере, позволяя мгновенно улучшить качество изображения.
-- 🛡️ **Широкая совместимость:** Поддержка Shadow DOM, iframe и кросс-доменных источников видео, преодолевая технические ограничения и охватывая подавляющее большинство видеосайтов.
+- 🛡️ **Широкая совместимость:** Поддерживает обычную DOM-структуру, открытый Shadow DOM и iframe; при проблемах с загрузкой кросс-доменных видео можно попробовать включить режим совместимости Cross-Origin.
 - 📋 **Механизм включения по требованию:** Поддержка точной стратегии белого списка, работающей только на указанных сайтах, чтобы избежать траты ресурсов и помех на странице.
 - 🌈 **Современный дизайн UI:** Следование рекомендациям Material Design, адаптация к Светлой/Тёмной/Системной темам для комфортного визуального восприятия.
 - 🌐 **Поддержка интернационализации:** Поддержка нескольких языков, включая китайский, английский, японский и русский, для пользователей по всему миру.
@@ -29,8 +29,8 @@ NijiLucid значительно улучшает качество изобра�
 #### Из магазина приложений (рекомендуется)
 
 - [![GitHub Release](https://img.shields.io/github/v/release/chenmozhijin/NijiLucid?style=flat-square&label=%D0%9F%D0%BE%D1%81%D0%BB%D0%B5%D0%B4%D0%BD%D1%8F%D1%8F%20%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F)](https://github.com/chenmozhijin/NijiLucid/releases/latest)
-- [![Edge Store Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.version&style=flat-square&label=%D0%9C%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD%20Edge)](https://microsoftedge.microsoft.com/addons/detail/nijilucid/ffopffngebibpmeodlhhkdlaejnmdlam)
-- [![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=%D0%9C%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD%20Chrome)](https://chromewebstore.google.com/detail/nijilucid/hpmbccepehpoanjpjkamfdpdkbmfmhek)
+- [![Edge Store Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fffopffngebibpmeodlhhkdlaejnmdlam&query=%24.version&style=flat-square&label=%D0%9C%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD%20Edge)](https://microsoftedge.microsoft.com/addons/detail/ffopffngebibpmeodlhhkdlaejnmdlam)
+- [![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/hpmbccepehpoanjpjkamfdpdkbmfmhek?style=flat-square&label=%D0%9C%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD%20Chrome)](https://chromewebstore.google.com/detail/hpmbccepehpoanjpjkamfdpdkbmfmhek)
 - [![Mozilla Add-on Version](https://img.shields.io/amo/v/nijilucid?style=flat-square&label=%D0%94%D0%BE%D0%BF%D0%BE%D0%BB%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F%20Firefox)](https://addons.mozilla.org/firefox/addon/nijilucid/)
 
 > [!NOTE]
@@ -41,17 +41,22 @@ NijiLucid значительно улучшает качество изобра�
 #### Использование готового пакета
 
 1. Откройте [GitHub Releases](https://github.com/chenmozhijin/NijiLucid/releases/latest)
-2. В пункте "Assets" нажмите на `nijilucid.zip`
+2. В разделе "Assets" загрузите актуальный пакет расширения:
+   - Chrome/Edge: `nijilucid.zip`
+   - Firefox: `nijilucid-firefox.zip`
 3. Распакуйте загруженный архив в любое удобное место
-4. Установите распакованный архив расширения:
+4. Загрузите распакованное расширение в браузер:
    - Chrome: Откройте страницу расширений (`chrome://extensions`) → включите "Режим разработчика" → "Загрузить распакованное расширение" → выберите папку с распакованным архивом
    - Edge: Откройте страницу расширений (`edge://extensions`) → включите "Режим разработчика" → "Загрузить распакованное" → выберите папку с распакованным архивом
+   - Firefox: Откройте `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → выберите `manifest.json` из распакованной папки
 
 #### Установка из исходного кода
 
 1. Клонируйте этот репозиторий (`git clone https://github.com/chenmozhijin/NijiLucid`)
 2. Введите `npm install` для установки зависимостей
-3. Введите `npm run build` для сборки расширения
+3. Соберите расширение для нужного браузера:
+   - Chrome/Edge: выполните `npm run build:chrome`
+   - Firefox: выполните `npm run build:firefox`
 4. Установите собранное вами расширение:
    - Chrome/Edge: Откройте страницу расширений (`chrome://extensions` или `edge://extensions`) → включите режим разработчика → загрузите распакованное расширение → выберите папку `dist-chrome`
    - Firefox: Откройте `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → выберите `dist-firefox/manifest.json`
@@ -70,20 +75,22 @@ NijiLucid значительно улучшает качество изобра�
 
 ### II. Повседневное использование
 
-1.  **Включение улучшения**: Воспроизведите видео на поддерживаемом сайте. Слева появится фиолетовая кнопка **«✨ Улучшить»**.
-2.  **Переключение**: Нажмите кнопку для включения. Статус кнопки изменится с «⏳ Загрузка...» на «❌ Остановить».
-3.  **Автоскрытие**: Кнопка скрывается автоматически, когда курсор убирается с видео.
+1.  **Включение улучшения**: Воспроизведите видео на поддерживаемом сайте.
+2.  **Переключение**: Наведите курсор на центральную часть левого края видеоплеера, чтобы появилась фиолетовая кнопка **«✨ Улучшить»**. Нажмите её, чтобы включить или выключить улучшение. При запуске кнопка показывает «⏳ Загрузка...», а после включения — «❌ Остановить».
+3.  **Автоскрытие**: Кнопка автоматически скрывается, когда курсор покидает центральную часть левого края видеоплеера или саму кнопку.
 
 ### III. Настройки во всплывающей панели
 
 Нажмите значок расширения NijiLucid на панели инструментов браузера:
 
-*   **Уровень производительности (Performance Tier)**: Быстрое переключение между 4 предустановками.
-    *   *Примечание: Если выбран «Пользовательский режим» (Custom Mode), этот параметр недоступен, так как режим определяется комбинацией шейдеров.*
+*   **Уровень производительности (Performance Tier)**: Быстрое переключение между 4 уровнями производительности.
+    *   *Примечание: Если выбран «Пользовательский режим» (Custom Mode), этот параметр недоступен, так как режим определяется комбинацией эффектов.*
 *   **Режим улучшения (Enhancement Mode)**:
-    *   **Встроенные (Built-in)**: Классические пресеты Anime4K (Mode A, B, C).
-    *   **Пользовательские (Custom)**: Созданные или импортированные вами режимы.
-*   **Разрешение (Resolution)**: Целевое разрешение (x2 или фиксированное 1080p/4K).
+    *   **Встроенные режимы**: Включают три рекомендуемых пресета и шесть режимов совместимости.
+    *   **Рекомендуемые пресеты**: Сохранение деталей, очистка после сжатия и мягкий стиль; конфигурация эффектов подстраивается под выбранный уровень производительности.
+    *   **Режимы совместимости**: Mode A, Mode B, Mode C, Mode A+A, Mode B+B и Mode C+A.
+    *   **Пользовательские режимы**: Созданные или импортированные вами режимы со свободно комбинируемыми эффектами.
+*   **Разрешение (Resolution)**: Выберите масштабирование x2, x4 или x8 либо фиксированное целевое разрешение 720p, 1080p, 2K (1440p) или 4K (2160p). Фиксированные разрешения сохраняют соотношение сторон исходного видео; Native использует исходное разрешение без масштабирования, но не отключает улучшение.
 *   **Белый список (Whitelist)**:
     *   Быстрое добавление текущей страницы/домена.
     *   Глобальное включение/отключение.
@@ -94,16 +101,17 @@ NijiLucid значительно улучшает качество изобра�
 
 #### 1. Общие настройки (General)
 *   **Внешний вид**: Светлая/Темная тема.
-*   **Совместимость**: Включите **«Режим совместимости Cross-Origin»**, если видео не улучшается из-за политик безопасности браузера.
+*   **Совместимость**: Если видео не удаётся улучшить из-за политик безопасности браузера, включите **«Режим совместимости Cross-Origin»**. Этот режим пытается исправить проблемы с кросс-доменной загрузкой; после включения обновите уже открытые страницы.
 
 #### 2. Настройки производительности (Performance)
 *   **Тест GPU**: Перезапуск теста производительности.
 *   **Текущий уровень**: Просмотр активной конфигурации.
+*   **Монитор производительности**: Предлагает режимы Выкл., Облегчённый и Диагностика GPU. Облегчённый режим показывает общую производительность кадров; Диагностика GPU показывает время работы GPU для каждого эффекта, когда браузер поддерживает запросы временных меток GPU. HUD можно свернуть, скопировать как снимок производительности, переместить, изменить ширину или закрыть.
 
 #### 3. Режимы улучшения (Enhancement Modes)
 *   **Редактор**: Создание новых режимов.
-*   **Продвинутые эффекты**: ArtCNN, ACNet и CuNNy можно вручную добавить в пользовательских режимах для экспериментальных конфигураций с высокой нагрузкой; текущая версия не рекомендует их через GPU Benchmark и не показывает как встроенные режимы.
-*   **Сортировка**: Перетаскивание шейдеров или режимов.
+*   **Продвинутые эффекты**: ArtCNN, ACNet, ARNet, CuNNy и другие эффекты можно вручную добавить в пользовательских режимах; рекомендуемые пресеты также используют конфигурацию эффектов, соответствующую выбранному уровню производительности.
+*   **Сортировка**: Перетаскивание эффектов или режимов.
 *   **Обмен**: Импорт/Экспорт конфигураций (JSON).
 
 #### 4. Управление белым списком (Whitelist)
@@ -114,7 +122,9 @@ NijiLucid значительно улучшает качество изобра�
 ## Благодарности
 
 - [bloc97/Anime4K](https://github.com/bloc97/Anime4K)
-- [Anime4K-WebGPU](https://github.com/Anime4KWebBoost/Anime4K-WebGPU)
+- [Anime4K-WebGPU](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) (исторический справочный проект)
+- [ArtCNN](https://github.com/Artoriuz/ArtCNN)
+- [ACNetGLSL](https://github.com/TianZerL/ACNetGLSL)
 - [CuNNy](https://github.com/funnyplanter/CuNNy)
 
 ## Лицензия

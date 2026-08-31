@@ -27,7 +27,7 @@
     "message": "保存并应用超分辨率设置"
   },
   "nativeResolution": {
-    "message": "原始分辨率 (不超分)"
+    "message": "原始分辨率 (不放大)"
   },
   "enhanceError": {
     "message": "超分失败，请重试",
@@ -111,7 +111,7 @@
     "message": "导入失败：格式无效"
   },
   "description": {
-    "message": "NijiLucid 是一款基于 Anime4K 的实时视频超分辨率浏览器扩展。"
+    "message": "NijiLucid 是一款基于 WebGPU 的实时动漫视频超分辨率浏览器扩展。"
   },
   "optionsTitle": {
     "message": "扩展选项"
@@ -195,7 +195,7 @@
     "message": "问题跟踪器"
   },
   "extensionDescription": {
-    "message": "NijiLucid 是一款基于 Anime4K-WebGPU 的实时视频超分辨率浏览器扩展。"
+    "message": "NijiLucid 是一款基于 WebGPU、专注于实时提升动漫视频画质的浏览器扩展。"
   },
   "appearance": {
     "message": "外观"
@@ -219,10 +219,10 @@
     "message": "性能设置"
   },
   "performanceMonitor": {
-    "message": "性能分析器"
+    "message": "性能监视器"
   },
   "performanceMonitorDesc": {
-    "message": "在视频上显示紧凑性能 HUD。GPU 诊断会在支持时低频采样。"
+    "message": "在视频上显示性能信息。轻量显示整体帧性能；GPU 诊断会在支持时显示各效果的 GPU 耗时。"
   },
   "performanceMonitorOff": {
     "message": "关闭"
@@ -423,10 +423,10 @@
     "message": "添加白名单规则失败"
   },
   "benchmarkInterrupted": {
-    "message": "上次 benchmark 未完成，你可以手动重新运行。"
+    "message": "上次 GPU 基准测试未完成，您可以手动重新运行。"
   },
   "benchmarkFallbackApplied": {
-    "message": "上次 benchmark 被中断，性能档位已回退到 $tier$。",
+    "message": "上次 GPU 基准测试被中断，性能档位已回退到 $tier$。",
     "placeholders": {
       "tier": {
         "content": "$1"
@@ -434,7 +434,7 @@
     }
   },
   "benchmarkApplyRecommendation": {
-    "message": "Benchmark 已完成，推荐档位：$tier$。",
+    "message": "GPU 基准测试已完成，推荐档位：$tier$。",
     "placeholders": {
       "tier": {
         "content": "$1"
@@ -542,13 +542,13 @@
     "message": "设置完成！"
   },
   "setupCompleteDesc": {
-    "message": "一切就绪！在任何视频页面上点击扩展图标即可启用超分辨率。"
+    "message": "一切就绪！在视频页面中，将鼠标悬停在播放器左侧中部，点击紫色「✨ 超分」按钮即可开启或关闭超分。"
   },
   "quickTips": {
     "message": "快速提示"
   },
   "tip1": {
-    "message": "点击视频上的紫色超分按钮以切换增强"
+    "message": "将鼠标悬停在视频播放器左侧中部，点击紫色「✨ 超分」按钮即可开启或关闭超分。"
   },
   "tip2": {
     "message": "使用弹出窗口更改模式和分辨率"
