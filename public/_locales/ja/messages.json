@@ -478,6 +478,12 @@
   "gpuOutOfMemory": {
     "message": "この動画の処理中に GPU メモリが不足しました。"
   },
+  "gpuTextureDimensionExceeded": {
+    "message": "選択した超解像モデルには {requiredWidth}×{requiredHeight} の内部テクスチャが必要ですが、現在の WebGPU デバイス上限 {maxWidth}×{maxHeight} を超えています。処理解像度を下げるか、別のプリセットを試してください。"
+  },
+  "gpuTextureDimensionExceededWithAdapterLimit": {
+    "message": "選択した超解像モデルには {requiredWidth}×{requiredHeight} の内部テクスチャが必要ですが、現在の WebGPU デバイス上限 {maxWidth}×{maxHeight} を超えています。GPU アダプターは最大テクスチャ辺長 {adapterLimit} をサポートしています。拡張機能を再読み込みして再試行し、それでも失敗する場合は処理解像度を下げるか別のプリセットを試してください。"
+  },
   "gpuDeviceLost": {
     "message": "GPU デバイスが失われ、復旧できませんでした。"
   },

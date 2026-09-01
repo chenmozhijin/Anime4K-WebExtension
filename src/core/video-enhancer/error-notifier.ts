@@ -31,6 +31,8 @@ export class EnhancerErrorNotifier {
         gpuUnsupported: chrome.i18n.getMessage('gpuUnsupported'),
         gpuOutOfMemory: chrome.i18n.getMessage('gpuOutOfMemory'),
         gpuDeviceLost: chrome.i18n.getMessage('gpuDeviceLost'),
+        textureDimensionExceeded: chrome.i18n.getMessage('gpuTextureDimensionExceeded'),
+        textureDimensionExceededWithAdapterLimit: chrome.i18n.getMessage('gpuTextureDimensionExceededWithAdapterLimit'),
         effectCompilationValidationFailed: chrome.i18n.getMessage('gpuEffectCompilationValidationFailed'),
         effectCompilationFailed: chrome.i18n.getMessage('gpuEffectCompilationFailed'),
         effectWarmupValidationFailed: chrome.i18n.getMessage('gpuEffectWarmupValidationFailed'),

@@ -10,6 +10,8 @@ export interface ErrorPresentationOptions {
     gpuUnsupported: string;
     gpuOutOfMemory: string;
     gpuDeviceLost: string;
+    textureDimensionExceeded: string;
+    textureDimensionExceededWithAdapterLimit: string;
     effectCompilationValidationFailed: string;
     effectCompilationFailed: string;
     effectWarmupValidationFailed: string;
@@ -80,6 +82,61 @@ function detectGpuStage(messages: readonly string[]): string | null {
   }
 
   return null;
+}
+
+interface TextureDimensionLimit {
+  requiredWidth: string;
+  requiredHeight: string;
+  maxWidth: string;
+  maxHeight: string;
+  adapterLimit?: string;
+}
+
+function detectTextureDimensionLimit(messages: readonly string[]): TextureDimensionLimit | null {
+  const joined = messages.join('\n');
+  const required = /Texture size\s*\(\[?Extent3D\s+width:\s*(\d+),\s*height:\s*(\d+)/i.exec(joined);
+  const maximum = /exceeded maximum texture size\s*\(\[?Extent3D\s+width:\s*(\d+),\s*height:\s*(\d+)/i.exec(joined);
+  if (!required || !maximum) {
+    return null;
+  }
+
+  const adapterLimit = /maxTextureDimension2D\s+of\s*(\d+)/i.exec(joined)?.[1];
+  return {
+    requiredWidth: required[1],
+    requiredHeight: required[2],
+    maxWidth: maximum[1],
+    maxHeight: maximum[2],
+    ...(adapterLimit ? { adapterLimit } : {}),
+  };
+}
+
+function formatTemplate(template: string, values: Record<string, string>): string {
+  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (token, key: string) => values[key] ?? token);
+}
+
+function buildTextureDimensionSummary(
+  limit: TextureDimensionLimit,
+  options: ErrorPresentationOptions,
+): string {
+  const template = limit.adapterLimit
+    ? options.knownMessages.textureDimensionExceededWithAdapterLimit
+    : options.knownMessages.textureDimensionExceeded;
+  return formatTemplate(template, {
+    requiredWidth: limit.requiredWidth,
+    requiredHeight: limit.requiredHeight,
+    maxWidth: limit.maxWidth,
+    maxHeight: limit.maxHeight,
+    adapterLimit: limit.adapterLimit ?? '',
+  });
+}
+
+function buildTextureDimensionDetails(messages: readonly string[]): string | undefined {
+  const joined = messages.join('\n');
+  const stage = /WebGPU failed during effect compilation(?: \((.+?)\))?:/i.exec(joined)?.[0];
+  const texture = /Texture size\s*\(\[?Extent3D[^\r\n]*?exceeded maximum texture size\s*\(\[?Extent3D[^\r\n]*?\)\.?/i.exec(joined)?.[0];
+  const adapter = /This adapter supports a higher maxTextureDimension2D of\s*\d+[^.]*\./i.exec(joined)?.[0];
+  const details = [stage, texture, adapter].filter((value): value is string => Boolean(value));
+  return details.length > 0 ? [...new Set(details)].join('\n') : undefined;
 }
 
 function buildStageSummary(
@@ -174,6 +231,15 @@ export function buildErrorPresentation(
   }
 
   const messages = collectErrorMessages(error);
+  const textureDimensionLimit = detectTextureDimensionLimit(messages);
+  if (textureDimensionLimit) {
+    return {
+      summary: buildTextureDimensionSummary(textureDimensionLimit, options),
+      details: buildTextureDimensionDetails(messages),
+      showOptionsLink: false,
+    };
+  }
+
   const summary = buildGenericSummary(messages, options);
   return {
     summary,

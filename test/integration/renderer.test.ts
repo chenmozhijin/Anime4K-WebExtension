@@ -388,7 +388,7 @@ describe('renderer lifecycle', () => {
     expect((rejection as Error & { cause?: unknown }).cause).not.toBeUndefined();
   });
 
-  it('requests the adapter workgroup storage limit during renderer initialization', async () => {
+  it('requests adapter limits needed by high-resolution model intermediates during renderer initialization', async () => {
     installChromeMock();
     const webgpu = installWebGpuMock();
     const videoHarness = createMockVideo();
@@ -418,6 +418,7 @@ describe('renderer lifecycle', () => {
 
     expect(requestDeviceSpy).toHaveBeenCalledWith(expect.objectContaining({
       requiredLimits: expect.objectContaining({
+        maxTextureDimension2D: 16384,
         maxComputeWorkgroupStorageSize: 32768,
       }),
     }));

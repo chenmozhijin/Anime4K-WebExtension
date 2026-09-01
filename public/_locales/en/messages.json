@@ -478,6 +478,12 @@
   "gpuOutOfMemory": {
     "message": "GPU memory was exhausted while processing this video."
   },
+  "gpuTextureDimensionExceeded": {
+    "message": "The selected upscaler needs an internal {requiredWidth}x{requiredHeight} texture, exceeding the current WebGPU device limit of {maxWidth}x{maxHeight}. Lower the processing resolution or try a different preset."
+  },
+  "gpuTextureDimensionExceededWithAdapterLimit": {
+    "message": "The selected upscaler needs an internal {requiredWidth}x{requiredHeight} texture, exceeding the current WebGPU device limit of {maxWidth}x{maxHeight}. The GPU adapter supports a maximum texture dimension of {adapterLimit}; reload the extension and try again. If it still fails, lower the processing resolution or try a different preset."
+  },
   "gpuDeviceLost": {
     "message": "The GPU device was lost and could not be recovered."
   },

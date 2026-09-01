@@ -478,6 +478,12 @@
   "gpuOutOfMemory": {
     "message": "处理此视频时 GPU 显存已耗尽。"
   },
+  "gpuTextureDimensionExceeded": {
+    "message": "所选超分模型需要创建 {requiredWidth}×{requiredHeight} 的内部纹理，超过当前 WebGPU 设备的 {maxWidth}×{maxHeight} 限制。请降低处理分辨率，或尝试其他预设。"
+  },
+  "gpuTextureDimensionExceededWithAdapterLimit": {
+    "message": "所选超分模型需要创建 {requiredWidth}×{requiredHeight} 的内部纹理，超过当前 WebGPU 设备的 {maxWidth}×{maxHeight} 限制。GPU 适配器支持最大纹理边长 {adapterLimit}；请重新加载扩展后重试。若仍失败，请降低处理分辨率或尝试其他预设。"
+  },
   "gpuDeviceLost": {
     "message": "GPU 设备已丢失，且无法恢复。"
   },

@@ -478,6 +478,12 @@
   "gpuOutOfMemory": {
     "message": "處理此影片時 GPU 記憶體已耗盡。"
   },
+  "gpuTextureDimensionExceeded": {
+    "message": "所選超解析模型需要建立 {requiredWidth}×{requiredHeight} 的內部紋理，超過目前 WebGPU 裝置的 {maxWidth}×{maxHeight} 限制。請降低處理解析度，或嘗試其他預設。"
+  },
+  "gpuTextureDimensionExceededWithAdapterLimit": {
+    "message": "所選超解析模型需要建立 {requiredWidth}×{requiredHeight} 的內部紋理，超過目前 WebGPU 裝置的 {maxWidth}×{maxHeight} 限制。GPU 配接器支援的最大紋理邊長為 {adapterLimit}；請重新載入擴充功能後再試一次。若仍然失敗，請降低處理解析度或嘗試其他預設。"
+  },
   "gpuDeviceLost": {
     "message": "GPU 裝置已遺失，且無法恢復。"
   },

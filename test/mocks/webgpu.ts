@@ -171,6 +171,7 @@ class MockDevice {
   readonly queue = new MockQueue() as unknown as GPUQueue;
   features = new Set<GPUFeatureName>() as unknown as GPUSupportedFeatures;
   readonly limits = {
+    maxTextureDimension2D: 16384,
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
     maxComputeWorkgroupStorageSize: 32768,
@@ -299,6 +300,7 @@ class MockAdapter {
   } as GPUAdapterInfo;
 
   readonly limits = {
+    maxTextureDimension2D: 16384,
     maxBufferSize: 1024 * 1024,
     maxStorageBufferBindingSize: 1024 * 1024,
     maxComputeWorkgroupStorageSize: 32768,
