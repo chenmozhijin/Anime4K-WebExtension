@@ -64,7 +64,7 @@ type LocaleCopyExpectation = {
 
 const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
   'public/_locales/en/messages.json': {
-    description: 'NijiLucid is a WebGPU-powered browser extension for real-time anime video super-resolution.',
+    description: 'Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames.',
     extensionDescription: 'NijiLucid is a WebGPU-powered browser extension that enhances anime video quality in real time.',
     nativeResolution: 'Native Resolution (No Upscaling)',
     performanceMonitor: 'Performance Monitor',
@@ -79,7 +79,7 @@ const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
     ],
   },
   'public/_locales/ja/messages.json': {
-    description: 'NijiLucid は WebGPU を活用した、アニメ動画向けリアルタイム超解像ブラウザ拡張機能です。',
+    description: '先進の超解像技術を活用し、アニメ動画の画質をリアルタイムで向上。ワンクリック超解像と複数のパフォーマンスティアで、どのフレームもより鮮明に。',
     extensionDescription: 'NijiLucid は、WebGPU を活用してアニメ動画の画質をリアルタイムで高めるブラウザ拡張機能です。',
     nativeResolution: 'オリジナル解像度 (拡大なし)',
     performanceMonitor: 'パフォーマンスモニター',
@@ -94,7 +94,7 @@ const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
     ],
   },
   'public/_locales/ru/messages.json': {
-    description: 'NijiLucid — браузерное расширение на базе WebGPU для супер-разрешения аниме-видео в реальном времени.',
+    description: 'Используйте передовую технологию супер-разрешения для улучшения качества аниме-видео в реальном времени — улучшение в один клик и несколько уровней производительности для более чёткого изображения.',
     extensionDescription: 'NijiLucid — браузерное расширение на базе WebGPU, которое в реальном времени повышает качество аниме-видео.',
     nativeResolution: 'Исходное разрешение (без масштабирования)',
     performanceMonitor: 'Монитор производительности',
@@ -109,7 +109,7 @@ const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
     ],
   },
   'public/_locales/zh_CN/messages.json': {
-    description: 'NijiLucid 是一款基于 WebGPU 的实时动漫视频超分辨率浏览器扩展。',
+    description: '利用先进的超分辨率技术，实时提升动漫视频画质，一键超分、多档性能，让每一帧更清晰锐利。',
     extensionDescription: 'NijiLucid 是一款基于 WebGPU、专注于实时提升动漫视频画质的浏览器扩展。',
     nativeResolution: '原始分辨率 (不放大)',
     performanceMonitor: '性能监视器',
@@ -124,7 +124,7 @@ const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
     ],
   },
   'public/_locales/zh_TW/messages.json': {
-    description: 'NijiLucid 是一款基於 WebGPU 的即時動漫影片超解析瀏覽器擴充功能。',
+    description: '利用先進的超解析度技術，即時提升動漫影片畫質，一鍵超解析、多檔效能，讓每一幀更清晰銳利。',
     extensionDescription: 'NijiLucid 是一款基於 WebGPU、專注於即時提升動漫影片畫質的瀏覽器擴充功能。',
     nativeResolution: '原始解析度 (不放大)',
     performanceMonitor: '效能監視器',
@@ -314,7 +314,7 @@ describe('locale and design token hygiene', () => {
     });
 
     const packageJson = JSON.parse(readProjectFile('package.json')) as { description: string };
-    expect(packageJson.description).toBe('NijiLucid is a WebGPU-powered browser extension for real-time anime video super-resolution.');
+    expect(packageJson.description).toBe('Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames.');
 
     const optionsHtml = readProjectFile('src/ui/options/options.html');
     expect(optionsHtml).toContain(localeCopyExpectations['public/_locales/en/messages.json'].extensionDescription);

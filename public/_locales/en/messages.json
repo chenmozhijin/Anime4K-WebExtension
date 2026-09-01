@@ -111,7 +111,7 @@
     "message": "Import failed: invalid format"
   },
   "description": {
-    "message": "NijiLucid is a WebGPU-powered browser extension for real-time anime video super-resolution."
+    "message": "Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames."
   },
   "optionsTitle": {
     "message": "Extension Options"

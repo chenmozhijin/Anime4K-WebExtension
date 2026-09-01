@@ -1,7 +1,7 @@
 {
   "name": "nijilucid",
   "version": "0.5.0",
-  "description": "NijiLucid is a WebGPU-powered browser extension for real-time anime video super-resolution.",
+  "description": "Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames.",
   "license": "MIT AND LGPL-3.0-or-later",
   "scripts": {
     "build": "npm run build:chrome",
