@@ -16,6 +16,8 @@ const localeFiles = [
   'public/_locales/zh_TW/messages.json',
 ];
 
+const maxDescriptionLength = 132;
+
 const onboardingUpgradeKeys = [
   'onboardingUpgradeTitle',
   'onboardingUpgradeDesc',
@@ -64,7 +66,7 @@ type LocaleCopyExpectation = {
 
 const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
   'public/_locales/en/messages.json': {
-    description: 'Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames.',
+    description: 'Enhance anime video in real time with advanced super-resolution, one-click upscaling, and performance tiers for sharper frames.',
     extensionDescription: 'NijiLucid is a WebGPU-powered browser extension that enhances anime video quality in real time.',
     nativeResolution: 'Native Resolution (No Upscaling)',
     performanceMonitor: 'Performance Monitor',
@@ -94,7 +96,7 @@ const localeCopyExpectations: Record<string, LocaleCopyExpectation> = {
     ],
   },
   'public/_locales/ru/messages.json': {
-    description: 'Используйте передовую технологию супер-разрешения для улучшения качества аниме-видео в реальном времени — улучшение в один клик и несколько уровней производительности для более чёткого изображения.',
+    description: 'Улучшайте качество аниме-видео в реальном времени с супер-разрешением, улучшением в один клик и уровнями производительности.',
     extensionDescription: 'NijiLucid — браузерное расширение на базе WebGPU, которое в реальном времени повышает качество аниме-видео.',
     nativeResolution: 'Исходное разрешение (без масштабирования)',
     performanceMonitor: 'Монитор производительности',
@@ -297,6 +299,8 @@ describe('locale and design token hygiene', () => {
       const messages = readLocaleFile(file);
 
       expect(messages.description.message, `${file} description`).toBe(expectation.description);
+      expect(messages.description.message?.length, `${file} description length`)
+        .toBeLessThanOrEqual(maxDescriptionLength);
       expect(messages.extensionDescription.message, `${file} extension description`).toBe(expectation.extensionDescription);
       expect(messages.description.message, `${file} description should not name Anime4K as the product`).not.toContain('Anime4K');
       expect(messages.extensionDescription.message, `${file} about description should not name Anime4K as the product`).not.toContain('Anime4K');
@@ -314,7 +318,7 @@ describe('locale and design token hygiene', () => {
     });
 
     const packageJson = JSON.parse(readProjectFile('package.json')) as { description: string };
-    expect(packageJson.description).toBe('Utilize advanced super-resolution technology to enhance anime video quality in real time, with one-click upscaling and multiple performance tiers for clearer, sharper frames.');
+    expect(packageJson.description).toBe('Enhance anime video in real time with advanced super-resolution, one-click upscaling, and performance tiers for sharper frames.');
 
     const optionsHtml = readProjectFile('src/ui/options/options.html');
     expect(optionsHtml).toContain(localeCopyExpectations['public/_locales/en/messages.json'].extensionDescription);
