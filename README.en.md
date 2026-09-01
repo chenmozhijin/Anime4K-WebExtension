@@ -79,6 +79,17 @@ After installing the extension, an onboarding page will automatically open. For 
 2.  **Click to Toggle**: Hover over the left-center area of the video player to reveal the purple **"✨ Enhance"** button. Click it to turn super-resolution on or off. While starting, the button shows "⏳ Starting..."; after it is enabled, it shows "❌ Cancel".
 3.  **Auto-hide**: The button automatically hides after the pointer leaves the left-center area or the button to keep the video unobstructed.
 
+#### Firefox Permissions and Usage
+
+Firefox users are encouraged to enable **"Access your data for all websites"** on the extension's **Permissions & Data** page. Once enabled, NijiLucid can be used directly on supported video websites without manually activating each site.
+
+If you do not want to enable access for all websites, you can use NijiLucid on demand:
+
+1. Open the webpage containing the video.
+2. Click the NijiLucid extension icon in the Firefox toolbar to activate the current webpage.
+3. To keep NijiLucid authorized on the current website, right-click the extension icon and use the menu to allow continued access on that website.
+4. Repeat these steps when switching to another website that has not been authorized.
+
 ### III. Popup Panel Settings
 
 Click the NijiLucid extension icon in the browser toolbar to open the quick settings panel:
