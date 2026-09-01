@@ -17,6 +17,11 @@ describe('options UI', () => {
     const chromeMock = installChromeMock({
       manifestVersion: '1.2.3',
     });
+    vi.spyOn(chromeMock.i18n, 'getMessage').mockImplementation((key: string) => ({
+      recommendedDetailPreserving: '细节保留',
+      recommendedCompressionCleanup: '重压缩清理',
+      recommendedSoftStyle: '柔和风格',
+    }[key] ?? key));
     const saveSettings = vi.fn().mockResolvedValue(undefined);
     const saveLocalSettings = vi.fn().mockResolvedValue(undefined);
     const addWhitelistRule = vi.fn().mockResolvedValue(undefined);
@@ -198,7 +203,9 @@ describe('options UI', () => {
     expect(document.querySelector('[data-mode-group="recommended"] [data-mode-id="recommended-detail-preserving"]')).not.toBeNull();
     expect(document.querySelector('[data-mode-group="compatibility"] [data-mode-id="builtin-mode-a"]')).not.toBeNull();
     expect(document.querySelector('[data-mode-id="recommended-detail-preserving"]')?.textContent)
-      .toContain('Detail Preserving');
+      .toContain('细节保留');
+    expect(document.querySelector('[data-mode-id="recommended-detail-preserving"]')?.textContent)
+      .not.toContain('Detail Preserving');
     expect(document.querySelector('[data-mode-id="recommended-detail-preserving"] .effect-browser')).toBeNull();
     expect((document.querySelector('[data-mode-id="recommended-detail-preserving"] h2') as HTMLElement).contentEditable)
       .toBe('false');

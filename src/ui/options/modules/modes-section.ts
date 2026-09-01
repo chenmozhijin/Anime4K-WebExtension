@@ -333,7 +333,10 @@ export function createModesSection(deps: ModesSectionDeps): ModesSectionControll
       });
 
       const modeName = document.createElement('h2');
-      modeName.textContent = mode.name;
+      const localizedModeName = 'nameKey' in mode
+        ? chrome.i18n.getMessage(mode.nameKey)
+        : '';
+      modeName.textContent = localizedModeName || mode.name;
       modeName.contentEditable = String(!mode.isBuiltIn);
       modeName.draggable = false;
       modeName.title = mode.isBuiltIn
