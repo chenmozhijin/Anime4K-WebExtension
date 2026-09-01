@@ -118,6 +118,7 @@ async function createRendererHarness(options: {
   externalTexture?: boolean;
   effects?: EnhancementEffect[];
   optimizationFlags?: Partial<OptimizationFeatureFlags>;
+  supportsVideoTexture?: boolean;
 } = {}) {
   installChromeMock();
   const webgpu = installWebGpuMock({ features: options.webgpuFeatures });
@@ -140,7 +141,8 @@ async function createRendererHarness(options: {
   });
 
   const { Renderer } = await import('../../src/core/renderer');
-  vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+  vi.spyOn(Renderer, 'detectWebGPUFeatures')
+    .mockResolvedValue(options.supportsVideoTexture ?? true);
 
   const renderer = await Renderer.create({
     video: videoHarness.video,
@@ -233,6 +235,44 @@ describe('renderer lifecycle', () => {
     renderer.destroy();
   });
 
+  it('uses ImageBitmap fallback on Firefox/Linux when direct video upload is unsupported', async () => {
+    const originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+    const createImageBitmapMock = vi.fn(async () => ({
+      close: vi.fn(),
+    }) as unknown as ImageBitmap);
+
+    Object.defineProperty(globalThis, 'createImageBitmap', {
+      configurable: true,
+      value: createImageBitmapMock,
+    });
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0',
+    });
+
+    try {
+      const { renderer } = await createRendererHarness({
+        supportsVideoTexture: false,
+      });
+
+      expect((renderer as any).frameUploader.getMode()).toBe('bitmap');
+
+      await vi.waitFor(() => {
+        expect(createImageBitmapMock).toHaveBeenCalled();
+      });
+
+      renderer.destroy();
+    } finally {
+      Reflect.deleteProperty(globalThis, 'createImageBitmap');
+
+      if (originalUserAgent) {
+        Object.defineProperty(navigator, 'userAgent', originalUserAgent);
+      } else {
+        Reflect.deleteProperty(navigator, 'userAgent');
+      }
+    }
+  });
+
   it('auto-enables external texture upload on Firefox after a behavioral probe', async () => {
     const originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
     Object.defineProperty(navigator, 'userAgent', {
@@ -296,6 +336,31 @@ describe('renderer lifecycle', () => {
     expect((webgpu.device.queue as unknown as { copiedImages: number }).copiedImages).toBe(copiedBefore + 1);
 
     renderer.destroy();
+  });
+
+  it('does not present a frame after an async upload resumes following destroy', async () => {
+    const { renderer, context } = await createRendererHarness();
+
+    let resolveUpload!: () => void;
+    const uploadPromise = new Promise<void>((resolve) => {
+      resolveUpload = resolve;
+    });
+
+    const uploadSpy = vi.spyOn(renderer as any, 'copyVideoFrameToTexture')
+      .mockReturnValue(uploadPromise);
+    const getCurrentTextureSpy = vi.spyOn(context, 'getCurrentTexture');
+
+    const framePromise = (renderer as any).processFrame();
+
+    await vi.waitFor(() => {
+      expect(uploadSpy).toHaveBeenCalledTimes(1);
+    });
+
+    renderer.destroy();
+    resolveUpload();
+
+    await expect(framePromise).resolves.toBe(false);
+    expect(getCurrentTextureSpy).not.toHaveBeenCalled();
   });
 
   it('fails initialization when WebGPU validation errors are captured during pipeline build', async () => {

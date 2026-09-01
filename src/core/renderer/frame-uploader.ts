@@ -191,6 +191,7 @@ function getExternalTexturePipelineResources(
 
 export class VideoFrameUploader {
   private useImageBitmapFallback = false;
+  private fallbackModePreference: 'canvas' | 'bitmap' = 'canvas';
   private externalTextureEnabled = false;
   private externalClampHighlightsEnabled = false;
   private mode: FrameUploadMode = 'native';
@@ -266,6 +267,14 @@ export class VideoFrameUploader {
     this.useImageBitmapFallback = enabled;
     this.refreshMode();
     if (!enabled) {
+      this.disposeFallbackResources();
+    }
+  }
+
+  public setFallbackModePreference(mode: 'canvas' | 'bitmap'): void {
+    this.fallbackModePreference = mode;
+    this.refreshMode();
+    if (mode === 'bitmap') {
       this.disposeFallbackResources();
     }
   }
@@ -462,7 +471,7 @@ export class VideoFrameUploader {
     this.mode = this.externalTextureEnabled
       ? 'external'
       : this.useImageBitmapFallback
-        ? 'canvas'
+        ? this.fallbackModePreference
         : 'native';
   }
 

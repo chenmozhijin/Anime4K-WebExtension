@@ -336,6 +336,14 @@ export class Renderer {
 
   private async configureFrameUploaderMode(): Promise<void> {
     const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device, this.video);
+
+    const capabilities = this.gpuCapabilities;
+    const preferBitmapFallback = capabilities?.browser.name === 'firefox'
+      && /\bLinux\b/i.test(capabilities.browser.userAgent);
+
+    this.frameUploader.setFallbackModePreference(
+      preferBitmapFallback ? 'bitmap' : 'canvas',
+    );
     this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
 
     const externalTextureEnabled = await this.resolveExternalTextureEnabled();
@@ -753,6 +761,14 @@ export class Renderer {
       if (upload) {
         await upload;
       }
+
+      // The async ImageBitmap upload may yield while the renderer is being
+      // destroyed or reconfigured. Do not touch an unconfigured canvas after
+      // resuming.
+      if (this.destroyed || this.reconfigurationRunning) {
+        return false;
+      }
+
       const uploadMs = performance.now() - uploadStartedAt;
       profiler?.addInstantEntry('Upload', 'Upload', uploadMs);
 
