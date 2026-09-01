@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VideoFrameUploader } from '../../src/core/renderer/frame-uploader';
+import { createWebGpuMock } from '../support/webgpu';
 
 function createVideo(width: number, height: number): HTMLVideoElement {
   const video = document.createElement('video');
@@ -260,5 +261,35 @@ describe('VideoFrameUploader', () => {
 
     uploader.dispose();
     expect(uniformBuffer.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('probes the real external texture upload path', async () => {
+    const webgpu = createWebGpuMock();
+    const importExternalTexture = vi.fn(() => ({} as GPUExternalTexture));
+    Object.assign(webgpu.device, { importExternalTexture });
+
+    const result = await VideoFrameUploader.probeExternalTexture(
+      webgpu.device as unknown as GPUDevice,
+      createVideo(320, 180),
+    );
+
+    expect(result).toBe(true);
+    expect(importExternalTexture).toHaveBeenCalledWith({ source: expect.any(HTMLVideoElement) });
+    expect((webgpu.device.queue as unknown as { submissions: number }).submissions).toBe(1);
+  });
+
+  it('rejects an external texture path that throws during import', async () => {
+    const webgpu = createWebGpuMock();
+    const importExternalTexture = vi.fn(() => {
+      throw new Error('external texture unavailable');
+    });
+    Object.assign(webgpu.device, { importExternalTexture });
+
+    const result = await VideoFrameUploader.probeExternalTexture(
+      webgpu.device as unknown as GPUDevice,
+      createVideo(320, 180),
+    );
+
+    expect(result).toBe(false);
   });
 });

@@ -173,9 +173,19 @@ export class Renderer {
   private sampler!: GPUSampler;
   private renderBindGroup!: GPUBindGroup;
 
-  // VideoFrame upload support can vary by device, so never share a probe across
-  // device generations or across different GPU sessions.
-  private static readonly webgpuFeatureProbeByDevice = new WeakMap<GPUDevice, Promise<boolean>>();
+  // Video upload support can vary by device and source video, so never share a
+  // probe across device generations, GPU sessions, or origin-clean sources.
+  private static readonly webgpuFeatureProbeByDevice = new WeakMap<
+    GPUDevice,
+    WeakMap<HTMLVideoElement, Promise<boolean>>
+  >();
+  // External texture usability also depends on the source video (for example,
+  // an origin-clean video can differ from a cross-origin one), so cache it per
+  // device and video element.
+  private static readonly externalTextureProbeByDevice = new WeakMap<
+    GPUDevice,
+    WeakMap<HTMLVideoElement, Promise<boolean>>
+  >();
   /**
    * Renderer 的构造函数是私有的，请使用 `Renderer.create()` 静态方法来创建实例。
    * @param options - 初始化渲染器所需的配置
@@ -263,15 +273,9 @@ export class Renderer {
         }
       });
 
-      // 检查是否需要使用回退上传路径
-      const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device);
-      this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
-      this.frameUploader.setExternalTextureEnabled(
-        this.optimizationFlags.externalTexture && Boolean(this.gpuCapabilities?.externalTexture),
-      );
-      if (this.frameUploader.isFallbackEnabled()) {
-        logger.info('Using fallback uploader for copying video frames.');
-      }
+      // 选择视频帧上传路径。Firefox 需要先验证 external texture 的真实可用性，
+      // 因为 copyExternalImageToTexture() 不接受 HTMLVideoElement。
+      await this.configureFrameUploaderMode();
       this.configurePerformanceProfiler();
 
       this.context = this.canvas.getContext('webgpu')!;
@@ -328,6 +332,42 @@ export class Renderer {
 
   private copyVideoFrameToTexture(encoder: GPUCommandEncoder): void | Promise<void> {
     return this.frameUploader.copyFrame(this.device, this.video, this.videoFrameTexture, encoder);
+  }
+
+  private async configureFrameUploaderMode(): Promise<void> {
+    const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device, this.video);
+    this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
+
+    const externalTextureEnabled = await this.resolveExternalTextureEnabled();
+    // Keep the resolved value in the effective optimization flags so pipeline
+    // compilation can enable the matching fused ClampHighlights path.
+    this.optimizationFlags.externalTexture = externalTextureEnabled;
+    this.frameUploader.setExternalTextureEnabled(externalTextureEnabled);
+
+    if (externalTextureEnabled) {
+      logger.info('Using GPUExternalTexture uploader.');
+    } else if (this.frameUploader.isFallbackEnabled()) {
+      logger.info('Using fallback uploader for copying video frames.');
+    }
+  }
+
+  private async resolveExternalTextureEnabled(): Promise<boolean> {
+    const capabilities = this.gpuCapabilities;
+    if (!capabilities?.externalTexture) {
+      return false;
+    }
+
+    // Preserve the existing explicit opt-in behavior for Chromium and other
+    // implementations. Firefox is auto-enabled only after a real upload probe.
+    if (capabilities.browser.name !== 'firefox') {
+      return this.optimizationFlags.externalTexture;
+    }
+
+    const supported = await Renderer.detectExternalTextureFeatures(this.device, this.video);
+    if (!supported) {
+      logger.info('Firefox external texture probe failed; using copy fallback.');
+    }
+    return supported;
   }
 
   private destroyPipelines(): void {
@@ -529,54 +569,88 @@ export class Renderer {
   }
 
   /**
-   * 检测当前环境的 WebGPU 实现是否支持直接从 VideoFrame 复制纹理。
+   * 检测当前 WebGPU 实现是否支持从实际 HTMLVideoElement 复制纹理。
    */
-  public static async detectWebGPUFeatures(device: GPUDevice): Promise<boolean> {
-    const existingProbe = Renderer.webgpuFeatureProbeByDevice.get(device);
+  public static async detectWebGPUFeatures(
+    device: GPUDevice,
+    video: HTMLVideoElement,
+  ): Promise<boolean> {
+    let probesByVideo = Renderer.webgpuFeatureProbeByDevice.get(device);
+    if (!probesByVideo) {
+      probesByVideo = new WeakMap<HTMLVideoElement, Promise<boolean>>();
+      Renderer.webgpuFeatureProbeByDevice.set(device, probesByVideo);
+    }
+
+    const existingProbe = probesByVideo.get(video);
     if (existingProbe) {
       return existingProbe;
     }
 
     const probe = (async () => {
-      let frame: VideoFrame | undefined;
       let texture: GPUTexture | undefined;
+      let errorScopePushed = false;
       try {
-        // 在 initialize() 中已经检测了基本的 WebGPU 支持，这里只需要检测 VideoFrame 支持
-
-        // 创建一个 OffscreenCanvas
-        const offscreenCanvas = new OffscreenCanvas(1, 1);
-        // 获取 2D 上下文
-        const context = offscreenCanvas.getContext('2d');
-        if (!context) {
-          throw new Error('Failed to get 2d context from OffscreenCanvas');
-        }
-        // context.fillStyle = 'black';
-        context.fillRect(0, 0, 1, 1);
-        // 创建一个最小化的 VideoFrame 和 GPUTexture 用于测试
-        frame = new VideoFrame(offscreenCanvas, { timestamp: 0 });
         texture = device.createTexture({
+          label: 'video upload capability probe target',
           size: [1, 1],
-          format: 'rgba8unorm',
+          format: 'rgba16float',
           usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
         });
 
-        // 核心测试：此操作如果不支持会抛出异常
-        device.queue.copyExternalImageToTexture({ source: frame }, { texture }, [1, 1]);
+        device.pushErrorScope('validation');
+        errorScopePushed = true;
+        device.queue.copyExternalImageToTexture({ source: video }, { texture }, [1, 1]);
+        const validationError = await device.popErrorScope();
+        errorScopePushed = false;
+        if (validationError) {
+          throw new Error(validationError.message || 'Video upload validation failed.');
+        }
 
-        // 如果成功，则说明支持
-        logger.debug('WebGPU feature detection: VideoFrame as texture source is supported.');
+        logger.debug('WebGPU feature detection: HTMLVideoElement upload is supported.');
         return true;
       } catch (error) {
-        // 任何步骤失败都意味着不支持
-        logger.debug('WebGPU feature detection: VideoFrame as texture source is not supported.', error);
+        logger.debug('WebGPU feature detection: HTMLVideoElement upload is not supported.', error);
+        if (errorScopePushed) {
+          try {
+            await device.popErrorScope();
+          } catch {
+            // Preserve the original probe failure.
+          }
+        }
         return false;
       } finally {
-        frame?.close();
         texture?.destroy();
       }
     })();
 
-    Renderer.webgpuFeatureProbeByDevice.set(device, probe);
+    probesByVideo.set(video, probe);
+    return probe;
+  }
+
+  /**
+   * Probe the same HTMLVideoElement -> GPUExternalTexture path used by playback.
+   */
+  public static async detectExternalTextureFeatures(
+    device: GPUDevice,
+    video: HTMLVideoElement,
+  ): Promise<boolean> {
+    if (typeof device.importExternalTexture !== 'function') {
+      return false;
+    }
+
+    let probesByVideo = Renderer.externalTextureProbeByDevice.get(device);
+    if (!probesByVideo) {
+      probesByVideo = new WeakMap<HTMLVideoElement, Promise<boolean>>();
+      Renderer.externalTextureProbeByDevice.set(device, probesByVideo);
+    }
+
+    const existingProbe = probesByVideo.get(video);
+    if (existingProbe) {
+      return existingProbe;
+    }
+
+    const probe = VideoFrameUploader.probeExternalTexture(device, video);
+    probesByVideo.set(video, probe);
     return probe;
   }
 
@@ -1039,10 +1113,6 @@ export class Renderer {
         presentationFormat: this.presentationFormat,
       });
 
-      this.frameUploader.setExternalTextureEnabled(
-        this.optimizationFlags.externalTexture && this.gpuCapabilities.externalTexture,
-      );
-
       // 设置新设备的丢失监听
       this.device.lost.then((info) => {
         if (this.destroyed) return;
@@ -1052,8 +1122,7 @@ export class Renderer {
         }
       });
 
-      const supportsVideoTexture = await Renderer.detectWebGPUFeatures(this.device);
-      this.frameUploader.setFallbackEnabled(!supportsVideoTexture);
+      await this.configureFrameUploaderMode();
 
       // 重新配置上下文
       this.context.configure({

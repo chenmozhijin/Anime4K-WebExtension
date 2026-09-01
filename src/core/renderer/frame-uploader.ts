@@ -1,5 +1,7 @@
 import { createLogger } from '../../utils/logger';
 
+const frameUploaderLogger = createLogger('frame-uploader');
+
 type FrameUploadMode = 'native' | 'external' | 'canvas' | 'bitmap';
 
 interface ExternalTexturePipelineResources {
@@ -199,7 +201,66 @@ export class VideoFrameUploader {
   private externalSourceInfoBuffer: GPUBuffer | null = null;
   private externalSourceInfoDevice: GPUDevice | null = null;
   private readonly externalSourceInfoData = new Uint32Array(4);
-  private readonly logger = createLogger('frame-uploader');
+  private readonly logger = frameUploaderLogger;
+
+  /**
+   * Execute the same external-texture upload used by playback against a tiny
+   * render target. Some implementations expose importExternalTexture() but
+   * only report the real limitation when the external binding is validated or
+   * submitted, so checking the method alone is not sufficient.
+   */
+  public static async probeExternalTexture(
+    device: GPUDevice,
+    video: HTMLVideoElement,
+  ): Promise<boolean> {
+    if (typeof device.importExternalTexture !== 'function') {
+      return false;
+    }
+
+    const uploader = new VideoFrameUploader();
+    let targetTexture: GPUTexture | undefined;
+    let errorScopePushed = false;
+    try {
+      targetTexture = device.createTexture({
+        label: 'frame uploader external texture probe target',
+        size: [1, 1, 1],
+        format: 'rgba16float',
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING
+          | GPUTextureUsage.COPY_DST
+          | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+      device.pushErrorScope('validation');
+      errorScopePushed = true;
+      uploader.setExternalTextureEnabled(true);
+      const commandEncoder = device.createCommandEncoder();
+      await uploader.copyFrame(device, video, targetTexture, commandEncoder);
+      device.queue.submit([commandEncoder.finish()]);
+      await device.queue.onSubmittedWorkDone();
+
+      const validationError = await device.popErrorScope();
+      errorScopePushed = false;
+      if (validationError) {
+        frameUploaderLogger.debug('External texture probe failed validation.', validationError);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      frameUploaderLogger.debug('External texture probe failed.', error);
+      if (errorScopePushed) {
+        try {
+          await device.popErrorScope();
+        } catch {
+          // Preserve the original probe failure.
+        }
+      }
+      return false;
+    } finally {
+      uploader.dispose();
+      targetTexture?.destroy();
+    }
+  }
 
   public setFallbackEnabled(enabled: boolean): void {
     this.useImageBitmapFallback = enabled;

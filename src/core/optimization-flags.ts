@@ -53,8 +53,9 @@ export const defaultOptimizationFeatureFlags: Readonly<OptimizationFeatureFlags>
   ganMultiOutputDispatch: false,
   fusedModelTail: true,
   terminalDirect: true,
-  // External textures have separate color-conversion semantics and stay opt-in
-  // until the copy/direct video fixture matrix is certified for the target platform.
+  // External textures have separate color-conversion semantics. Keep the flag
+  // disabled for non-Firefox implementations until the fixture matrix is
+  // certified; Firefox may promote it only after a source-specific probe.
   externalTexture: false,
   // Reserved for a future certified arithmetic-f16 implementation. Adapter support
   // alone is insufficient; this must remain false until the full hardware matrix passes.

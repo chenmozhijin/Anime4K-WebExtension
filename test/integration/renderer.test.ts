@@ -233,6 +233,30 @@ describe('renderer lifecycle', () => {
     renderer.destroy();
   });
 
+  it('auto-enables external texture upload on Firefox after a behavioral probe', async () => {
+    const originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
+    });
+
+    try {
+      const { renderer, webgpu } = await createRendererHarness({ externalTexture: true });
+
+      expect((renderer as any).frameUploader.getMode()).toBe('external');
+      expect((renderer as any).optimizationFlags.externalTexture).toBe(true);
+      expect((webgpu.device as any).importExternalTexture).toHaveBeenCalled();
+
+      renderer.destroy();
+    } finally {
+      if (originalUserAgent) {
+        Object.defineProperty(navigator, 'userAgent', originalUserAgent);
+      } else {
+        Reflect.deleteProperty(navigator, 'userAgent');
+      }
+    }
+  });
+
   it('restores native upload and the full effect chain after an external upload failure', async () => {
     const clamp = {
       id: 'anime4k/Helper/ClampHighlights',
@@ -466,15 +490,16 @@ describe('renderer lifecycle', () => {
     renderer.destroy();
   });
 
-  it('probes VideoFrame upload support on the supplied device without creating another device', async () => {
+  it('probes HTMLVideoElement upload support on the supplied device without creating another device', async () => {
     const webgpu = installWebGpuMock();
     const requestAdapterSpy = vi.spyOn(webgpu.gpu, 'requestAdapter');
     const requestDeviceSpy = vi.spyOn(webgpu.adapter, 'requestDevice');
     const device = await webgpu.adapter.requestDevice();
     const { Renderer } = await import('../../src/core/renderer');
+    const video = document.createElement('video');
 
-    const firstResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice);
-    const secondResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice);
+    const firstResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice, video);
+    const secondResult = await Renderer.detectWebGPUFeatures(device as unknown as GPUDevice, video);
 
     expect(secondResult).toBe(firstResult);
     expect(requestAdapterSpy).not.toHaveBeenCalled();
