@@ -40,6 +40,9 @@ module.exports = (env, argv) => {
       filename: '[name].js',
       path: path.resolve(__dirname, 'dist-' + targetBrowser),
       clean: true, // 清理输出目录
+      // Avoid Webpack's automatic public-path fallback (which emits Function()).
+      // Async chunks still resolve to packaged extension URLs via runtime.getURL().
+      publicPath: targetBrowser === 'firefox' ? '' : 'auto',
     },
     module: {
       rules: [

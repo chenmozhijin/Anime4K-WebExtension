@@ -48,6 +48,35 @@ type HudResizeState = {
   startWidth: number;
 };
 
+type PerformanceHudView = {
+  mode?: 'mini' | 'full';
+  mini: {
+    root: HTMLButtonElement;
+    fps: HTMLSpanElement;
+    cpu: HTMLSpanElement;
+    gpu: HTMLSpanElement;
+    dropped: HTMLSpanElement;
+  };
+  full: {
+    titlebar: HTMLDivElement;
+    body: HTMLDivElement;
+    collapseButton: HTMLButtonElement;
+    title: HTMLSpanElement;
+    copyButton: HTMLButtonElement;
+    closeButton: HTMLButtonElement;
+    gpuInfo: HTMLDivElement;
+    uploadInfo: HTMLDivElement;
+    modeInfo: HTMLDivElement;
+    sourceInfo: HTMLDivElement;
+    fpsMetric: HTMLSpanElement;
+    droppedMetric: HTMLSpanElement;
+    gpuMetric: HTMLSpanElement;
+    renderSection: HTMLDivElement;
+    renderSectionTitle: HTMLButtonElement;
+    renderSectionLabel: HTMLSpanElement;
+  };
+};
+
 /**
  * OverlayManager
  * 唯一负责创建、管理和销毁所有与特定视频关联的UI元素的模块。
@@ -91,6 +120,7 @@ export class OverlayManager {
   private originalVideoOpacity: string | null = null;
   private canvasVisible = false;
   private performanceHud?: HTMLElement;
+  private performanceHudView?: PerformanceHudView;
   private performanceHudOptions?: PerformanceHudOptions;
   private latestPerformanceSnapshot?: FramePerformanceSnapshot;
   private pendingPerformanceSnapshot?: FramePerformanceSnapshot;
@@ -235,6 +265,7 @@ export class OverlayManager {
     if (!this.performanceHud) {
       this.performanceHud = document.createElement('section');
       this.performanceHud.className = 'nijilucid-performance-hud';
+      this.performanceHudView = this.createPerformanceHudView();
       this.performanceHud.addEventListener('click', this.handlePerformanceHudClick);
       this.performanceHud.addEventListener('pointerdown', this.handlePerformanceHudPointerDown);
       this.shadowRoot.appendChild(this.performanceHud);
@@ -253,6 +284,7 @@ export class OverlayManager {
     this.performanceHudOptions = undefined;
     this.performanceHud?.remove();
     this.performanceHud = undefined;
+    this.performanceHudView = undefined;
     this.hudResizeState = undefined;
   }
 
@@ -1002,7 +1034,7 @@ export class OverlayManager {
   }
 
   private renderPerformanceHud(snapshot: FramePerformanceSnapshot): void {
-    if (!this.performanceHud || !this.performanceHudOptions) {
+    if (!this.performanceHud || !this.performanceHudOptions || !this.performanceHudView) {
       return;
     }
 
@@ -1016,28 +1048,182 @@ export class OverlayManager {
         : '';
     this.performanceHud.className = `nijilucid-performance-hud ${position} ${collapsed ? 'is-collapsed' : ''} ${statusClass}`;
     this.performanceHud.style.width = collapsed ? '' : `${this.getHudRenderWidth()}px`;
-    this.performanceHud.innerHTML = collapsed
-      ? this.renderPerformanceHudMini(snapshot)
-      : this.renderPerformanceHudFull(snapshot);
+    this.showPerformanceHudView(collapsed ? 'mini' : 'full');
+
+    if (collapsed) {
+      this.updatePerformanceHudMini(this.performanceHudView.mini, snapshot);
+      return;
+    }
+
+    this.updatePerformanceHudFull(this.performanceHudView.full, snapshot);
   }
 
-  private renderPerformanceHudMini(snapshot: FramePerformanceSnapshot): string {
+  private createPerformanceHudView(): PerformanceHudView {
+    const createSpan = (className?: string): HTMLSpanElement => {
+      const element = document.createElement('span');
+      if (className) {
+        element.className = className;
+      }
+      return element;
+    };
+
+    const miniRoot = document.createElement('button');
+    miniRoot.className = 'hud-mini';
+    miniRoot.dataset.hudAction = 'toggle';
+    miniRoot.type = 'button';
+    const miniFps = createSpan();
+    const miniCpu = createSpan();
+    const miniGpu = createSpan();
+    const miniDropped = createSpan();
+    miniRoot.append(miniFps, miniCpu, miniGpu, miniDropped);
+
+    const titlebar = document.createElement('div');
+    titlebar.className = 'hud-titlebar';
+    const collapseButton = document.createElement('button');
+    collapseButton.className = 'hud-icon hud-collapse-button';
+    collapseButton.dataset.hudAction = 'toggle';
+    collapseButton.type = 'button';
+    collapseButton.appendChild(createSpan('hud-chevron'));
+    const title = createSpan('hud-title');
+    const copyButton = document.createElement('button');
+    copyButton.className = 'hud-icon';
+    copyButton.dataset.hudAction = 'copy';
+    copyButton.type = 'button';
+    copyButton.textContent = '⧉';
+    const closeButton = document.createElement('button');
+    closeButton.className = 'hud-icon';
+    closeButton.dataset.hudAction = 'close';
+    closeButton.type = 'button';
+    closeButton.textContent = '×';
+    titlebar.append(collapseButton, title, copyButton, closeButton);
+
+    const body = document.createElement('div');
+    body.className = 'hud-body';
+    const gpuInfo = document.createElement('div');
+    gpuInfo.className = 'hud-info';
+    const uploadInfo = document.createElement('div');
+    uploadInfo.className = 'hud-info';
+    const modeInfo = document.createElement('div');
+    modeInfo.className = 'hud-info';
+    const sourceInfo = document.createElement('div');
+    sourceInfo.className = 'hud-info';
+    const metrics = document.createElement('div');
+    metrics.className = 'hud-metrics';
+    const fpsMetric = createSpan();
+    const droppedMetric = createSpan();
+    const gpuMetric = createSpan();
+    metrics.append(fpsMetric, droppedMetric, gpuMetric);
+    const renderSection = document.createElement('div');
+    renderSection.className = 'hud-section';
+    const renderSectionTitle = document.createElement('button');
+    renderSectionTitle.className = 'hud-section-title';
+    renderSectionTitle.dataset.hudAction = 'toggle-render';
+    renderSectionTitle.type = 'button';
+    renderSectionTitle.appendChild(createSpan('hud-chevron'));
+    const renderSectionLabel = createSpan();
+    renderSectionTitle.appendChild(renderSectionLabel);
+    renderSection.appendChild(renderSectionTitle);
+    const resizeGrip = createSpan('hud-resize-grip');
+    resizeGrip.dataset.hudResize = '';
+    body.append(
+      gpuInfo,
+      uploadInfo,
+      modeInfo,
+      sourceInfo,
+      metrics,
+      renderSection,
+      resizeGrip,
+    );
+
+    return {
+      mini: {
+        root: miniRoot,
+        fps: miniFps,
+        cpu: miniCpu,
+        gpu: miniGpu,
+        dropped: miniDropped,
+      },
+      full: {
+        titlebar,
+        body,
+        collapseButton,
+        title,
+        copyButton,
+        closeButton,
+        gpuInfo,
+        uploadInfo,
+        modeInfo,
+        sourceInfo,
+        fpsMetric,
+        droppedMetric,
+        gpuMetric,
+        renderSection,
+        renderSectionTitle,
+        renderSectionLabel,
+      },
+    };
+  }
+
+  private showPerformanceHudView(mode: 'mini' | 'full'): void {
+    if (!this.performanceHud || !this.performanceHudView) {
+      return;
+    }
+
+    const nodes = mode === 'mini'
+      ? [this.performanceHudView.mini.root]
+      : [this.performanceHudView.full.titlebar, this.performanceHudView.full.body];
+    if (this.performanceHudView.mode !== mode || this.performanceHud.firstChild !== nodes[0]) {
+      this.performanceHud.replaceChildren(...nodes);
+      this.performanceHudView.mode = mode;
+    }
+  }
+
+  private updatePerformanceHudMini(
+    view: PerformanceHudView['mini'],
+    snapshot: FramePerformanceSnapshot,
+  ): void {
     const cpuLabel = this.hudMessage('hudLabelCpu', 'CPU');
     const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
     const gpuText = snapshot.timestampAvailable
       ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
       : `${gpuLabel} n/a`;
-    return `
-      <button class="hud-mini" data-hud-action="toggle" type="button">
-        <span>${this.formatFps(snapshot.fps)} ${this.escapeHtml(this.hudMessage('hudLabelFps', 'FPS'))}</span>
-        <span>${this.escapeHtml(cpuLabel)} ${this.formatMs(snapshot.frameMs)}</span>
-        <span>${this.escapeHtml(gpuText)}</span>
-        <span>${this.escapeHtml(this.hudMessage('hudLabelDrop', 'Drop'))} ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
-      </button>
-    `;
+    view.fps.textContent = `${this.formatFps(snapshot.fps)} ${this.hudMessage('hudLabelFps', 'FPS')}`;
+    view.cpu.textContent = `${cpuLabel} ${this.formatMs(snapshot.frameMs)}`;
+    view.gpu.textContent = gpuText;
+    view.dropped.textContent = `${this.hudMessage('hudLabelDrop', 'Drop')} ${(snapshot.droppedFrameRate * 100).toFixed(1)}%`;
   }
 
-  private renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string {
+  private updatePerformanceHudFull(
+    view: PerformanceHudView['full'],
+    snapshot: FramePerformanceSnapshot,
+  ): void {
+    view.collapseButton.title = this.hudMessage('hudActionCollapse', 'Collapse');
+    view.title.textContent = this.hudMessage('performanceMonitor', 'Performance Monitor');
+    view.copyButton.title = this.hudMessage('hudActionCopy', 'Copy');
+    view.closeButton.title = this.hudMessage('hudActionClose', 'Close');
+    view.gpuInfo.textContent = `${this.hudMessage('hudLabelGpu', 'GPU')}: ${snapshot.gpuName}`;
+    view.uploadInfo.textContent = `${this.hudMessage('hudLabelUpload', 'Upload')}: ${snapshot.uploadMethod}`;
+    view.modeInfo.textContent = `${this.hudMessage('hudLabelMode', 'Mode')}: ${snapshot.modeName} / ${snapshot.tier}`;
+    view.sourceInfo.textContent = `${this.hudMessage('hudLabelSource', 'Source')}: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} → ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}`;
+    view.fpsMetric.textContent = `${this.hudMessage('hudLabelFps', 'FPS')}: ${this.formatFps(snapshot.fps)}`;
+    view.droppedMetric.textContent = `${this.hudMessage('hudLabelDrop', 'Drop')}: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%`;
+    const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
+    view.gpuMetric.textContent = snapshot.timestampAvailable
+      ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
+      : `${gpuLabel} n/a`;
+    view.renderSectionTitle.classList.toggle('is-collapsed', this.renderTimingCollapsed);
+    view.renderSectionLabel.textContent = this.hudMessage('hudLabelRenderTime', 'Render time');
+    view.renderSection.replaceChildren(
+      view.renderSectionTitle,
+      ...this.createPerformanceHudTimingNodes(snapshot),
+    );
+  }
+
+  private createPerformanceHudTimingNodes(snapshot: FramePerformanceSnapshot): Node[] {
+    if (this.renderTimingCollapsed) {
+      return [];
+    }
+
     const groups = snapshot.groupEntries;
     const hasGpuPassTimings = snapshot.mode === 'gpu'
       && snapshot.timestampAvailable
@@ -1045,94 +1231,94 @@ export class OverlayManager {
     const canShowPassTimings = groups.length > 0 && (snapshot.mode !== 'gpu' || hasGpuPassTimings);
     const renderTotalMs = this.sumEntryDisplayMs(groups);
     const renderTotalLabel = this.formatRenderTotalMs(groups);
-    const bar = groups.map((entry, index) => {
-      const width = renderTotalMs > 0 ? Math.max(2, (this.getEntryDisplayMs(entry) / renderTotalMs) * 100) : 0;
-      return `<span style="width:${width.toFixed(2)}%;background:${HUD_COLORS[index % HUD_COLORS.length]}"></span>`;
-    }).join('');
-    const rows = groups.map((entry, index) => `
-      <div class="hud-row">
-        <span class="hud-swatch" style="background:${HUD_COLORS[index % HUD_COLORS.length]}"></span>
-        <span class="hud-name">${this.escapeHtml(entry.label)}</span>
-        <span class="hud-ms">${this.formatEntryMs(entry)}</span>
-      </div>
-    `).join('');
-    const gpuLabel = this.hudMessage('hudLabelGpu', 'GPU');
-    const gpuStatus = snapshot.timestampAvailable
-      ? `${gpuLabel} ${this.formatMs(this.sumGpuMs(snapshot.groupEntries))}`
-      : `${gpuLabel} n/a`;
+    if (!canShowPassTimings) {
+      return this.createPerformanceHudDiagnosticsNodes(snapshot);
+    }
 
-    return `
-      <div class="hud-titlebar">
-        <button class="hud-icon hud-collapse-button" data-hud-action="toggle" type="button" title="${this.escapeHtml(this.hudMessage('hudActionCollapse', 'Collapse'))}">
-          <span class="hud-chevron"></span>
-        </button>
-        <span class="hud-title">${this.escapeHtml(this.hudMessage('performanceMonitor', 'Performance Monitor'))}</span>
-        <button class="hud-icon" data-hud-action="copy" type="button" title="${this.escapeHtml(this.hudMessage('hudActionCopy', 'Copy'))}">⧉</button>
-        <button class="hud-icon" data-hud-action="close" type="button" title="${this.escapeHtml(this.hudMessage('hudActionClose', 'Close'))}">×</button>
-      </div>
-      <div class="hud-body">
-        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelGpu', 'GPU'))}: ${this.escapeHtml(snapshot.gpuName)}</div>
-        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelUpload', 'Upload'))}: ${this.escapeHtml(snapshot.uploadMethod)}</div>
-        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelMode', 'Mode'))}: ${this.escapeHtml(snapshot.modeName)} / ${snapshot.tier}</div>
-        <div class="hud-info">${this.escapeHtml(this.hudMessage('hudLabelSource', 'Source'))}: ${snapshot.sourceDimensions.width}x${snapshot.sourceDimensions.height} → ${snapshot.targetDimensions.width}x${snapshot.targetDimensions.height}</div>
-        <div class="hud-metrics">
-          <span>${this.escapeHtml(this.hudMessage('hudLabelFps', 'FPS'))}: ${this.formatFps(snapshot.fps)}</span>
-          <span>${this.escapeHtml(this.hudMessage('hudLabelDrop', 'Drop'))}: ${(snapshot.droppedFrameRate * 100).toFixed(1)}%</span>
-          <span>${this.escapeHtml(gpuStatus)}</span>
-        </div>
-        <div class="hud-section">
-          <button class="hud-section-title ${this.renderTimingCollapsed ? 'is-collapsed' : ''}" data-hud-action="toggle-render" type="button">
-            <span class="hud-chevron"></span>
-            <span>${this.escapeHtml(this.hudMessage('hudLabelRenderTime', 'Render time'))}</span>
-          </button>
-          ${this.renderTimingCollapsed
-            ? ''
-            : canShowPassTimings
-              ? `
-                <div class="hud-stack" title="${this.escapeHtml(renderTotalLabel)} / ${this.formatMs(snapshot.budgetMs)}">${bar}</div>
-                ${rows}
-                <div class="hud-rule"></div>
-                <div class="hud-row hud-total">
-                  <span></span>
-                  <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelTotal', 'Total'))}</span>
-                  <span class="hud-ms">${this.escapeHtml(renderTotalLabel)}</span>
-                </div>
-              `
-              : this.renderGpuDiagnosticsHint(snapshot)}
-        </div>
-        <span class="hud-resize-grip" data-hud-resize></span>
-      </div>
-    `;
+    const stack = document.createElement('div');
+    stack.className = 'hud-stack';
+    stack.title = `${renderTotalLabel} / ${this.formatMs(snapshot.budgetMs)}`;
+    groups.forEach((entry, index) => {
+      const width = renderTotalMs > 0 ? Math.max(2, (this.getEntryDisplayMs(entry) / renderTotalMs) * 100) : 0;
+      const segment = document.createElement('span');
+      segment.style.width = `${width.toFixed(2)}%`;
+      segment.style.background = HUD_COLORS[index % HUD_COLORS.length];
+      stack.appendChild(segment);
+    });
+
+    const rows = groups.map((entry, index) => this.createPerformanceHudRow(
+      entry.label,
+      this.formatEntryMs(entry),
+      HUD_COLORS[index % HUD_COLORS.length],
+    ));
+    const rule = document.createElement('div');
+    rule.className = 'hud-rule';
+    const total = this.createPerformanceHudRow(
+      this.hudMessage('hudLabelTotal', 'Total'),
+      renderTotalLabel,
+      undefined,
+      'hud-total',
+    );
+    return [stack, ...rows, rule, total];
   }
 
-  private renderGpuDiagnosticsHint(snapshot: FramePerformanceSnapshot): string {
-    const message = this.getPassTimingHint(snapshot);
+  private createPerformanceHudRow(
+    label: string,
+    value: string,
+    color?: string,
+    additionalClassName?: string,
+  ): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = additionalClassName ? `hud-row ${additionalClassName}` : 'hud-row';
+    const swatch = document.createElement('span');
+    if (color) {
+      swatch.className = 'hud-swatch';
+      swatch.style.background = color;
+    }
+    const name = document.createElement('span');
+    name.className = 'hud-name';
+    name.textContent = label;
+    const timing = document.createElement('span');
+    timing.className = 'hud-ms';
+    timing.textContent = value;
+    row.append(swatch, name, timing);
+    return row;
+  }
 
-    return `
-      <div class="hud-cpu-summary">
-        <div class="hud-row hud-summary-row">
-          <span></span>
-          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelFrameCpu', 'Frame CPU'))}</span>
-          <span class="hud-ms">${this.formatMs(snapshot.frameMs)}</span>
-        </div>
-        <div class="hud-row hud-summary-row">
-          <span></span>
-          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelUploadCpu', 'Upload CPU'))}</span>
-          <span class="hud-ms">${this.formatMs(snapshot.uploadMs)}</span>
-        </div>
-        <div class="hud-row hud-summary-row">
-          <span></span>
-          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelEncodeCpu', 'Encode CPU'))}</span>
-          <span class="hud-ms">${this.formatMs(snapshot.encodeMs)}</span>
-        </div>
-        <div class="hud-row hud-summary-row">
-          <span></span>
-          <span class="hud-name">${this.escapeHtml(this.hudMessage('hudLabelSubmitCpu', 'Submit CPU'))}</span>
-          <span class="hud-ms">${this.formatMs(snapshot.submitMs)}</span>
-        </div>
-      </div>
-      <div class="hud-hint">${this.escapeHtml(message)}</div>
-    `;
+  private createPerformanceHudDiagnosticsNodes(snapshot: FramePerformanceSnapshot): Node[] {
+    const message = this.getPassTimingHint(snapshot);
+    const summary = document.createElement('div');
+    summary.className = 'hud-cpu-summary';
+    summary.append(
+      this.createPerformanceHudRow(
+        this.hudMessage('hudLabelFrameCpu', 'Frame CPU'),
+        this.formatMs(snapshot.frameMs),
+        undefined,
+        'hud-summary-row',
+      ),
+      this.createPerformanceHudRow(
+        this.hudMessage('hudLabelUploadCpu', 'Upload CPU'),
+        this.formatMs(snapshot.uploadMs),
+        undefined,
+        'hud-summary-row',
+      ),
+      this.createPerformanceHudRow(
+        this.hudMessage('hudLabelEncodeCpu', 'Encode CPU'),
+        this.formatMs(snapshot.encodeMs),
+        undefined,
+        'hud-summary-row',
+      ),
+      this.createPerformanceHudRow(
+        this.hudMessage('hudLabelSubmitCpu', 'Submit CPU'),
+        this.formatMs(snapshot.submitMs),
+        undefined,
+        'hud-summary-row',
+      ),
+    );
+    const hint = document.createElement('div');
+    hint.className = 'hud-hint';
+    hint.textContent = message;
+    return [summary, hint];
   }
 
   private nextHudPosition(position: PerformanceMonitorHudPosition): PerformanceMonitorHudPosition {
@@ -1262,15 +1448,6 @@ export class OverlayManager {
     const maxWidth = Math.min(HUD_MAX_WIDTH, Math.max(160, availableWidth));
     const minWidth = Math.min(HUD_MIN_WIDTH, maxWidth);
     return Math.round(Math.min(maxWidth, Math.max(minWidth, width)));
-  }
-
-  private escapeHtml(value: string): string {
-    return value
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
   }
 
   private unsubscribeBodyStrategy(): void {

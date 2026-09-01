@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     customModes: CustomMode[];
     selectedModeId: string;
   }) => {
-    modeSelect.innerHTML = '';
+    modeSelect.replaceChildren();
 
     const recommendedGroup = document.createElement('optgroup');
     recommendedGroup.label = chrome.i18n.getMessage('recommendedPresets');

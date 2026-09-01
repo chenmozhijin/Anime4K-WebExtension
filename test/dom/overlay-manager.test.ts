@@ -157,6 +157,24 @@ function installHudI18nMessages(): void {
   }[key] ?? ''));
 }
 
+function renderPerformanceHud(
+  manager: OverlayManager,
+  snapshot: FramePerformanceSnapshot,
+  collapsed = false,
+): ShadowRoot {
+  manager.showPerformanceHud(snapshot, {
+    collapsed,
+    position: 'top-left',
+    width: 360,
+    onClose: vi.fn(),
+    onToggleCollapsed: vi.fn(),
+    onPositionChange: vi.fn(),
+    onWidthChange: vi.fn(),
+    onCopy: vi.fn(),
+  });
+  return (manager as unknown as { shadowRoot: ShadowRoot }).shadowRoot;
+}
+
 describe('OverlayManager', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -495,19 +513,13 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const renderFullHud = (manager as unknown as {
-      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
-    }).renderPerformanceHudFull.bind(manager);
-
-    const html = renderFullHud(createPerformanceSnapshot({
+    const root = renderPerformanceHud(manager, createPerformanceSnapshot({
       frameMs: 99,
       groupEntries: [
         { label: 'Upload', group: 'Upload', cpuMs: 10, gpuMs: 1.25, source: 'mixed' },
         { label: 'Final Blit', group: 'Final Blit', cpuMs: 20, gpuMs: 1.75, source: 'mixed' },
       ],
     }));
-    const root = document.createElement('div');
-    root.innerHTML = html;
 
     expect(root.querySelector('.hud-total .hud-ms')?.textContent).toBe('CPU+GPU 33.00 ms');
     expect(root.querySelector('.hud-stack')?.getAttribute('title')).toContain('CPU+GPU 33.00 ms');
@@ -521,10 +533,6 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const renderers = manager as unknown as {
-      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
-      renderPerformanceHudMini(snapshot: FramePerformanceSnapshot): string;
-    };
     const snapshot = createPerformanceSnapshot({
       mode: 'lite',
       timingSource: 'cpu',
@@ -535,14 +543,12 @@ describe('OverlayManager', () => {
         { label: 'Final Blit', group: 'Final Blit', cpuMs: 2.5, source: 'cpu' },
       ],
     });
-    const fullRoot = document.createElement('div');
-    fullRoot.innerHTML = renderers.renderPerformanceHudFull.call(manager, snapshot);
-    const miniRoot = document.createElement('div');
-    miniRoot.innerHTML = renderers.renderPerformanceHudMini.call(manager, snapshot);
+    const fullRoot = renderPerformanceHud(manager, snapshot);
 
     expect(fullRoot.querySelector('.hud-total .hud-ms')?.textContent).toBe('CPU 4.00 ms');
     expect([...fullRoot.querySelectorAll('.hud-row .hud-ms')].map(row => row.textContent)).toContain('CPU 1.50 ms');
     expect(fullRoot.querySelector('.hud-hint')).toBeNull();
+    const miniRoot = renderPerformanceHud(manager, snapshot, true);
     expect(miniRoot.textContent).toContain('CPU 8.00 ms');
     manager.destroy();
   });
@@ -553,10 +559,9 @@ describe('OverlayManager', () => {
     document.body.appendChild(container);
     const video = createVideo(container);
     const manager = OverlayManager.create(video);
-    const renderers = manager as unknown as {
-      renderPerformanceHudFull(snapshot: FramePerformanceSnapshot): string;
+    const formatPerformanceSnapshotText = (manager as unknown as {
       formatPerformanceSnapshotText(snapshot: FramePerformanceSnapshot): string;
-    };
+    }).formatPerformanceSnapshotText.bind(manager);
     const groupEntries = Array.from({ length: 13 }, (_, index) => ({
       label: index < 2 ? 'Effect A' : `Stage ${index}`,
       group: index < 2 ? 'Effect A' : `Stage ${index}`,
@@ -571,16 +576,35 @@ describe('OverlayManager', () => {
       groupEntries,
     });
 
-    const root = document.createElement('div');
-    root.innerHTML = renderers.renderPerformanceHudFull(snapshot);
+    const root = renderPerformanceHud(manager, snapshot);
     const rows = root.querySelectorAll('.hud-row:not(.hud-total)');
     expect(rows).toHaveLength(13);
     expect([...root.querySelectorAll('.hud-name')].filter(name => name.textContent === 'Effect A')).toHaveLength(2);
     expect(root.textContent).not.toContain('Other');
     expect(root.querySelectorAll('.hud-stack span')).toHaveLength(13);
 
-    const copied = renderers.formatPerformanceSnapshotText(snapshot);
+    const copied = formatPerformanceSnapshotText(snapshot);
     expect(copied.split('\n').filter(line => line.startsWith('Effect A:'))).toHaveLength(2);
+    manager.destroy();
+  });
+
+  it('renders dynamic performance HUD values as text nodes', () => {
+    installHudI18nMessages();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const video = createVideo(container);
+    const manager = OverlayManager.create(video);
+    const root = renderPerformanceHud(manager, createPerformanceSnapshot({
+      gpuName: '<img src=x onerror=alert(1)>',
+      modeName: '<span>mode</span>',
+      groupEntries: [
+        { label: '<svg onload=alert(1)>', group: 'Unsafe', cpuMs: 10, gpuMs: 1, source: 'mixed' },
+      ],
+    }));
+
+    expect(root.querySelector('img, svg')).toBeNull();
+    expect(root.querySelector('.hud-info')?.textContent).toContain('<img src=x onerror=alert(1)>');
+    expect([...root.querySelectorAll('.hud-name')].map(node => node.textContent)).toContain('<svg onload=alert(1)>');
     manager.destroy();
   });
 });
