@@ -8,7 +8,7 @@ import type {
 import type { PipelinePass } from '../effects/backend-types';
 import { compileEffectChain } from '../effects/chain-compiler';
 import { getEffectDescriptor } from '../effects/registry';
-import { RendererInitializationError, RendererRuntimeError } from '../errors';
+import { normalizeError, RendererInitializationError, RendererRuntimeError } from '../errors';
 import { getRequiredDeviceLimits } from '../gpu-device-limits';
 import {
   createBindGroupChecked,
@@ -298,10 +298,13 @@ export class Renderer {
       if (error instanceof RendererInitializationError) {
         throw error;
       }
-      const message = error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred during renderer initialization.';
-      throw new RendererInitializationError(`Renderer initialization failed: ${message}`, { cause: error as Error });
+      const cause = normalizeError(
+        error,
+        'An unexpected error occurred during renderer initialization.',
+      );
+      const message = cause.message.trim()
+        || 'An unexpected error occurred during renderer initialization.';
+      throw new RendererInitializationError(`Renderer initialization failed: ${message}`, { cause });
     }
   }
 

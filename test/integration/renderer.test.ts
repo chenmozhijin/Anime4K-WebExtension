@@ -323,6 +323,47 @@ describe('renderer lifecycle', () => {
     })).rejects.toThrow(/mock validation failure/);
   });
 
+  it('normalizes an undefined initialization rejection without exposing an undefined cause', async () => {
+    installChromeMock();
+    const webgpu = installWebGpuMock();
+    const videoHarness = createMockVideo();
+    compileEffectChain.mockRejectedValueOnce(undefined);
+
+    const canvas = document.createElement('canvas');
+    const context = createMockCanvasContext(webgpu.device as unknown as GPUDevice);
+    vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+      if (type === 'webgpu') {
+        return context;
+      }
+      return null;
+    });
+
+    const { Renderer } = await import('../../src/core/renderer');
+    vi.spyOn(Renderer, 'detectWebGPUFeatures').mockResolvedValue(true);
+
+    let rejection: unknown;
+    try {
+      await Renderer.create({
+        video: videoHarness.video,
+        canvas,
+        effects: [],
+        effectsSignature: 'test-undefined-initialization-rejection',
+        targetDimensions: { width: 320, height: 180 },
+      });
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toMatchObject({
+      name: 'RendererInitializationError',
+      message: 'Renderer initialization failed: An unexpected error occurred during renderer initialization.',
+      cause: expect.objectContaining({
+        message: 'An unexpected error occurred during renderer initialization.',
+      }),
+    });
+    expect((rejection as Error & { cause?: unknown }).cause).not.toBeUndefined();
+  });
+
   it('requests the adapter workgroup storage limit during renderer initialization', async () => {
     installChromeMock();
     const webgpu = installWebGpuMock();
