@@ -209,10 +209,27 @@ button:active {
   font-weight: 500;
 }
 
-.tier-btn:hover:not(.disabled) {
-  background: var(--surface-container);
+.tier-btn:hover:not(.disabled):not(.active) {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  box-shadow: inset 0 0 0 1px var(--secondary);
+  transform: none;
+}
+
+.tier-btn.active:hover {
   transform: none;
   box-shadow: none;
+}
+
+.tier-btn.disabled:hover {
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+.tier-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 .tier-btn.active {

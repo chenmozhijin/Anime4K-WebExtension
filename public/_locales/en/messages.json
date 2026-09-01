@@ -18,7 +18,7 @@
     "message": "Performance Tier:"
   },
   "enhancementModeLabel": {
-    "message": "Default Enhancement Mode:"
+    "message": "Enhancement Mode:"
   },
   "resolutionLabel": {
     "message": "Target Resolution:"
@@ -360,6 +360,15 @@
   "recommendedSoftStyle": {
     "message": "Soft Style"
   },
+  "recommendedDetailPreservingDesc": {
+    "message": "Preserves fine lines and texture details."
+  },
+  "recommendedCompressionCleanupDesc": {
+    "message": "Reduces visible compression artifacts."
+  },
+  "recommendedSoftStyleDesc": {
+    "message": "Creates a softer, smoother visual style."
+  },
   "customModes": {
     "message": "Custom Modes"
   },
@@ -502,6 +511,39 @@
   "welcomeDesc": {
     "message": "Let's optimize your settings for the best experience."
   },
+  "onboardingUpgradeTitle": {
+    "message": "NijiLucid Update"
+  },
+  "onboardingUpgradeDesc": {
+    "message": "Anime4K WebExtension has been renamed to NijiLucid. GPU processing performance and available effects in the current version differ from the previous version, so we recommend running the GPU benchmark again to choose a suitable performance tier."
+  },
+  "onboardingUpgradeKeepTier": {
+    "message": "You can also skip the test and keep your current performance tier."
+  },
+  "onboardingUpgradeTierKept": {
+    "message": "Confirm to keep your current performance tier."
+  },
+  "onboardingModeMigrationTitle": {
+    "message": "Switch to recommended presets"
+  },
+  "onboardingModeMigrationDesc": {
+    "message": "This version adds recommended presets that adjust their effect combinations for your performance tier. Choose one to replace your current compatibility mode, or skip to keep using it."
+  },
+  "onboardingModeMigrationCurrent": {
+    "message": "Current compatibility mode: $mode$",
+    "placeholders": {
+      "mode": {
+        "content": "$1",
+        "example": "Mode A"
+      }
+    }
+  },
+  "onboardingModeMigrationApply": {
+    "message": "Apply Recommended Preset"
+  },
+  "onboardingModeMigrationSkip": {
+    "message": "Skip"
+  },
   "gpuTestTitle": {
     "message": "GPU Performance Test"
   },
@@ -527,13 +569,16 @@
     "message": "You have selected a different tier."
   },
   "defaultTier": {
-    "message": "Default tier selected."
+    "message": "Confirm to apply the default tier."
   },
   "changeTier": {
     "message": "You can also choose a different tier:"
   },
   "continue": {
     "message": "Continue"
+  },
+  "onboardingApplyTier": {
+    "message": "Apply Tier"
   },
   "getStarted": {
     "message": "Get Started"

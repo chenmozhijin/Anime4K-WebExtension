@@ -38,6 +38,285 @@ describe('background bootstrap', () => {
     expect(chromeMock.__mock.localState.performanceTier).toBe('performance');
   });
 
+  it('opens upgrade onboarding for an update from before 0.5.0', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings: getLocalSettings.mockResolvedValue({
+        performanceTier: 'quality',
+        hasCompletedOnboarding: true,
+        benchmarkRunState: { status: 'idle' },
+      }),
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.10',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated).toEqual([
+      { url: 'chrome-extension://test-extension/onboarding.html?mode=upgrade' },
+    ]);
+  });
+
+  it('opens upgrade onboarding when an older version jumps to a later release', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '1.0.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html?mode=upgrade',
+    );
+  });
+
+  it.each([
+    ['completed', false],
+    ['failed', false],
+    ['running', true],
+    ['interrupted', false],
+  ] as const)('resets legacy benchmark state during an upgrade from %s', async (status, inProgress) => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+      local: {
+        performanceTier: 'quality',
+        hasCompletedOnboarding: true,
+        gpuBenchmarkResult: { tier: 'ultra' },
+        benchmarkRunState: { status },
+        ...(inProgress ? { _benchmarkInProgress: true } : {}),
+      },
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.localState.performanceTier).toBe('quality');
+    expect(chromeMock.__mock.localState.hasCompletedOnboarding).toBe(true);
+    expect(chromeMock.__mock.localState.gpuBenchmarkResult).toBeNull();
+    expect(chromeMock.__mock.localState.benchmarkRunState).toEqual({
+      status: 'idle',
+      fallbackTierApplied: null,
+    });
+    expect(chromeMock.__mock.localState._benchmarkInProgress).toBeUndefined();
+  });
+
+  it('resets benchmark data after migration so migrated legacy results cannot return', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+      local: {
+        performanceTier: 'ultra',
+        gpuBenchmarkResult: { tier: 'quality' },
+        benchmarkRunState: { status: 'completed' },
+      },
+    });
+    ensureLatestConfig.mockImplementationOnce(async () => {
+      chromeMock.__mock.localState.gpuBenchmarkResult = { tier: 'performance' };
+      chromeMock.__mock.localState.benchmarkRunState = { status: 'completed' };
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.localState.gpuBenchmarkResult).toBeNull();
+    expect(chromeMock.__mock.localState.benchmarkRunState).toEqual({
+      status: 'idle',
+      fallbackTierApplied: null,
+    });
+  });
+
+  it('still opens upgrade onboarding when legacy benchmark cleanup fails', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+    chromeMock.__mock.queueStorageSetError('local', 'upgrade cleanup failed');
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html?mode=upgrade',
+    );
+  });
+
+  it('does not open upgrade onboarding after the boundary version', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.1',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.5.0',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated).toHaveLength(0);
+  });
+
+  it('recognizes a prerelease previous version as being before the boundary', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.5.0-rc.1',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html?mode=upgrade',
+    );
+  });
+
+  it('does not reopen onboarding for a browser update reason', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'chrome_update',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated).toHaveLength(0);
+  });
+
+  it('keeps first-install onboarding on the ordinary URL', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings: getLocalSettings.mockResolvedValue({
+        hasCompletedOnboarding: false,
+        benchmarkRunState: { status: 'idle' },
+      }),
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({ reason: 'install' } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html',
+    );
+  });
+
+  it('still opens upgrade onboarding when maintenance work fails', async () => {
+    ensureLatestConfig.mockRejectedValueOnce(new Error('migration failed'));
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html?mode=upgrade',
+    );
+  });
+
+  it('fails closed for missing or invalid previous versions', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: 'not-a-version',
+    } as chrome.runtime.InstalledDetails);
+    await chromeMock.__mock.runtimeOnInstalled.trigger({ reason: 'update' } as chrome.runtime.InstalledDetails);
+
+    expect(chromeMock.__mock.tabsCreated).toHaveLength(0);
+  });
+
+  it('does not reopen onboarding on browser startup after an upgrade', async () => {
+    const { bootstrap, chromeMock } = createBackgroundHarness({
+      ensureLatestConfig,
+      getSettings,
+      getLocalSettings,
+    }, {
+      manifestVersion: '0.5.0',
+    });
+
+    bootstrap.registerListeners();
+
+    await chromeMock.__mock.runtimeOnInstalled.trigger({
+      reason: 'update',
+      previousVersion: '0.4.9',
+    } as chrome.runtime.InstalledDetails);
+    await chromeMock.__mock.runtimeOnStartup.trigger();
+
+    expect(chromeMock.__mock.tabsCreated).toHaveLength(1);
+  });
+
   it('runs crash checks and DNR updates on startup', async () => {
     const { bootstrap, chromeMock } = createBackgroundHarness({
       ensureLatestConfig,
@@ -116,7 +395,9 @@ describe('background bootstrap', () => {
 
     expect(chromeMock.__mock.dnrUpdates).toContainEqual({ enableRulesetIds: ['ruleset_1'] });
     expect(chromeMock.__mock.openOptionsPageCalls).toHaveLength(1);
-    expect(chromeMock.__mock.tabsCreated[0]?.url).toContain('onboarding.html');
+    expect(chromeMock.__mock.tabsCreated[0]?.url).toBe(
+      'chrome-extension://test-extension/onboarding.html',
+    );
   });
 
   it('forwards URL update messages to active tabs', async () => {

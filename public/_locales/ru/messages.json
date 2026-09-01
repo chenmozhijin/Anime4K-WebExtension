@@ -18,7 +18,7 @@
     "message": "Уровень производительности:"
   },
   "enhancementModeLabel": {
-    "message": "Режим улучшения по умолчанию:"
+    "message": "Режим улучшения:"
   },
   "resolutionLabel": {
     "message": "Выходное разрешение:"
@@ -360,6 +360,15 @@
   "recommendedSoftStyle": {
     "message": "Мягкий стиль"
   },
+  "recommendedDetailPreservingDesc": {
+    "message": "Сохраняет тонкие линии и детали текстур."
+  },
+  "recommendedCompressionCleanupDesc": {
+    "message": "Уменьшает заметные артефакты сжатия."
+  },
+  "recommendedSoftStyleDesc": {
+    "message": "Создаёт более мягкий и плавный стиль изображения."
+  },
   "customModes": {
     "message": "Пользовательские режимы"
   },
@@ -502,6 +511,39 @@
   "welcomeDesc": {
     "message": "Давайте оптимизируем настройки для лучшего опыта."
   },
+  "onboardingUpgradeTitle": {
+    "message": "Обновление NijiLucid"
+  },
+  "onboardingUpgradeDesc": {
+    "message": "Anime4K WebExtension переименовано в NijiLucid. Производительность обработки на GPU и доступные эффекты в текущей версии отличаются от предыдущей версии, поэтому рекомендуется повторно запустить тест GPU, чтобы выбрать подходящий уровень производительности."
+  },
+  "onboardingUpgradeKeepTier": {
+    "message": "Тест можно пропустить и сохранить текущий уровень производительности."
+  },
+  "onboardingUpgradeTierKept": {
+    "message": "Подтвердите, чтобы сохранить текущий уровень производительности."
+  },
+  "onboardingModeMigrationTitle": {
+    "message": "Перейти на рекомендуемые пресеты"
+  },
+  "onboardingModeMigrationDesc": {
+    "message": "В этой версии появились рекомендуемые пресеты, которые подстраивают набор эффектов под выбранный уровень производительности. Выберите пресет вместо текущего режима совместимости или пропустите этот шаг, чтобы оставить его."
+  },
+  "onboardingModeMigrationCurrent": {
+    "message": "Текущий режим совместимости: $mode$",
+    "placeholders": {
+      "mode": {
+        "content": "$1",
+        "example": "Mode A"
+      }
+    }
+  },
+  "onboardingModeMigrationApply": {
+    "message": "Применить рекомендуемый пресет"
+  },
+  "onboardingModeMigrationSkip": {
+    "message": "Пропустить"
+  },
   "gpuTestTitle": {
     "message": "Тест производительности GPU"
   },
@@ -527,13 +569,16 @@
     "message": "Вы выбрали другой уровень."
   },
   "defaultTier": {
-    "message": "Выбран уровень по умолчанию."
+    "message": "Уровень по умолчанию будет применён после подтверждения."
   },
   "changeTier": {
     "message": "Вы также можете выбрать другой уровень:"
   },
   "continue": {
     "message": "Продолжить"
+  },
+  "onboardingApplyTier": {
+    "message": "Применить уровень"
   },
   "getStarted": {
     "message": "Начать"

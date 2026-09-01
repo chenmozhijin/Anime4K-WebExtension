@@ -157,8 +157,13 @@ export class OptionsPage {
 export class OnboardingPage {
   constructor(readonly page: Page, private readonly extensionId: string) {}
 
-  async goto(): Promise<void> {
-    await this.page.goto(`chrome-extension://${this.extensionId}/onboarding.html`);
+  async goto(mode: 'initial' | 'upgrade' = 'initial'): Promise<void> {
+    const query = mode === 'upgrade' ? '?mode=upgrade' : '';
+    await this.page.goto(`chrome-extension://${this.extensionId}/onboarding.html${query}`);
+  }
+
+  async gotoUpgrade(): Promise<void> {
+    await this.goto('upgrade');
   }
 
   async expectLoaded(): Promise<void> {
@@ -190,10 +195,10 @@ export class ExtensionApp {
     return options;
   }
 
-  async openOnboarding(): Promise<OnboardingPage> {
+  async openOnboarding(mode: 'initial' | 'upgrade' = 'initial'): Promise<OnboardingPage> {
     const page = await this.context.newPage();
     const onboarding = new OnboardingPage(page, this.extensionId);
-    await onboarding.goto();
+    await onboarding.goto(mode);
     return onboarding;
   }
 

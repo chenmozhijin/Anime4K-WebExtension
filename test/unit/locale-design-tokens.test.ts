@@ -16,6 +16,33 @@ const localeFiles = [
   'public/_locales/zh_TW/messages.json',
 ];
 
+const onboardingUpgradeKeys = [
+  'onboardingUpgradeTitle',
+  'onboardingUpgradeDesc',
+  'onboardingUpgradeKeepTier',
+  'onboardingUpgradeTierKept',
+  'onboardingApplyTier',
+] as const;
+
+const onboardingModeMigrationKeys = [
+  'onboardingModeMigrationTitle',
+  'onboardingModeMigrationDesc',
+  'onboardingModeMigrationCurrent',
+  'onboardingModeMigrationApply',
+  'onboardingModeMigrationSkip',
+  'recommendedDetailPreservingDesc',
+  'recommendedCompressionCleanupDesc',
+  'recommendedSoftStyleDesc',
+] as const;
+
+const enhancementModeLabels: Record<string, string> = {
+  'public/_locales/en/messages.json': 'Enhancement Mode:',
+  'public/_locales/ja/messages.json': '拡張モード：',
+  'public/_locales/ru/messages.json': 'Режим улучшения:',
+  'public/_locales/zh_CN/messages.json': '增强模式：',
+  'public/_locales/zh_TW/messages.json': '增強模式：',
+};
+
 type LocaleEntry = {
   message?: string;
   placeholders?: Record<string, unknown>;
@@ -219,6 +246,32 @@ describe('locale and design token hygiene', () => {
       const messages = readLocaleFile(file);
       const missingKeys = usedKeys.filter(key => !(key in messages));
       expect(missingKeys, `${file} missing statically referenced locale keys`).toEqual([]);
+    });
+  });
+
+  it('defines the upgrade onboarding copy in every locale', () => {
+    localeFiles.forEach(file => {
+      const messages = readLocaleFile(file);
+      onboardingUpgradeKeys.forEach(key => {
+        expect(messages[key]?.message, `${file} missing ${key}`).toBeTruthy();
+      });
+    });
+  });
+
+  it('defines the compatibility-mode migration copy in every locale', () => {
+    localeFiles.forEach(file => {
+      const messages = readLocaleFile(file);
+      onboardingModeMigrationKeys.forEach(key => {
+        expect(messages[key]?.message, `${file} missing ${key}`).toBeTruthy();
+      });
+    });
+  });
+
+  it('uses the concise enhancement mode label in every locale', () => {
+    localeFiles.forEach(file => {
+      const messages = readLocaleFile(file);
+      expect(messages.enhancementModeLabel?.message, `${file} enhancement mode label`)
+        .toBe(enhancementModeLabels[file]);
     });
   });
 

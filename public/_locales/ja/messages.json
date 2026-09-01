@@ -18,7 +18,7 @@
     "message": "パフォーマンス段階："
   },
   "enhancementModeLabel": {
-    "message": "デフォルト拡張モード："
+    "message": "拡張モード："
   },
   "resolutionLabel": {
     "message": "目標解像度："
@@ -360,6 +360,15 @@
   "recommendedSoftStyle": {
     "message": "ソフトスタイル"
   },
+  "recommendedDetailPreservingDesc": {
+    "message": "細い線や質感のディテールを保ちます。"
+  },
+  "recommendedCompressionCleanupDesc": {
+    "message": "目立つ圧縮アーティファクトを軽減します。"
+  },
+  "recommendedSoftStyleDesc": {
+    "message": "より柔らかく滑らかな画面表現にします。"
+  },
   "customModes": {
     "message": "カスタムモード"
   },
@@ -502,6 +511,39 @@
   "welcomeDesc": {
     "message": "最高の体験のために設定を最適化しましょう。"
   },
+  "onboardingUpgradeTitle": {
+    "message": "NijiLucid 更新のお知らせ"
+  },
+  "onboardingUpgradeDesc": {
+    "message": "Anime4K WebExtension は NijiLucid に名称変更されました。現在のバージョンでは GPU 処理性能と利用できるエフェクトが旧バージョンと異なるため、GPU ベンチマークを再実行して適切なパフォーマンス階層を選ぶことをおすすめします。"
+  },
+  "onboardingUpgradeKeepTier": {
+    "message": "テストをスキップして、現在のパフォーマンス階層を維持することもできます。"
+  },
+  "onboardingUpgradeTierKept": {
+    "message": "確認後、現在のパフォーマンス階層を維持します。"
+  },
+  "onboardingModeMigrationTitle": {
+    "message": "おすすめプリセットに切り替え"
+  },
+  "onboardingModeMigrationDesc": {
+    "message": "このバージョンでは、パフォーマンス階層に応じてエフェクト構成を調整するおすすめプリセットが追加されました。現在の互換モードを置き換えるプリセットを選ぶか、スキップしてそのまま使用できます。"
+  },
+  "onboardingModeMigrationCurrent": {
+    "message": "現在の互換モード：$mode$",
+    "placeholders": {
+      "mode": {
+        "content": "$1",
+        "example": "Mode A"
+      }
+    }
+  },
+  "onboardingModeMigrationApply": {
+    "message": "おすすめプリセットを適用"
+  },
+  "onboardingModeMigrationSkip": {
+    "message": "スキップ"
+  },
   "gpuTestTitle": {
     "message": "GPU パフォーマンステスト"
   },
@@ -527,13 +569,16 @@
     "message": "別のティアを選択しました。"
   },
   "defaultTier": {
-    "message": "デフォルトのティアが選択されました。"
+    "message": "確認後、デフォルトのティアを適用します。"
   },
   "changeTier": {
     "message": "別のティアを選択することもできます："
   },
   "continue": {
     "message": "続ける"
+  },
+  "onboardingApplyTier": {
+    "message": "ティアを適用"
   },
   "getStarted": {
     "message": "始める"

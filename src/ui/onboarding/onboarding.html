@@ -4,28 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="onboardingTitle">NijiLucid - Setup</title>
+    <title data-i18n="onboardingTitle">NijiLucid</title>
 </head>
 
 <body>
     <div class="onboarding-container">
         <div class="onboarding-header">
             <img src="/icons/icon128.png" alt="NijiLucid" class="logo">
-            <h1 data-i18n="welcomeTitle">Welcome to NijiLucid</h1>
-            <p data-i18n="welcomeDesc">Let's optimize your settings for the best experience.</p>
+            <h1 id="onboarding-title" data-i18n="welcomeTitle">NijiLucid</h1>
+            <p id="onboarding-desc" data-i18n="welcomeDesc">NijiLucid</p>
         </div>
 
         <!-- 步骤指示器 -->
-        <div class="step-indicator">
-            <div class="step active" data-step="1">1</div>
+        <div class="step-indicator" id="step-indicator">
+            <div class="step active" data-step-key="benchmark">1</div>
             <div class="step-line"></div>
-            <div class="step" data-step="2">2</div>
+            <div class="step" data-step-key="tier">2</div>
             <div class="step-line"></div>
-            <div class="step" data-step="3">3</div>
+            <div class="step" data-step-key="complete">3</div>
         </div>
 
         <!-- 步骤 1: GPU 测试 -->
-        <div class="step-content active" id="step-1">
+        <div class="step-content active" id="step-1" data-step-key="benchmark">
             <h2 data-i18n="gpuTestTitle">GPU Performance Test</h2>
             <p data-i18n="gpuTestDesc">We'll run a quick test to determine the best settings for your hardware.</p>
 
@@ -41,6 +41,10 @@
                 <p class="progress-text" id="progress-text" data-i18n="testing">Testing...</p>
             </div>
 
+            <p id="upgrade-keep-tier" class="upgrade-keep-tier" data-i18n="onboardingUpgradeKeepTier" hidden>
+                You can also skip the test and keep your current performance tier.
+            </p>
+
             <div class="button-group">
                 <button id="start-test" class="btn-primary" data-i18n="startTest">Start Test</button>
                 <button id="skip-test" class="btn-secondary" data-i18n="skipTest">Skip</button>
@@ -48,7 +52,7 @@
         </div>
 
         <!-- 步骤 2: 结果 -->
-        <div class="step-content" id="step-2">
+        <div class="step-content" id="step-2" data-step-key="tier">
             <h2 data-i18n="resultTitle">Test Results</h2>
 
             <div class="result-card" id="result-card">
@@ -71,12 +75,33 @@
             </div>
 
             <div class="button-group">
-                <button id="confirm-tier" class="btn-primary" data-i18n="continue">Continue</button>
+                <button id="confirm-tier" class="btn-primary" data-i18n="onboardingApplyTier">Apply Tier</button>
             </div>
         </div>
 
-        <!-- 步骤 3: 完成 -->
-        <div class="step-content" id="step-3">
+        <!-- 可选步骤: 模式迁移 -->
+        <div class="step-content" id="step-mode-migration" data-step-key="mode" hidden>
+            <h2 id="mode-migration-title" data-i18n="onboardingModeMigrationTitle">Switch to recommended presets</h2>
+            <p data-i18n="onboardingModeMigrationDesc">
+                Choose a recommended preset for the current version, or skip to keep your compatibility mode.
+            </p>
+
+            <p id="mode-migration-current" class="mode-migration-current"></p>
+            <div id="mode-migration-options" class="mode-migration-options" role="radiogroup"
+                aria-labelledby="mode-migration-title"></div>
+
+            <div class="button-group">
+                <button id="apply-mode-migration" class="btn-primary" data-i18n="onboardingModeMigrationApply">
+                    Apply Recommended Preset
+                </button>
+                <button id="skip-mode-migration" class="btn-secondary" data-i18n="onboardingModeMigrationSkip">
+                    Skip
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤 3/4: 完成 -->
+        <div class="step-content" id="step-3" data-step-key="complete">
             <h2 data-i18n="setupComplete">Setup Complete!</h2>
 
             <div class="complete-icon">✅</div>

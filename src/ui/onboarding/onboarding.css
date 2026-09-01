@@ -15,6 +15,7 @@ body {
 .onboarding-container {
     max-width: 600px;
     width: 90%;
+    box-sizing: border-box;
     background: var(--surface-container);
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-3);
@@ -42,6 +43,23 @@ body {
 .onboarding-header p {
     margin: 0;
     color: var(--on-surface-variant);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.onboarding-header.upgrade-mode p {
+    max-width: 540px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.step-content > .upgrade-keep-tier {
+    margin: 0 0 12px;
+    color: var(--on-surface-variant);
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+    overflow-wrap: anywhere;
 }
 
 /* 步骤指示器 */
@@ -225,6 +243,76 @@ body {
     color: var(--on-primary-container);
 }
 
+/* 模式迁移选项 */
+.mode-migration-current {
+    margin: 0 0 12px;
+    color: var(--on-surface-variant);
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.mode-migration-options {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.mode-migration-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--border-radius-md);
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.mode-migration-option:hover {
+    border-color: var(--primary);
+}
+
+.mode-migration-option.selected {
+    border-color: var(--primary);
+    background: var(--primary-container);
+}
+
+.mode-migration-option input {
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--primary);
+}
+
+.mode-migration-option-content {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.mode-migration-option-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.mode-migration-option-family,
+.mode-migration-option-description {
+    color: var(--on-surface-variant);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.mode-migration-option.selected .mode-migration-option-family,
+.mode-migration-option.selected .mode-migration-option-description {
+    color: var(--on-primary-container);
+}
+
 /* 完成图标 */
 .complete-icon {
     text-align: center;
@@ -265,10 +353,12 @@ body {
     display: flex;
     gap: 12px;
     justify-content: center;
+    flex-wrap: wrap;
 }
 
 .btn-primary,
 .btn-secondary {
+    box-sizing: border-box;
     padding: 12px 24px;
     border: none;
     border-radius: var(--border-radius-xl);
@@ -299,4 +389,31 @@ body {
 
 .btn-secondary:hover {
     background: var(--surface-container-highest);
+}
+
+@media (max-width: 480px) {
+    body {
+        align-items: flex-start;
+    }
+
+    .onboarding-container {
+        width: calc(100% - 32px);
+        margin: 16px;
+        padding: 24px 16px;
+    }
+
+    .step-line {
+        flex: 1;
+        width: auto;
+        max-width: 60px;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        flex: 1 1 100%;
+    }
+
+    .mode-migration-option {
+        padding: 12px;
+    }
 }

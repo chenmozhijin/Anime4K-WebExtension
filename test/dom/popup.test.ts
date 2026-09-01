@@ -100,6 +100,7 @@ describe('popup UI', () => {
     await flushPromises(6);
 
     expect(document.getElementById('version-info')?.textContent).toBe('9.9.9');
+    expect(document.getElementById('mode-label')?.textContent).toBe('enhancementModeLabel');
     expect(document.querySelectorAll('#mode-select option')).toHaveLength(6);
     const modeGroups = Array.from(document.querySelectorAll('#mode-select optgroup'));
     expect(modeGroups).toHaveLength(3);

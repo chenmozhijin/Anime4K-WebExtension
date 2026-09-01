@@ -9,9 +9,11 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const {
+  isManifestVersion,
   parseArgs,
   validateReleaseVersions,
 } = require('../../scripts/check-release-version.js') as {
+  isManifestVersion: (version: string) => boolean;
   parseArgs: (argv: string[]) => { root: string; tag: string | null; distDirs: string[] };
   validateReleaseVersions: (options: {
     root: string;
@@ -43,6 +45,16 @@ afterEach(() => {
 });
 
 describe('check-release-version', () => {
+  it('recognizes Chrome-compatible manifest version strings', () => {
+    expect(isManifestVersion('1.2.3')).toBe(true);
+    expect(isManifestVersion('1.2.3.4')).toBe(true);
+    expect(isManifestVersion('1.2.3-beta.1')).toBe(false);
+    expect(isManifestVersion('1.2.3+build.7')).toBe(false);
+    expect(isManifestVersion('65536.0.0')).toBe(false);
+    expect(isManifestVersion('0.0.0')).toBe(false);
+    expect(isManifestVersion(undefined as unknown as string)).toBe(false);
+  });
+
   it('parses tag, root, and repeated dist options', () => {
     expect(parseArgs([
       '--root', '.',
@@ -100,5 +112,14 @@ describe('check-release-version', () => {
       root,
       distDirs: ['dist-chrome'],
     })).toThrow('dist-chrome/manifest.json version 1.2.4 does not match package.json version 1.2.3');
+  });
+
+  it('rejects a prerelease version in an extension manifest', () => {
+    const root = createReleaseRoot('1.2.3-beta.1');
+
+    expect(() => validateReleaseVersions({
+      root,
+      distDirs: ['dist-chrome', 'dist-firefox'],
+    })).toThrow('manifest.json version 1.2.3-beta.1 is not valid for an extension manifest');
   });
 });

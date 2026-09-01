@@ -2,9 +2,13 @@ import { getSettings, getLocalSettings } from './utils/settings';
 import { ensureLatestConfig } from './utils/migration';
 import { createLogger } from './utils/logger';
 import type { LocalSettings } from './types';
+import { compareExtensionVersions } from './utils/extension-version';
 
 const RULESET_ID = 'ruleset_1';
+export const ONBOARDING_UPGRADE_VERSION = '0.5.0';
 const logger = createLogger('background');
+
+export type OnboardingMode = 'initial' | 'upgrade';
 
 export type BackgroundBootstrapDeps = {
   chromeApi: typeof chrome;
@@ -17,7 +21,7 @@ type ResolvedBackgroundBootstrapDeps = BackgroundBootstrapDeps;
 
 export interface BackgroundBootstrap {
   updateDNRuleset(): Promise<void>;
-  checkOnboarding(): Promise<boolean>;
+  checkOnboarding(mode?: OnboardingMode): Promise<boolean>;
   checkBenchmarkCrash(): Promise<void>;
   registerListeners(): void;
   dispose(): void;
@@ -55,16 +59,64 @@ export function createBackgroundBootstrap(
     }
   }
 
-  async function checkOnboarding(): Promise<boolean> {
+  async function openOnboarding(mode: OnboardingMode): Promise<void> {
+    const onboardingUrl = new URL(chromeApi.runtime.getURL('onboarding.html'));
+    if (mode === 'upgrade') {
+      onboardingUrl.searchParams.set('mode', 'upgrade');
+    }
+
+    await chromeApi.tabs.create({ url: onboardingUrl.toString() });
+  }
+
+  async function checkOnboarding(mode: OnboardingMode = 'initial'): Promise<boolean> {
+    if (mode === 'upgrade') {
+      logger.info('Opening upgrade onboarding page.');
+      await openOnboarding(mode);
+      return true;
+    }
+
     const local = await deps.getLocalSettings();
 
     if (!local.hasCompletedOnboarding) {
       logger.info('Opening onboarding page.');
-      chromeApi.tabs.create({ url: chromeApi.runtime.getURL('onboarding.html') });
+      await openOnboarding(mode);
       return true;
     }
 
     return false;
+  }
+
+  function resolveOnboardingMode(details: chrome.runtime.InstalledDetails): OnboardingMode {
+    if (details.reason !== 'update') {
+      return 'initial';
+    }
+
+    const previousComparison = compareExtensionVersions(
+      details.previousVersion,
+      ONBOARDING_UPGRADE_VERSION,
+    );
+    const currentComparison = compareExtensionVersions(
+      chromeApi.runtime.getManifest().version,
+      ONBOARDING_UPGRADE_VERSION,
+    );
+
+    if (previousComparison === -1 && (currentComparison === 0 || currentComparison === 1)) {
+      return 'upgrade';
+    }
+
+    return 'initial';
+  }
+
+  async function resetUpgradeBenchmarkState(): Promise<void> {
+    await chromeApi.storage.local.set({
+      gpuBenchmarkResult: null,
+      benchmarkRunState: {
+        status: 'idle',
+        fallbackTierApplied: null,
+      },
+      _benchmarkInProgress: false,
+    });
+    await chromeApi.storage.local.remove('_benchmarkInProgress');
   }
 
   async function checkBenchmarkCrash(): Promise<void> {
@@ -102,12 +154,48 @@ export function createBackgroundBootstrap(
   const onInstalled = async (details: chrome.runtime.InstalledDetails) => {
     logger.info('Extension installed/updated:', details.reason);
 
-    await deps.ensureLatestConfig();
-    await checkBenchmarkCrash();
-    await updateDNRuleset();
+    const shouldCheckOnboarding = details.reason === 'install' || details.reason === 'update';
+    let onboardingMode: OnboardingMode = 'initial';
+    if (shouldCheckOnboarding) {
+      try {
+        onboardingMode = resolveOnboardingMode(details);
+      } catch (error) {
+        logger.error('Failed to resolve onboarding mode:', error);
+      }
+    }
 
-    if (details.reason === 'install' || details.reason === 'update') {
-      await checkOnboarding();
+    try {
+      await deps.ensureLatestConfig();
+    } catch (error) {
+      logger.error('Failed to ensure latest config after install/update:', error);
+    }
+
+    if (onboardingMode === 'upgrade') {
+      try {
+        await resetUpgradeBenchmarkState();
+      } catch (error) {
+        logger.error('Failed to reset benchmark state for upgrade onboarding:', error);
+      }
+    }
+
+    try {
+      await checkBenchmarkCrash();
+    } catch (error) {
+      logger.error('Failed to check benchmark crash state after install/update:', error);
+    }
+
+    try {
+      await updateDNRuleset();
+    } catch (error) {
+      logger.error('Failed to update DNR ruleset after install/update:', error);
+    }
+
+    if (shouldCheckOnboarding) {
+      try {
+        await checkOnboarding(onboardingMode);
+      } catch (error) {
+        logger.error('Failed to open onboarding page:', error);
+      }
     }
   };
 
@@ -131,7 +219,9 @@ export function createBackgroundBootstrap(
     } else if (request.type === 'OPEN_OPTIONS_PAGE') {
       chromeApi.runtime.openOptionsPage();
     } else if (request.type === 'OPEN_ONBOARDING') {
-      chromeApi.tabs.create({ url: chromeApi.runtime.getURL('onboarding.html') });
+      void openOnboarding('initial').catch(error => {
+        logger.error('Failed to open onboarding page from message:', error);
+      });
     }
   };
 
@@ -185,8 +275,8 @@ export async function updateDNRuleset(): Promise<void> {
 /**
  * 检查是否需要打开引导页面
  */
-export async function checkOnboarding(): Promise<boolean> {
-  return getDefaultBackgroundBootstrap().checkOnboarding();
+export async function checkOnboarding(mode: OnboardingMode = 'initial'): Promise<boolean> {
+  return getDefaultBackgroundBootstrap().checkOnboarding(mode);
 }
 
 /**

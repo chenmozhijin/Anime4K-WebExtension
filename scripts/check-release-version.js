@@ -46,6 +46,19 @@ function readVersion(root, relativePath) {
   return parsed.version;
 }
 
+function isManifestVersion(version) {
+  if (typeof version !== 'string') return false;
+  const components = version.split('.');
+  if (components.length < 1 || components.length > 4) return false;
+
+  if (components.every(component => component === '0')) return false;
+
+  return components.every(component => {
+    if (!/^(0|[1-9]\d*)$/.test(component)) return false;
+    return Number(component) <= 65535;
+  });
+}
+
 function validateReleaseVersions({ root = repoRoot, tag = null, distDirs = [] } = {}) {
   const packageVersion = readVersion(root, 'package.json');
   const versions = [{ file: 'manifest.json', version: readVersion(root, 'manifest.json') }];
@@ -57,6 +70,9 @@ function validateReleaseVersions({ root = repoRoot, tag = null, distDirs = [] } 
   const errors = versions
     .filter(entry => entry.version !== packageVersion)
     .map(entry => `${entry.file} version ${entry.version} does not match package.json version ${packageVersion}.`);
+  errors.push(...versions
+    .filter(entry => !isManifestVersion(entry.version))
+    .map(entry => `${entry.file} version ${entry.version} is not valid for an extension manifest.`));
   const expectedTag = `v${packageVersion}`;
   if (tag !== null && tag !== expectedTag) {
     errors.push(`Tag ${tag} does not match expected release tag ${expectedTag}.`);
@@ -88,6 +104,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isManifestVersion,
   parseArgs,
   readVersion,
   validateReleaseVersions,

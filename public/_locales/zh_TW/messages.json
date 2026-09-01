@@ -18,7 +18,7 @@
     "message": "效能檔位："
   },
   "enhancementModeLabel": {
-    "message": "預設增強模式："
+    "message": "增強模式："
   },
   "resolutionLabel": {
     "message": "目標解析度："
@@ -360,6 +360,15 @@
   "recommendedSoftStyle": {
     "message": "柔和風格"
   },
+  "recommendedDetailPreservingDesc": {
+    "message": "優先保留細線與紋理細節。"
+  },
+  "recommendedCompressionCleanupDesc": {
+    "message": "減少明顯的影片壓縮痕跡。"
+  },
+  "recommendedSoftStyleDesc": {
+    "message": "呈現更柔和、平滑的畫面風格。"
+  },
   "customModes": {
     "message": "自訂模式"
   },
@@ -502,6 +511,39 @@
   "welcomeDesc": {
     "message": "讓我們最佳化您的設定以獲得最佳體驗。"
   },
+  "onboardingUpgradeTitle": {
+    "message": "NijiLucid 更新說明"
+  },
+  "onboardingUpgradeDesc": {
+    "message": "Anime4K WebExtension 已更名為 NijiLucid。當前版本的 GPU 處理效能與可用效果已不同於舊版本，建議重新執行 GPU 基準測試，以重新選擇合適的效能檔位。"
+  },
+  "onboardingUpgradeKeepTier": {
+    "message": "你也可以跳過測試並保留目前的效能檔位。"
+  },
+  "onboardingUpgradeTierKept": {
+    "message": "確認後將繼續使用目前的效能檔位。"
+  },
+  "onboardingModeMigrationTitle": {
+    "message": "切換至推薦預設"
+  },
+  "onboardingModeMigrationDesc": {
+    "message": "目前版本新增了會依效能檔位調整效果組合的推薦預設。請選擇一個取代目前相容模式，或跳過以繼續使用目前模式。"
+  },
+  "onboardingModeMigrationCurrent": {
+    "message": "目前相容模式：$mode$",
+    "placeholders": {
+      "mode": {
+        "content": "$1",
+        "example": "Mode A"
+      }
+    }
+  },
+  "onboardingModeMigrationApply": {
+    "message": "套用推薦預設"
+  },
+  "onboardingModeMigrationSkip": {
+    "message": "跳過"
+  },
   "gpuTestTitle": {
     "message": "GPU 效能測試"
   },
@@ -527,13 +569,16 @@
     "message": "您選擇了不同的檔位。"
   },
   "defaultTier": {
-    "message": "已選擇預設檔位。"
+    "message": "確認後將套用預設效能檔位。"
   },
   "changeTier": {
     "message": "您也可以選擇不同的檔位："
   },
   "continue": {
     "message": "繼續"
+  },
+  "onboardingApplyTier": {
+    "message": "套用效能檔位"
   },
   "getStarted": {
     "message": "開始使用"
