@@ -5,8 +5,8 @@ import type { GpuCapabilities, KernelVariant } from '../../src/core/gpu-capabili
 const capabilities = {
   adapter: { vendor: 'v', architecture: 'a', device: 'd', description: '' },
   browser: { name: 'chrome', version: '1', userAgent: '' },
-  features: new Set<GPUFeatureName>(),
-  enabledFeatures: new Set<GPUFeatureName>(),
+  knownFeatures: new Set<GPUFeatureName>(),
+  knownEnabledFeatures: new Set<GPUFeatureName>(),
   timestampQuery: false,
   shaderF16: false,
   bgra8UnormStorage: false,

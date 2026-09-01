@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  KNOWN_GPU_FEATURES,
   collectGpuCapabilities,
   isKernelVariantSupported,
   type KernelVariant,
 } from '../../src/core/gpu-capabilities';
+
+function createHasOnlyFeatureSet(features: readonly GPUFeatureName[]): GPUSupportedFeatures {
+  const supported = new Set(features);
+  return {
+    has: (feature: string) => supported.has(feature as GPUFeatureName),
+    forEach: () => {
+      throw new Error('GPUSupportedFeatures.forEach must not be called.');
+    },
+    [Symbol.iterator]: () => {
+      throw new Error('GPUSupportedFeatures iterator must not be called.');
+    },
+  } as unknown as GPUSupportedFeatures;
+}
 
 describe('GPU capability model', () => {
   it('captures browser, adapter, feature, and limit identities', () => {
@@ -43,6 +57,39 @@ describe('GPU capability model', () => {
     expect(capabilities.shaderF16).toBe(true);
     expect(capabilities.externalTexture).toBe(true);
     expect(capabilities.canvasStorage).toBe(true);
+  });
+
+  it('collects feature snapshots without Xray-unsafe callbacks or iterators', () => {
+    const capabilities = collectGpuCapabilities({
+      adapter: {
+        features: createHasOnlyFeatureSet(['timestamp-query', 'shader-f16']),
+        info: {},
+        limits: {},
+      } as unknown as GPUAdapter,
+      device: {
+        features: createHasOnlyFeatureSet(['timestamp-query']),
+        limits: {
+          maxComputeInvocationsPerWorkgroup: 256,
+          maxComputeWorkgroupSizeX: 256,
+          maxComputeWorkgroupSizeY: 256,
+          maxComputeWorkgroupStorageSize: 32768,
+          maxStorageTexturesPerShaderStage: 8,
+          maxSampledTexturesPerShaderStage: 16,
+        },
+      } as unknown as GPUDevice,
+      presentationFormat: 'rgba8unorm',
+    });
+
+    expect(capabilities.knownFeatures).toEqual(new Set(['timestamp-query', 'shader-f16']));
+    expect(capabilities.knownEnabledFeatures).toEqual(new Set(['timestamp-query']));
+  });
+
+  it('keeps runtime feature dependencies in the Xray-safe probe registry', () => {
+    expect(KNOWN_GPU_FEATURES).toEqual(expect.arrayContaining([
+      'timestamp-query',
+      'shader-f16',
+      'bgra8unorm-storage',
+    ]));
   });
 
   it('rejects kernel variants that exceed workgroup limits or require missing features', () => {
@@ -108,8 +155,8 @@ describe('GPU capability model', () => {
       benchmarkCacheVersion: 1,
     };
 
-    expect(capabilities.features.has('shader-f16')).toBe(true);
-    expect(capabilities.enabledFeatures.has('shader-f16')).toBe(false);
+    expect(capabilities.knownFeatures.has('shader-f16')).toBe(true);
+    expect(capabilities.knownEnabledFeatures.has('shader-f16')).toBe(false);
     expect(isKernelVariantSupported(variant, capabilities)).toBe(false);
   });
 });

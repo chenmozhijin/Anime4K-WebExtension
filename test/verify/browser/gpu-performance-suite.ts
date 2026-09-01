@@ -577,7 +577,7 @@ export async function runGpuPerformanceSuite(
     timestamp: new Date().toISOString(),
     browser: capabilities.browser,
     adapter: capabilities.adapter,
-    features: [...capabilities.features],
+    features: [...capabilities.knownFeatures],
     limits: capabilities.limits,
     timestampQuery,
     uploadFormat: 'rgba16float',

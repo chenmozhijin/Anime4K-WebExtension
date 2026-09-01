@@ -16,11 +16,10 @@ export interface BrowserIdentity {
 export interface GpuCapabilities {
   adapter: GpuAdapterIdentity;
   browser: BrowserIdentity;
-  // Optional features supported by the adapter, useful for diagnostics and deciding
-  // what a future device descriptor may request.
-  features: ReadonlySet<GPUFeatureName>;
-  // Features actually enabled on this GPUDevice. Kernel selection must use this set.
-  enabledFeatures: ReadonlySet<GPUFeatureName>;
+  // Finite snapshot of feature names known by this project, not an exhaustive runtime set.
+  knownFeatures: ReadonlySet<KnownGpuFeatureName>;
+  // Finite snapshot of known features enabled on this GPUDevice.
+  knownEnabledFeatures: ReadonlySet<KnownGpuFeatureName>;
   timestampQuery: boolean;
   shaderF16: boolean;
   bgra8UnormStorage: boolean;
@@ -41,13 +40,53 @@ export interface KernelVariant {
   correctness: KernelCorrectnessClass;
   wgsl: string;
   workgroup: { width: number; height: number };
-  requiredFeatures?: readonly GPUFeatureName[];
+  // Restrict feature requirements to the probe registry so new dependencies cannot be
+  // added without also becoming Xray-safe capability probes.
+  requiredFeatures?: readonly KnownGpuFeatureName[];
   requiredWorkgroupStorageBytes?: number;
   requiredStorageTexturesPerShaderStage?: number;
   requiredSampledTexturesPerShaderStage?: number;
   // Bump whenever WGSL, resource layout, benchmark workload, or selection semantics
   // change; otherwise an old cached winner may be applied to a different kernel.
   benchmarkCacheVersion: number;
+}
+
+// Firefox content-script Xray wrappers reject callback and iterator access on
+// GPUSupportedFeatures. Probe the feature names used by the current API surface instead.
+// Keep this list in sync when feature-dependent code is added.
+export const KNOWN_GPU_FEATURES = [
+  'core-features-and-limits',
+  'depth-clip-control',
+  'depth32float-stencil8',
+  'texture-compression-bc',
+  'texture-compression-bc-sliced-3d',
+  'texture-compression-etc2',
+  'texture-compression-astc',
+  'texture-compression-astc-sliced-3d',
+  'timestamp-query',
+  'indirect-first-instance',
+  'shader-f16',
+  'rg11b10ufloat-renderable',
+  'bgra8unorm-storage',
+  'float32-filterable',
+  'float32-blendable',
+  'clip-distances',
+  'dual-source-blending',
+  'subgroups',
+  'texture-formats-tier1',
+  'primitive-index',
+] as const satisfies readonly GPUFeatureName[];
+
+export type KnownGpuFeatureName = (typeof KNOWN_GPU_FEATURES)[number];
+
+function snapshotFeatures(features: GPUSupportedFeatures): Set<KnownGpuFeatureName> {
+  const snapshot = new Set<KnownGpuFeatureName>();
+  for (const feature of KNOWN_GPU_FEATURES) {
+    if (features.has(feature)) {
+      snapshot.add(feature);
+    }
+  }
+  return snapshot;
 }
 
 function detectBrowser(userAgent: string): BrowserIdentity {
@@ -76,12 +115,10 @@ export function collectGpuCapabilities(options: {
   userAgent?: string;
 }): GpuCapabilities {
   const { adapter, device, presentationFormat } = options;
-  const features = new Set<GPUFeatureName>();
-  adapter.features.forEach(feature => features.add(feature as GPUFeatureName));
-  const enabledFeatures = new Set<GPUFeatureName>();
-  device.features.forEach(feature => enabledFeatures.add(feature as GPUFeatureName));
+  const knownFeatures = snapshotFeatures(adapter.features);
+  const knownEnabledFeatures = snapshotFeatures(device.features);
   const info = adapter.info;
-  const bgra8UnormStorage = enabledFeatures.has('bgra8unorm-storage');
+  const bgra8UnormStorage = knownEnabledFeatures.has('bgra8unorm-storage');
   const limits = device.limits;
   const adapterLimits = adapter.limits;
 
@@ -93,10 +130,10 @@ export function collectGpuCapabilities(options: {
       description: info?.description ?? '',
     },
     browser: detectBrowser(options.userAgent ?? navigator.userAgent),
-    features,
-    enabledFeatures,
-    timestampQuery: enabledFeatures.has('timestamp-query'),
-    shaderF16: enabledFeatures.has('shader-f16'),
+    knownFeatures,
+    knownEnabledFeatures,
+    timestampQuery: knownEnabledFeatures.has('timestamp-query'),
+    shaderF16: knownEnabledFeatures.has('shader-f16'),
     bgra8UnormStorage,
     externalTexture: typeof device.importExternalTexture === 'function',
     // bgra8unorm canvas storage needs the optional feature; other preferred formats
@@ -141,5 +178,5 @@ export function isKernelVariantSupported(
 
   // Adapter support alone is insufficient: createShaderModule/pipeline validation
   // requires the feature to have been requested in this device's descriptor.
-  return (variant.requiredFeatures ?? []).every(feature => capabilities.enabledFeatures.has(feature));
+  return (variant.requiredFeatures ?? []).every(feature => capabilities.knownEnabledFeatures.has(feature));
 }
