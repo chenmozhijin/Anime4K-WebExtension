@@ -147,6 +147,7 @@ dist
 /experiment
 .reference
 .local-archive/
+/test/verify/corpus/
 
 # Python cache
 __pycache__/

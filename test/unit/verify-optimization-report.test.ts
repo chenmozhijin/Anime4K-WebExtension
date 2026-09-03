@@ -123,12 +123,16 @@ afterEach(() => {
 });
 
 describe('optimization release report', () => {
-  it('separates passing local validation from the pending hardware matrix', () => {
+  it('returns local validation without machine or release-status metadata', () => {
     const report = buildOptimizationReport(createPassingRoot());
 
     expect(report.localValidationPassed).toBe(true);
-    expect(report.releaseCertificationComplete).toBe(false);
-    expect(report.releaseCertification.status).toBe('pending-hardware-matrix');
+    expect(report).not.toHaveProperty('generatedAt');
+    expect(report).not.toHaveProperty('root');
+    expect(report).not.toHaveProperty('releaseCertificationComplete');
+    expect(report).not.toHaveProperty('releaseCertification');
+    expect(report.checks.performanceMatrix).not.toHaveProperty('browser');
+    expect(report.checks.performanceMatrix).not.toHaveProperty('adapter');
     expect(report.runtimePolicy.uncertifiedPerceptualShaderF16Disabled).toBe(true);
     expect(report.checks.performanceMatrix.tiers.map((tier: any) => tier.processingPassCount))
       .toEqual([34, 36, 36, 53]);

@@ -370,7 +370,6 @@ function mergeVariantRuns(variant, runs, tierOrder, expectedRepeats) {
     ...variant,
     report: {
       ...template,
-      timestamp: new Date().toISOString(),
       measurement: { ...template.measurement, repeats: expectedRepeats },
       tiers,
       pairedComparison: true,
@@ -404,17 +403,20 @@ function buildVerifyBundle() {
 
 function getBuildIdentity() {
   const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-  const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    windowsHide: true,
-  });
-  return {
-    version: pkg.version,
-    commit: revision.status === 0 ? revision.stdout.trim() : null,
-    driverVersion: null,
-    driverVersionReason: 'WebGPU does not expose a standard driver version API.',
-  };
+  return { version: pkg.version };
+}
+
+function sanitizeBenchmarkReport(report) {
+  const publicReport = { ...report };
+  for (const field of ['timestamp', 'browser', 'adapter', 'features', 'limits', 'timestampQuery']) {
+    delete publicReport[field];
+  }
+  if (publicReport.source?.kind) {
+    publicReport.source = { kind: publicReport.source.kind };
+  } else {
+    delete publicReport.source;
+  }
+  return publicReport;
 }
 
 async function launchBrowser() {
@@ -446,7 +448,7 @@ async function main() {
     }
     const runVariant = async ({ variant, tiers, repeats, runLabel }) => {
       console.log(`benchmark variant ${variant.id}${runLabel ? ` (${runLabel})` : ''} ...`);
-      const report = await page.evaluate(async request => {
+      const rawReport = await page.evaluate(async request => {
         if (!window.__runGpuPerformanceSuite) throw new Error('GPU performance suite is not loaded.');
         return window.__runGpuPerformanceSuite(request);
       }, {
@@ -467,6 +469,7 @@ async function main() {
         workloadId: args.workloadId,
         videoUrl,
       });
+      const report = sanitizeBenchmarkReport(rawReport);
       report.build = build;
       for (const tier of report.tiers) {
         const gpu = tier.aggregate.gpuMs?.statistics;
@@ -556,7 +559,6 @@ async function main() {
       ? { ...variantReports[0].report, benchmarkVariant: variantReports[0].id }
       : {
         schemaVersion: 2,
-        timestamp: new Date().toISOString(),
         measurement: {
           width: args.width,
           height: args.height,
@@ -572,7 +574,7 @@ async function main() {
           presetId: args.presetId,
           microKernel: args.microKernel,
           workloadId: args.workloadId,
-          video: args.video,
+          videoProvided: Boolean(args.video),
           pairedComparison: args.pairedComparison,
         },
         build,
@@ -602,6 +604,7 @@ module.exports = {
   optimizedFlags,
   parseArgs,
   resolveOptimizationVariant,
+  sanitizeBenchmarkReport,
 };
 
 if (require.main === module) {

@@ -3,12 +3,36 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
-const sourceRoot = path.join(
-  repoRoot,
-  'test-results/user-image-evaluation/formal-evaluation/motion-clips',
-);
-const outputRoot = path.join(sourceRoot, 'compressed');
-const sourceManifest = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'manifest.json'), 'utf8'));
+
+function resolvePathArgument(value, name) {
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} requires a path.`);
+  }
+  return path.resolve(value);
+}
+
+function parseArgs(argv) {
+  const args = {
+    manifest: null,
+    sourceRoot: null,
+    outputRoot: null,
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--manifest') args.manifest = resolvePathArgument(argv[++index], '--manifest');
+    else if (arg.startsWith('--manifest=')) args.manifest = resolvePathArgument(arg.slice(11), '--manifest');
+    else if (arg === '--source-root') args.sourceRoot = resolvePathArgument(argv[++index], '--source-root');
+    else if (arg.startsWith('--source-root=')) args.sourceRoot = resolvePathArgument(arg.slice(14), '--source-root');
+    else if (arg === '--output-root') args.outputRoot = resolvePathArgument(argv[++index], '--output-root');
+    else if (arg.startsWith('--output-root=')) args.outputRoot = resolvePathArgument(arg.slice(14), '--output-root');
+    else throw new Error(`Unknown compressed motion option: ${arg}`);
+  }
+  if (!args.manifest || !args.outputRoot) {
+    throw new Error('Both --manifest and --output-root must be provided.');
+  }
+  args.sourceRoot ??= path.dirname(args.manifest);
+  return args;
+}
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -35,6 +59,10 @@ function encode(source, output, codec, kbps) {
 }
 
 function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const sourceManifest = JSON.parse(fs.readFileSync(args.manifest, 'utf8'));
+  const sourceRoot = args.sourceRoot;
+  const outputRoot = args.outputRoot;
   fs.mkdirSync(outputRoot, { recursive: true });
   const fixtures = [];
   const modernFixtures = sourceManifest.fixtures.filter(fixture => fixture.id.startsWith('modern-'));
@@ -68,7 +96,6 @@ function main() {
   }
   const manifest = {
     schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
     framesPerClip: sourceManifest.framesPerClip,
     fps: sourceManifest.fps,
     width: sourceManifest.width,
@@ -79,4 +106,6 @@ function main() {
   console.log(`Compressed motion clips: ${fixtures.length} -> ${outputRoot}`);
 }
 
-main();
+module.exports = { parseArgs, resolvePathArgument };
+
+if (require.main === module) main();

@@ -15,7 +15,6 @@ type ReferenceTarget = {
   commit: string;
   referenceRoot: string;
   includedFiles: LockedFile[];
-  excludedPaths: string[];
 };
 
 type ReferenceLock = {
@@ -38,7 +37,7 @@ describe('reference source lock', () => {
       expect(target.commit, targetId).toMatch(/^[0-9a-f]{40}$/);
       expect(target.referenceRoot, targetId).toMatch(/^\.reference\//);
       expect(target.includedFiles.length, targetId).toBeGreaterThan(0);
-      expect(target.excludedPaths.length, targetId).toBeGreaterThan(0);
+      expect(target, targetId).not.toHaveProperty('excludedPaths');
     }
   });
 
@@ -93,6 +92,6 @@ describe('reference source lock', () => {
 
     expect(lock.targets['anime4k-webgpu']).toBeUndefined();
     expect(notices).toContain('Anime4K-WebGPU');
-    expect(notices).toContain('not part of the current `fetch:references` v1 restore set');
+    expect(notices).toMatch(/not a restorable source\s+target in the current reference lock/);
   });
 });

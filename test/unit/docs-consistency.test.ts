@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -121,15 +121,21 @@ describe('documentation consistency', () => {
   });
 
 
-  it('keeps verify docs pointed at the unified reference restore workflow', () => {
+  it('keeps verification documentation minimal and data-free', () => {
     const readme = readProjectFile('scripts/verify/README.md');
-    const baseline = readProjectFile('scripts/verify/BASELINE.md');
+    const reproduction = readProjectFile('scripts/verify/REPRODUCTION.md');
 
-    for (const content of [readme, baseline]) {
-      expect(content).toContain('npm run fetch:references -- --all --check');
-      expect(content).toContain('scripts/reference-source-lock.json');
+    for (const content of [readme, reproduction]) {
+      expect(content).not.toMatch(/test-results[\\/]user-image-evaluation/i);
+      expect(content).not.toContain('formal-evaluation');
+      expect(content).not.toMatch(/\bfinalist\b/i);
+      expect(content).not.toMatch(/[A-Za-z]:[\\/]/);
     }
-    expect(readme).toContain('npm run fetch:references -- --all');
+    expect(readme).toContain('--manifest <external-root>/manifest.json');
+    expect(readme).toContain('--output <external-root>/evaluation');
     expect(readme).toContain('fetch:cunny-reference');
+    expect(reproduction).toContain('scripts/verify/examples/manifest.template.json');
+    expect(reproduction).toContain('scripts/verify/examples/matrix.template.json');
+    expect(existsSync(resolve(process.cwd(), 'scripts/verify/BASELINE.md'))).toBe(false);
   });
 });

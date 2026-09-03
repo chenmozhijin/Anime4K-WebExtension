@@ -17,6 +17,7 @@ interface BenchmarkModule {
   }> }>;
   optimizedFlags: Record<string, boolean>;
   parseArgs(args: string[]): { variants: string[] };
+  sanitizeBenchmarkReport(report: Record<string, unknown>): Record<string, unknown>;
   resolveOptimizationVariant(id: string): {
     id: string;
     correctness: string;
@@ -30,6 +31,7 @@ const {
   optimizedFlags,
   parseArgs,
   resolveOptimizationVariant,
+  sanitizeBenchmarkReport,
 } = require('../../scripts/benchmark-gpu-suite.js') as BenchmarkModule;
 
 function statistics(p50: number) {
@@ -78,6 +80,27 @@ describe('benchmark GPU suite CLI', () => {
   it('rejects unknown variants', () => {
     expect(() => parseArgs(['--variants=unknown'])).toThrow('Unknown GPU benchmark variant');
     expect(() => resolveOptimizationVariant('flag:nope')).toThrow('Unknown optimization flag variant');
+  });
+
+  it('removes local environment and input URL metadata from public reports', () => {
+    const sanitized = sanitizeBenchmarkReport({
+      timestamp: '2026-09-02T00:00:00.000Z',
+      browser: { name: 'Chromium' },
+      adapter: { vendor: 'test' },
+      features: ['timestamp-query'],
+      limits: { maxTextureDimension2D: 8192 },
+      timestampQuery: true,
+      source: { kind: 'video', url: 'http://127.0.0.1:1234/private.mp4' },
+      tiers: [],
+    });
+
+    expect(sanitized).not.toHaveProperty('timestamp');
+    expect(sanitized).not.toHaveProperty('browser');
+    expect(sanitized).not.toHaveProperty('adapter');
+    expect(sanitized).not.toHaveProperty('features');
+    expect(sanitized).not.toHaveProperty('limits');
+    expect(sanitized).not.toHaveProperty('timestampQuery');
+    expect(sanitized.source).toEqual({ kind: 'video' });
   });
 
   it('computes performance and memory acceptance against baseline', () => {

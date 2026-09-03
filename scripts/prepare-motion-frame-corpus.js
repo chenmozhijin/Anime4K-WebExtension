@@ -5,23 +5,29 @@ const { spawnSync } = require('node:child_process');
 const { decodePng } = require('./verify/lib/png');
 
 const repoRoot = path.resolve(__dirname, '..');
-const defaultClipsRoot = path.join(
-  repoRoot,
-  'test-results/user-image-evaluation/formal-evaluation/motion-clips',
-);
+
+function resolvePathArgument(value, name) {
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} requires a path.`);
+  }
+  return path.resolve(value);
+}
 
 function parseArgs(argv) {
   const args = {
-    manifest: path.join(defaultClipsRoot, 'manifest.json'),
-    output: path.join(defaultClipsRoot, 'frame-corpus'),
+    manifest: null,
+    output: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--manifest') args.manifest = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--manifest=')) args.manifest = path.resolve(repoRoot, arg.slice(11));
-    else if (arg === '--output') args.output = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--output=')) args.output = path.resolve(repoRoot, arg.slice(9));
+    if (arg === '--manifest') args.manifest = resolvePathArgument(argv[++index], '--manifest');
+    else if (arg.startsWith('--manifest=')) args.manifest = resolvePathArgument(arg.slice(11), '--manifest');
+    else if (arg === '--output') args.output = resolvePathArgument(argv[++index], '--output');
+    else if (arg.startsWith('--output=')) args.output = resolvePathArgument(arg.slice(9), '--output');
     else throw new Error(`Unknown motion corpus option: ${arg}`);
+  }
+  if (!args.manifest || !args.output) {
+    throw new Error('Both --manifest and --output must be provided.');
   }
   return args;
 }
@@ -91,8 +97,6 @@ function main() {
   }
   const manifest = {
     schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    sourceManifest: path.relative(outputRoot, clipManifestPath).replaceAll('\\', '/'),
     fps: clips.fps,
     framesPerClip: clips.framesPerClip,
     inputs,
@@ -101,4 +105,6 @@ function main() {
   console.log(`Motion frame corpus: ${inputs.length} frames -> ${outputRoot}`);
 }
 
-main();
+module.exports = { parseArgs, resolvePathArgument };
+
+if (require.main === module) main();

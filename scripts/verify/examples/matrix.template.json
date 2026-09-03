@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "runnerVersion": 1,
+  "targetScale": 2,
+  "chains": [
+    {
+      "id": "cunny-4x16-ds",
+      "effects": ["cunny/Upscale/DS/4x16"]
+    }
+  ]
+}

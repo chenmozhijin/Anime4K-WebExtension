@@ -248,7 +248,7 @@ def analyze_clip_chains(
             for name, image in assets.items():
                 asset_path = event_dir / f"{name}.png"
                 write_rgb(asset_path, crop(image, rectangle))
-                paths[name] = str(asset_path)
+                paths[name] = str(asset_path.relative_to(args.report)).replace("\\", "/")
             records_by_chain[chain].append({
                 "eventId": event_id,
                 "frameIndex": index,

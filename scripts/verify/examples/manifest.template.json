@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "inputs": [
+    {
+      "id": "example-input",
+      "path": "REPLACE_WITH_EXTERNAL_INPUT.png",
+      "sourceClass": "example",
+      "crops": []
+    }
+  ]
+}

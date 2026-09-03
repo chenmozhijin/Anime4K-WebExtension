@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 
@@ -5,18 +6,10 @@ import cv2
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "test-results/user-image-evaluation/formal-corpus/formal-corpus-manifest.json"
-NEW_ROOT = ROOT / "test-results/user-image-evaluation/formal-evaluation/quality-single-model-36/outputs"
-BALANCED_ROOT = ROOT / "test-results/user-image-evaluation/formal-evaluation/balanced-formal-36/outputs"
-TIER_ROOT = ROOT / "test-results/user-image-evaluation/formal-evaluation/tier-expansion-10/outputs"
-OUTPUT = ROOT / "test-results/user-image-evaluation/formal-evaluation/quality-single-model-36/difference-index.json"
-
-
 PAIRS = [
     ("cunny-8x32-ds", "cunny-4x16-ds", "CuNNy capacity 8x32 vs 4x16"),
     ("cunny-8x32-ds", "cunny-4x32-ds", "CuNNy capacity 8x32 vs 4x32"),
-    ("current-cnnvl-cunny-8x32-ds", "cunny-8x32-ds", "Restore contribution before 8x32"),
+    ("restore-cnnvl-cunny-8x32-ds", "cunny-8x32-ds", "Restore contribution vs CuNNy 8x32"),
     ("cunny-4x16-soft", "cunny-4x16-ds", "CuNNy 4x16 SOFT vs DS"),
     ("cunny-4x24-soft", "cunny-4x24-ds", "CuNNy 4x24 SOFT vs DS"),
     ("cunny-4x32-soft", "cunny-4x32-ds", "CuNNy 4x32 SOFT vs DS"),
@@ -49,9 +42,25 @@ PAIRS = [
 ]
 
 
-def output_path(source_class: str, input_id: str, chain_id: str) -> Path | None:
-    for root in (NEW_ROOT, BALANCED_ROOT, TIER_ROOT):
-        candidate = root / source_class / input_id / f"{chain_id}.png"
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Compare image outputs across effect variants.")
+    parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument(
+        "--results-root",
+        action="append",
+        required=True,
+        type=Path,
+        help="Directory containing <sourceClass>/<inputId>/<variant>.png; may be repeated.",
+    )
+    parser.add_argument("--output", required=True, type=Path)
+    return parser.parse_args()
+
+
+def output_path(
+    result_roots: list[Path], source_class: str, input_id: str, variant_id: str
+) -> Path | None:
+    for root in result_roots:
+        candidate = root / source_class / input_id / f"{variant_id}.png"
         if candidate.exists():
             return candidate
     return None
@@ -59,7 +68,7 @@ def output_path(source_class: str, input_id: str, chain_id: str) -> Path | None:
 
 def read_rgb(path: Path) -> np.ndarray:
     # This index only locates visually interesting cases. Reduced decode avoids
-    # repeatedly expanding hundreds of 4K PNGs; native files remain untouched.
+    # repeatedly expanding large PNGs; native files remain untouched.
     image = cv2.imread(str(path), cv2.IMREAD_REDUCED_COLOR_4)
     if image is None:
         raise RuntimeError(f"Unable to read {path}")
@@ -90,22 +99,22 @@ def compare(first: np.ndarray, second: np.ndarray) -> dict:
 
 
 def main() -> None:
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    args = parse_args()
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     inputs = [item for item in manifest["inputs"] if item.get("enabled", True)]
     pair_reports = []
     for first_id, second_id, label in PAIRS:
         cases = []
         for item in inputs:
-            first_path = output_path(item["sourceClass"], item["id"], first_id)
-            second_path = output_path(item["sourceClass"], item["id"], second_id)
+            source_class = item.get("sourceClass", "unclassified")
+            first_path = output_path(args.results_root, source_class, item["id"], first_id)
+            second_path = output_path(args.results_root, source_class, item["id"], second_id)
             if first_path is None or second_path is None:
                 continue
             metrics = compare(read_rgb(first_path), read_rgb(second_path))
             cases.append({
                 "inputId": item["id"],
-                "sourceClass": item["sourceClass"],
-                "firstPath": str(first_path.relative_to(ROOT)).replace("\\", "/"),
-                "secondPath": str(second_path.relative_to(ROOT)).replace("\\", "/"),
+                "sourceClass": source_class,
                 **metrics,
             })
         ordered = sorted(cases, key=lambda item: item["mae"], reverse=True)
@@ -120,12 +129,12 @@ def main() -> None:
             "smallestDifferences": list(reversed(ordered[-3:])),
             "cases": ordered,
         })
-    OUTPUT.write_text(json.dumps({
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps({
         "schemaVersion": 1,
-        "generatedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "pairs": pair_reports,
     }, indent=2), encoding="utf-8")
-    print(f"Quality difference index: {OUTPUT}")
+    print(f"Quality difference index: {args.output}")
 
 
 if __name__ == "__main__":

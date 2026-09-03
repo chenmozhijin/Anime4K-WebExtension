@@ -6,12 +6,12 @@ const defaultOutput = path.join(
   repoRoot,
   'test-results',
   'verify',
-  'optimization-release-report.json',
+  'optimization-summary.json',
 );
 
 const reportFiles = Object.freeze({
   rawMath: 'test-results/verify/effects/raw-math-report.json',
-  optimizationAudit: 'test-results/verify/effects/optimization-audit-final-report.json',
+  optimizationAudit: 'test-results/verify/effects/optimization-audit-report.json',
   terminalAudit: 'test-results/verify/effects/summary.json',
   wgsl: 'test-results/verify/wgsl-compilation.json',
   presets: 'test-results/verify/presets/report.json',
@@ -29,16 +29,6 @@ const processingPassTargets = Object.freeze({
   quality: 36,
   ultra: 53,
 });
-
-const releaseMatrixGaps = Object.freeze([
-  'Edge WebGPU correctness and performance',
-  'Firefox WebGPU correctness and performance',
-  'Windows AMD performance and correctness',
-  'Windows Intel performance and correctness',
-  'macOS Apple Silicon performance and correctness',
-  'Linux Chromium and Firefox correctness smoke',
-  'shader-f16 perceptual certification across the full hardware matrix',
-]);
 
 function parseArgs(argv) {
   const args = {
@@ -81,11 +71,6 @@ function loadJson(root, relativePath) {
 
 function reportCheck(input, passed, details = {}) {
   return {
-    file: input.relativePath,
-    generatedAt: input.data?.generatedAt
-      ?? input.data?.timestamp
-      ?? input.data?.finishedAt
-      ?? null,
     passed: Boolean(input.data) && passed,
     missing: input.missing,
     error: input.error ?? null,
@@ -150,10 +135,6 @@ function summarizePerformanceMatrix(input) {
     && measurementPassed;
   return reportCheck(input, passed, {
     measurement,
-    browser: optimizedVariant?.report?.browser ?? null,
-    adapter: optimizedVariant?.report?.adapter ?? null,
-    features: optimizedVariant?.report?.features ?? [],
-    build: optimizedVariant?.report?.build ?? data?.build ?? null,
     measurementPassed,
     tiers,
   });
@@ -274,24 +255,13 @@ function buildOptimizationReport(root = repoRoot) {
   const perceptualShaderF16Default = readPerceptualF16Default(root);
   return {
     schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    root,
     localValidationPassed,
-    // Local PASS covers the reports available on this machine. It must not be
-    // promoted to release certification until every declared hardware gap is closed.
-    releaseCertificationComplete: false,
     runtimePolicy: {
       perceptualShaderF16Default,
       uncertifiedPerceptualShaderF16Disabled: perceptualShaderF16Default === false,
       noResolutionOrEffectDowngrade: true,
     },
     checks,
-    releaseCertification: {
-      status: 'pending-hardware-matrix',
-      locallyObservedBrowser: checks.performanceMatrix.browser,
-      locallyObservedAdapter: checks.performanceMatrix.adapter,
-      gaps: [...releaseMatrixGaps],
-    },
   };
 }
 
@@ -307,9 +277,8 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const report = buildOptimizationReport(args.root);
   writeJsonAtomic(args.output, report);
-  console.log(`Optimization release report: ${args.output}`);
+  console.log(`Optimization validation report: ${args.output}`);
   console.log(`Local validation: ${report.localValidationPassed ? 'PASS' : 'FAIL'}`);
-  console.log(`Release certification: ${report.releaseCertification.status}`);
   if (!report.localValidationPassed) {
     process.exitCode = 1;
   }

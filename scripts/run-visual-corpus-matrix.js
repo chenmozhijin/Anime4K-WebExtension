@@ -8,21 +8,6 @@ const { startStaticServer } = require('./verify/lib/static-server');
 
 const repoRoot = path.resolve(__dirname, '..');
 const browserOutDir = path.join(repoRoot, 'test-results', 'verify', 'browser');
-const defaultManifest = path.join(
-  repoRoot,
-  'test-results',
-  'user-image-evaluation',
-  'formal-corpus',
-  'corpus-manifest.json',
-);
-const defaultMatrix = path.join(repoRoot, 'test', 'verify', 'corpus', 'balanced-matrix.json');
-const defaultOutput = path.join(
-  repoRoot,
-  'test-results',
-  'user-image-evaluation',
-  'formal-evaluation',
-  'balanced',
-);
 
 function positiveInteger(value, name) {
   const parsed = Number.parseInt(value, 10);
@@ -32,11 +17,18 @@ function positiveInteger(value, name) {
   return parsed;
 }
 
+function resolvePathArgument(value, name) {
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} requires a path.`);
+  }
+  return path.resolve(value);
+}
+
 function parseArgs(argv) {
   const args = {
-    manifest: defaultManifest,
-    matrix: defaultMatrix,
-    output: defaultOutput,
+    manifest: null,
+    matrix: null,
+    output: null,
     workers: 2,
     timeoutMs: 20 * 60 * 1000,
     noBuild: false,
@@ -44,20 +36,23 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--no-build') args.noBuild = true;
-    else if (arg === '--manifest') args.manifest = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--manifest=')) args.manifest = path.resolve(repoRoot, arg.slice(11));
-    else if (arg === '--matrix') args.matrix = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--matrix=')) args.matrix = path.resolve(repoRoot, arg.slice(9));
-    else if (arg === '--output') args.output = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--output=')) args.output = path.resolve(repoRoot, arg.slice(9));
+    else if (arg === '--manifest') args.manifest = resolvePathArgument(argv[++index], '--manifest');
+    else if (arg.startsWith('--manifest=')) args.manifest = resolvePathArgument(arg.slice(11), '--manifest');
+    else if (arg === '--matrix') args.matrix = resolvePathArgument(argv[++index], '--matrix');
+    else if (arg.startsWith('--matrix=')) args.matrix = resolvePathArgument(arg.slice(9), '--matrix');
+    else if (arg === '--output') args.output = resolvePathArgument(argv[++index], '--output');
+    else if (arg.startsWith('--output=')) args.output = resolvePathArgument(arg.slice(9), '--output');
     else if (arg === '--workers') args.workers = positiveInteger(argv[++index], '--workers');
     else if (arg.startsWith('--workers=')) args.workers = positiveInteger(arg.slice(10), '--workers');
     else if (arg === '--timeout-ms') args.timeoutMs = positiveInteger(argv[++index], '--timeout-ms');
     else if (arg.startsWith('--timeout-ms=')) args.timeoutMs = positiveInteger(arg.slice(13), '--timeout-ms');
     else throw new Error(`Unknown visual corpus option: ${arg}`);
   }
+  for (const name of ['manifest', 'matrix', 'output']) {
+    if (!args[name]) throw new Error(`--${name} must be provided.`);
+  }
   if (args.workers !== 2) {
-    throw new Error('The formal evaluation protocol requires exactly two WebGPU workers.');
+    throw new Error('The visual evaluation runner requires exactly two WebGPU workers.');
   }
   return args;
 }
@@ -307,7 +302,6 @@ function writeOutputCrops(candidate, outputImage, targetScale) {
 }
 
 async function runCase(page, candidate, matrix, timeoutMs, workerId, attempt) {
-  const startedAt = new Date().toISOString();
   const start = Date.now();
   const inputEncodeStartedAt = Date.now();
   const rgbaBase64 = Buffer.from(
@@ -354,8 +348,6 @@ async function runCase(page, candidate, matrix, timeoutMs, workerId, attempt) {
     caseId: candidate.caseId,
     workerId,
     attempt,
-    startedAt,
-    completedAt: new Date().toISOString(),
     elapsedMs: Date.now() - start,
     timings: {
       nodeInputBase64Ms: inputEncodeMs,
@@ -369,23 +361,18 @@ async function runCase(page, candidate, matrix, timeoutMs, workerId, attempt) {
     },
     input: {
       id: candidate.input.id,
-      sourceClass: candidate.input.sourceClass,
-      path: path.relative(repoRoot, candidate.inputPath).replaceAll('\\', '/'),
       sha256: candidate.inputSha256,
       width: candidate.sourceImage.width,
       height: candidate.sourceImage.height,
     },
     chain: {
       id: candidate.chain.id,
-      label: candidate.chain.label,
       effectIds: candidate.effectIds,
     },
     target: { width: response.width, height: response.height },
     runnerVersion: matrix.runnerVersion,
-    outputPath: path.relative(repoRoot, candidate.outputPath).replaceAll('\\', '/'),
     outputSha256: sha256(outputPng),
     crops: cropRecords,
-    adapterInfo: response.adapterInfo,
     passCount: response.passCount,
     peakTextureBytes: response.peakTextureBytes,
     textureSlotCount: response.textureSlotCount,
@@ -428,7 +415,7 @@ async function main() {
     const cases = materializeCases(initialCases, matrix, resolvedEffects, args.output);
     const pendingCases = cases.filter(candidate => !completedCase(candidate));
     const skipped = cases.length - pendingCases.length;
-    console.log(`visual corpus: ${cases.length} cases, ${skipped} complete, ${pendingCases.length} pending`);
+    console.log(`visual evaluation: ${cases.length} cases, ${skipped} complete, ${pendingCases.length} pending`);
     const assignments = Array.from({ length: args.workers }, () => []);
     pendingCases.forEach((candidate, index) => assignments[index % args.workers].push(candidate));
 
@@ -470,7 +457,6 @@ async function main() {
                 chainId: candidate.chain.id,
                 workerId,
                 attempts: 2,
-                failedAt: new Date().toISOString(),
                 message,
               });
             }
@@ -481,11 +467,8 @@ async function main() {
 
     const summary = {
       schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
       runnerVersion: matrix.runnerVersion,
       workers: args.workers,
-      manifest: path.relative(repoRoot, args.manifest).replaceAll('\\', '/'),
-      matrix: path.relative(repoRoot, args.matrix).replaceAll('\\', '/'),
       totalCases: cases.length,
       skippedCases: skipped,
       attemptedCases: pendingCases.length,
@@ -501,7 +484,19 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+module.exports = {
+  buildCases,
+  materializeCases,
+  parseArgs,
+  positiveInteger,
+  resolveEffectIds,
+  resolveInputPath,
+  resolvePathArgument,
+};
+
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

@@ -30,8 +30,7 @@
         { "path": "glsl/Restore/Anime4K_Clamp_Highlights.glsl", "sha256": "8c5fb67c76bed3021f8a27b050c3b97a6ac1b284f9ce91c04189015c354c0217" },
         { "path": "LICENSE", "sha256": "36191332f59280d16f096e382521661f83bd7b477db76071b0639a3f213b3ade" },
         { "path": "README.md", "sha256": "2c44a6ca7d656c26af1991efc64cfcb7ff4a52ceb2ed0b06ec81b8f0494666d0" }
-      ],
-      "excludedPaths": ["results", "tensorflow", ".git", ".github"]
+      ]
     },
     "artcnn": {
       "component": "ArtCNN",
@@ -49,8 +48,7 @@
         { "path": "GLSL/ArtCNN_C4F32_DN.glsl", "sha256": "9eb5fe4d4448bfeaa3752c733b6a17f815dce612809a55df5ee64aa670871d83" },
         { "path": "LICENSE", "sha256": "c36a312235c1b9fd11773902dfd091f038f7d796f849e344efe233c06d7ae46e" },
         { "path": "README.md", "sha256": "1c36e5a8db587ccc6bb7c39ae7f00f3aedf2c8531861a15324ce6ed1870b23c9" }
-      ],
-      "excludedPaths": ["Images", "Inferencer", "Notebooks", "ONNX", "Scripts", ".git"]
+      ]
     },
     "acnet": {
       "component": "ACNetGLSL",
@@ -95,8 +93,7 @@
         { "path": "glsl/arnet/arnet_f8b8.glsl", "sha256": "5bfdb98817116b17d3e00452939ce23c95ef0efeb4cef4a24aec74e1027d13b1" },
         { "path": "LICENSE", "sha256": "8f61d5dcecee05c4a16e1adde6b8343d9426795331a191b279ed7e0bc73bb864" },
         { "path": "README.md", "sha256": "685e87cf5911e3e7afe955e5c5c6096778275e2192c03b64c0b01425bacfc846" }
-      ],
-      "excludedPaths": [".git"]
+      ]
     },
     "cunny": {
       "component": "CuNNy",
@@ -127,8 +124,7 @@
         { "path": "mpv/soft/CuNNy-veryfast-SOFT.glsl", "sha256": "28fdd24c53980152d29ce477e821a76274d38d70b2c374edd0ec4c40653f53d4" },
         { "path": "LICENSE", "sha256": "7d3a95e5e06978064ed3f8e2b7c8f845e7fd8a405294727cc708f94cb83b8059" },
         { "path": "README.md", "sha256": "a8a4a0be54e1cada2c390908a72a029719afb4a112d5d4cbb208f3546d35730e" }
-      ],
-      "excludedPaths": ["mpv/ds/dp4a", "mpv/soft/dp4a", "magpie", "results/dp4a", "pretrained"]
+      ]
     }
   }
 }

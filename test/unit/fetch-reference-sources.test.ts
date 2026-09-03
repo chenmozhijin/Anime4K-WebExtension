@@ -30,7 +30,6 @@ type FixtureTarget = {
   commit: string;
   referenceRoot: string;
   includedFiles: LockedFile[];
-  excludedPaths: string[];
 };
 
 const hashText = (content: string): string => createHash('sha256').update(content).digest('hex');
@@ -51,7 +50,6 @@ function makeTarget(referenceRoot: string, includedFiles: LockedFile[], archiveU
     commit: '0123456789abcdef0123456789abcdef01234567',
     referenceRoot,
     includedFiles,
-    excludedPaths: ['large'],
   };
 }
 

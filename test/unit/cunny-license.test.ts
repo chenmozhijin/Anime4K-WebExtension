@@ -18,6 +18,8 @@ describe('third-party notice packaging', () => {
     expect(notices).toContain('fetch:cunny-reference');
     expect(notices).toContain('generate:cunny');
     expect(notices).not.toMatch(/SOURCE[_-]OFFER\.md/);
+    expect(notices).not.toMatch(/Local reference path|\.reference[\\/]/i);
+    expect(notices).not.toMatch(/\b[A-Za-z]:[\\/]/);
   });
 
   it('copies mixed-license notices into production bundles', () => {

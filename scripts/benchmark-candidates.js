@@ -4,15 +4,14 @@ const { spawnSync } = require('node:child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 const benchmarkScript = path.join(repoRoot, 'scripts', 'benchmark-gpu-suite.js');
-const defaultOutputRoot = path.join(repoRoot, 'test-results', 'performance', 'final-candidates');
 
-const candidates = Object.freeze([
+const variants = Object.freeze([
   { id: 'cunny-faster-ds', label: 'CuNNy Faster DS', effects: ['cunny/Upscale/DS/Faster'] },
   { id: 'cunny-4x16-ds', label: 'CuNNy 4x16 DS', effects: ['cunny/Upscale/DS/4x16'] },
   { id: 'acnet-f8b8-box-hdn', label: 'ACNet F8B8 Box HDN', effects: ['acnet/Upscale/F8B8_BOX_HDN'] },
   { id: 'acnet-f8b18-box-hdn', label: 'ACNet F8B18 Box HDN', effects: ['acnet/Upscale/F8B18_BOX_HDN'] },
   { id: 'anime4k-c-performance', label: 'Anime4K C / performance', preset: 'C', tier: 'performance' },
-  { id: 'artcnn-c4f16-ds', label: 'ArtCNN C4F16 DS (soft option)', effects: ['artcnn/Upscale/C4F16_DS'] },
+  { id: 'artcnn-c4f16-ds', label: 'ArtCNN C4F16 DS', effects: ['artcnn/Upscale/C4F16_DS'] },
 ]);
 
 const workloads = Object.freeze([
@@ -23,16 +22,24 @@ const workloads = Object.freeze([
 
 const defaultMeasurement = Object.freeze({ warmupFrames: 120, frames: 300, repeats: 3, batchSize: 1 });
 
+function resolvePathArgument(value, name) {
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} requires a path.`);
+  }
+  return path.resolve(value);
+}
+
 function parseArgs(argv) {
-  const args = { outputRoot: defaultOutputRoot, batchSize: defaultMeasurement.batchSize };
+  const args = { outputRoot: null, batchSize: defaultMeasurement.batchSize };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--batch-size') args.batchSize = Number.parseInt(argv[++index], 10);
     else if (arg.startsWith('--batch-size=')) args.batchSize = Number.parseInt(arg.slice(13), 10);
-    else if (arg === '--output-dir') args.outputRoot = path.resolve(repoRoot, argv[++index]);
-    else if (arg.startsWith('--output-dir=')) args.outputRoot = path.resolve(repoRoot, arg.slice(13));
-    else throw new Error(`Unknown final candidate benchmark option: ${arg}`);
+    else if (arg === '--output-dir') args.outputRoot = resolvePathArgument(argv[++index], '--output-dir');
+    else if (arg.startsWith('--output-dir=')) args.outputRoot = resolvePathArgument(arg.slice(13), '--output-dir');
+    else throw new Error(`Unknown candidate benchmark option: ${arg}`);
   }
+  if (!args.outputRoot) throw new Error('--output-dir must be provided.');
   if (!Number.isInteger(args.batchSize) || args.batchSize <= 0) {
     throw new Error('--batch-size must be a positive integer.');
   }
@@ -70,7 +77,7 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function reportMatches(report, workload, candidate, measurement) {
+function reportMatches(report, workload, variant, measurement) {
   const actual = report.measurement;
   return report.input?.width === workload.width
     && report.input?.height === workload.height
@@ -81,25 +88,15 @@ function reportMatches(report, workload, candidate, measurement) {
     && actual?.repeats === measurement.repeats
     && actual?.batchSize === measurement.batchSize
     && report.benchmarkVariant === 'optimized'
-    && report.workload?.id === candidate.id;
+    && report.workload?.id === variant.id;
 }
 
-function queryNvidiaGpu() {
-  const result = spawnSync('nvidia-smi', [
-    '--query-gpu=name,driver_version,memory.total,pci.bus_id',
-    '--format=csv,noheader,nounits',
-  ], { cwd: repoRoot, encoding: 'utf8', windowsHide: true });
-  if (result.status !== 0) return null;
-  const [name, driverVersion, memoryMiB, pciBusId] = result.stdout.trim().split(',').map(value => value.trim());
-  return { name, driverVersion, memoryMiB: Number(memoryMiB), pciBusId };
-}
-
-function summarize(report, candidate, workload) {
+function summarize(report, variant, workload) {
   const tier = report.tiers[0];
   const e2e = tier.aggregate.endToEndMs.statistics;
   const gpu = tier.aggregate.gpuMs?.statistics ?? null;
   return {
-    candidate: { id: candidate.id, label: candidate.label },
+    variant: { id: variant.id, label: variant.label },
     workload,
     passCount: tier.passCount,
     peakTextureBytes: tier.peakTextureBytes,
@@ -125,17 +122,17 @@ function main() {
   buildVerifyBundle();
   const cases = [];
   for (const workload of workloads) {
-    for (const candidate of candidates) {
-      const output = path.join(outputRoot, `${workload.id}__${candidate.id}.json`);
+    for (const variant of variants) {
+      const output = path.join(outputRoot, `${workload.id}__${variant.id}.json`);
       if (fs.existsSync(output)) {
         const existing = readJson(output);
-        if (reportMatches(existing, workload, candidate, measurement)) {
-          console.log(`reuse ${workload.id}/${candidate.id}`);
-          cases.push(summarize(existing, candidate, workload));
+        if (reportMatches(existing, workload, variant, measurement)) {
+          console.log(`reuse ${workload.id}/${variant.id}`);
+          cases.push(summarize(existing, variant, workload));
           continue;
         }
       }
-      const args = [
+      const benchmarkArgs = [
         benchmarkScript,
         '--no-build',
         '--width', String(workload.width),
@@ -147,33 +144,21 @@ function main() {
         '--repeats', String(measurement.repeats),
         '--batch-size', String(measurement.batchSize),
         '--variants', 'optimized',
-        '--workload-id', candidate.id,
+        '--workload-id', variant.id,
         '--output', output,
       ];
-      if (candidate.effects) args.push('--effects', candidate.effects.join(','));
-      else args.push('--preset', candidate.preset, '--tiers', candidate.tier);
-      runNode(args, `benchmark ${workload.id}/${candidate.id}`);
-      const report = readJson(output);
-      cases.push(summarize(report, candidate, workload));
-      writeJsonAtomic(path.join(outputRoot, 'summary.json'), {
-        schemaVersion: 1,
-        status: 'running',
-        updatedAt: new Date().toISOString(),
-        measurement,
-        gpu: queryNvidiaGpu(),
-        cases,
-      });
+      if (variant.effects) benchmarkArgs.push('--effects', variant.effects.join(','));
+      else benchmarkArgs.push('--preset', variant.preset, '--tiers', variant.tier);
+      runNode(benchmarkArgs, `benchmark ${workload.id}/${variant.id}`);
+      cases.push(summarize(readJson(output), variant, workload));
     }
   }
   writeJsonAtomic(path.join(outputRoot, 'summary.json'), {
     schemaVersion: 1,
-    status: 'complete',
-    updatedAt: new Date().toISOString(),
     measurement,
-    gpu: queryNvidiaGpu(),
     cases,
   });
-  console.log(`Final candidate benchmark summary: ${path.join(outputRoot, 'summary.json')}`);
+  console.log(`Candidate benchmark summary: ${path.join(outputRoot, 'summary.json')}`);
 }
 
 if (require.main === module) {
@@ -185,4 +170,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { candidates, workloads, defaultMeasurement, parseArgs, reportMatches, summarize };
+module.exports = { variants, workloads, defaultMeasurement, parseArgs, reportMatches, summarize };
