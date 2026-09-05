@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installChromeMock } from '../support/chrome';
+import { RendererRuntimeError } from '../../src/core/errors';
 import { EnhancerErrorNotifier } from '../../src/core/video-enhancer/error-notifier';
 
 describe('EnhancerErrorNotifier', () => {
@@ -19,6 +20,7 @@ describe('EnhancerErrorNotifier', () => {
     expect(notification?.textContent).toContain('extensionName');
     expect(notification?.textContent).toContain('gpuEffectCompilationValidationFailed');
     expect(notification?.querySelector('details')).not.toBeNull();
+    expect((notification as HTMLElement).style.zIndex).toBe('2147483647');
 
     notification?.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.querySelector('[data-nijilucid-error-notification]')).toBeNull();
@@ -29,10 +31,11 @@ describe('EnhancerErrorNotifier', () => {
   it('opens the options page for cross-origin guidance and clears existing notifications', () => {
     const chromeMock = installChromeMock();
     const notifier = new EnhancerErrorNotifier();
-    const error = new Error('Canvas has been tainted by cross-origin data.');
-    error.name = 'SecurityError';
+    const cause = new Error('Canvas has been tainted by cross-origin data.');
+    cause.name = 'SecurityError';
+    const error = new RendererRuntimeError('Frame processing failed: ' + cause.message, { cause });
 
-    notifier.present(error, 'enhance', {
+    notifier.present(error, 'render', {
       enableCrossOriginFix: false,
     });
 

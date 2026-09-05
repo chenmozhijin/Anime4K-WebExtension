@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildErrorPresentation } from '../../src/core/error-presentation';
+import { RendererRuntimeError } from '../../src/core/errors';
 
 const baseOptions = {
   phase: 'render' as const,
@@ -26,6 +27,17 @@ describe('error presentation', () => {
   it('maps cross-origin taint errors to the compatibility hint', () => {
     const error = new Error('Canvas has been tainted by cross-origin data.');
     error.name = 'SecurityError';
+
+    const presentation = buildErrorPresentation(error, baseOptions);
+
+    expect(presentation.summary).toContain('cross-origin');
+    expect(presentation.showOptionsLink).toBe(true);
+  });
+
+  it('maps wrapped cross-origin taint errors to the compatibility hint', () => {
+    const cause = new Error('Canvas has been tainted by cross-origin data.');
+    cause.name = 'SecurityError';
+    const error = new RendererRuntimeError('Frame processing failed: ' + cause.message, { cause });
 
     const presentation = buildErrorPresentation(error, baseOptions);
 

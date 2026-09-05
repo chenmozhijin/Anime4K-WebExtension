@@ -88,6 +88,44 @@ describe('cross-origin recovery', () => {
     expect(video.onerror).toBe(originalOnError);
   });
 
+  it('ignores the expected emptied event raised by its forced reload', async () => {
+    const video = document.createElement('video');
+    const play = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperties(video, {
+      currentTime: {
+        configurable: true,
+        writable: true,
+        value: 42,
+      },
+      paused: {
+        configurable: true,
+        writable: true,
+        value: false,
+      },
+      play: {
+        configurable: true,
+        value: play,
+      },
+      load: {
+        configurable: true,
+        value: vi.fn(),
+      },
+    });
+    video.src = 'https://cdn.example.com/video.mp4';
+
+    const recoveryPromise = attemptCrossOriginRecovery(video, {
+      isDestroyed: () => false,
+    });
+
+    video.dispatchEvent(new Event('emptied'));
+    setReadyState(video, video.HAVE_FUTURE_DATA);
+    video.dispatchEvent(new Event('canplay'));
+
+    await expect(recoveryPromise).resolves.toEqual({ status: 'recovered' });
+    expect(video.currentTime).toBe(42);
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
   it('reloads using currentSrc when the video element src is empty', async () => {
     const video = document.createElement('video');
     const load = vi.fn();

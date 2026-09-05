@@ -45,32 +45,42 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function collectErrorMessages(error: unknown, maxDepth = 4): string[] {
-  const messages: string[] = [];
+function collectErrorChain(error: unknown, maxDepth = 4): unknown[] {
+  const chain: unknown[] = [];
+  const seen = new Set<unknown>();
   let current: unknown = error;
   let depth = 0;
 
-  while (current && depth < maxDepth) {
+  while (current && depth < maxDepth && !seen.has(current)) {
+    chain.push(current);
+    seen.add(current);
+
+    if (typeof current !== 'object' || !('cause' in current)) {
+      break;
+    }
+
+    current = (current as { cause?: unknown }).cause;
+    depth += 1;
+  }
+
+  return chain;
+}
+
+function collectErrorMessages(error: unknown, maxDepth = 4): string[] {
+  const messages: string[] = [];
+  for (const current of collectErrorChain(error, maxDepth)) {
     const message = getErrorMessage(current).trim();
     if (message && !messages.includes(message)) {
       messages.push(message);
     }
-
-    if (!(current instanceof Error) || !('cause' in current)) {
-      break;
-    }
-
-    current = (current as Error & { cause?: unknown }).cause;
-    depth += 1;
   }
-
   return messages;
 }
 
 function isCrossOriginError(error: unknown): boolean {
-  const name = getErrorName(error);
-  const messages = collectErrorMessages(error).join(' | ').toLowerCase();
-  return name === 'SecurityError' && messages.includes('tainted');
+  const chain = collectErrorChain(error);
+  return chain.some(current => getErrorName(current) === 'SecurityError')
+    && chain.some(current => getErrorMessage(current).toLowerCase().includes('tainted'));
 }
 
 function detectGpuStage(messages: readonly string[]): string | null {

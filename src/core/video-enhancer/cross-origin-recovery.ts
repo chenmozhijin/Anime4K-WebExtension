@@ -70,7 +70,9 @@ export async function attemptCrossOriginRecovery(
     await waitForMediaReady(video, video.HAVE_FUTURE_DATA, {
       signal: options.signal,
       readinessEvents: ['canplay', 'loadeddata'],
-      interruptionEvents: ['error', 'abort', 'emptied'],
+      // Clearing src below intentionally emits `emptied` before the new source
+      // reaches canplay, so it cannot be treated as a reload failure here.
+      interruptionEvents: ['error', 'abort'],
       isReady: () => options.isDestroyed(),
     });
   } catch {

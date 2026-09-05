@@ -1,5 +1,7 @@
 import { buildErrorPresentation, type ErrorPresentationPhase } from '../error-presentation';
 
+const ERROR_NOTIFICATION_Z_INDEX = '2147483647';
+
 export class EnhancerErrorNotifier {
   private static readonly ERROR_NOTIFICATION_ATTR = 'data-nijilucid-error-notification';
   private notification: HTMLElement | null = null;
@@ -68,7 +70,7 @@ export class EnhancerErrorNotifier {
       padding: '15px 20px',
       borderRadius: '8px',
       boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-      zIndex: '10000',
+      zIndex: ERROR_NOTIFICATION_Z_INDEX,
       maxWidth: '380px',
       fontFamily: 'system-ui, sans-serif',
       fontSize: '14px',
