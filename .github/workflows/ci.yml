@@ -39,6 +39,9 @@ jobs:
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
+      - name: Verify dependency signatures
+        run: npm audit signatures
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -122,7 +125,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Download release packages
         uses: actions/download-artifact@v7
@@ -134,7 +137,7 @@ jobs:
         run: unzip -q release-assets/nijilucid.zip -d dist-chrome
 
       - name: Run non-GPU Chromium smoke tests
-        run: npx playwright test --grep '(^|\s)@smoke(\s|$)'
+        run: ./node_modules/.bin/playwright test --grep '(^|\s)@smoke(\s|$)'
 
       - name: Upload Playwright failure artifacts
         if: failure()

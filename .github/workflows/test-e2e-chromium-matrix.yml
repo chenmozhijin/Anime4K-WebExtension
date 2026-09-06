@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Run Chromium site matrix
         run: npm run test:e2e:chromium:matrix
