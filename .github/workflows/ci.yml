@@ -45,6 +45,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Restore verified reference sources
+        run: npm run fetch:references -- --all
+
       - name: Run tests with coverage
         run: npm run test:coverage
 
